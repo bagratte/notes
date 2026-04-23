@@ -16,3 +16,4 @@ frontend/public/djvu.js
 
 # OS
 .DS_Store
+.playwright-mcp/
