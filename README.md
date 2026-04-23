@@ -11,7 +11,7 @@ A handwriting note-taking and document annotation app. Write freehand notes, ann
 - **Side-by-side view** — document on the left, linked note on the right; clicking a region scrolls the note pane to the linked section
 - **Pen settings** — color and width picker per drawing surface
 - **Undo / redo** — per canvas, via toolbar buttons or keyboard shortcuts
-- **Organization** — Notebooks → Folders → Notes / Documents → Sections
+- **Organization** — Notebooks → Notes / Documents → Sections (folders are optional)
 
 ## Tech stack
 
@@ -42,7 +42,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-The SQLite database (`notes.db`) and uploaded files (`uploads/`) are created automatically on first run.
+Copy `.env.example` to `.env` and set `DATABASE_URL` to the SQLite path for your machine (e.g. `sqlite:////home/you/notes/notes.db`). The database and uploaded files (`uploads/`) are created automatically on first run.
 
 ### Frontend
 
@@ -85,7 +85,7 @@ notes/
 
 ### Creating notes
 
-1. Create a notebook in the sidebar, then a folder, then a note.
+1. Create a notebook in the sidebar. Add a note directly inside it, or create a folder first to group notes.
 2. Open the note — add sections with **+ Add section**.
 3. Draw with a stylus or mouse. Use the pen toolbar to change color and width.
 4. Hover a section and press `Ctrl+Z` / `Ctrl+Shift+Z` to undo/redo.

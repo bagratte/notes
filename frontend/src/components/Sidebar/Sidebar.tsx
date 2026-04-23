@@ -50,13 +50,17 @@ export default function Sidebar() {
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
 
   const load = useCallback(async () => {
-    const [nbs, flds, nts, docs] = await Promise.all([
-      nbApi.list(), foldersApi.list(), notesApi.list(), docsApi.list(),
-    ]);
-    setData({ notebooks: nbs, folders: flds, notes: nts, documents: docs });
-    // auto-expand everything on first load
-    setExpandedNotebooks(new Set(nbs.map((n) => n.id)));
-    setExpandedFolders(new Set(flds.map((f) => f.id)));
+    try {
+      const [nbs, flds, nts, docs] = await Promise.all([
+        nbApi.list(), foldersApi.list(), notesApi.list(), docsApi.list(),
+      ]);
+      setData({ notebooks: nbs, folders: flds, notes: nts, documents: docs });
+      // auto-expand everything on first load
+      setExpandedNotebooks(new Set(nbs.map((n) => n.id)));
+      setExpandedFolders(new Set(flds.map((f) => f.id)));
+    } catch (err) {
+      console.error("Failed to load sidebar data:", err);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -82,7 +86,15 @@ export default function Sidebar() {
   const createNote = async (folderId: number) => {
     const name = window.prompt("Note name:", "Untitled Note");
     if (!name?.trim()) return;
-    const note = await notesApi.create(folderId, name.trim());
+    const note = await notesApi.create({ folderId }, name.trim());
+    setData((d) => ({ ...d, notes: [...d.notes, note] }));
+    navigate(`/notes/${note.id}`);
+  };
+
+  const createNoteInNotebook = async (notebookId: number) => {
+    const name = window.prompt("Note name:", "Untitled Note");
+    if (!name?.trim()) return;
+    const note = await notesApi.create({ notebookId }, name.trim());
     setData((d) => ({ ...d, notes: [...d.notes, note] }));
     navigate(`/notes/${note.id}`);
   };
@@ -96,7 +108,23 @@ export default function Sidebar() {
       const file = input.files?.[0];
       if (!file) return;
       const name = window.prompt("Document name:", file.name.replace(/\.[^.]+$/, "")) ?? file.name;
-      const doc = await docsApi.upload(folderId, name.trim(), file);
+      const doc = await docsApi.upload({ folderId }, name.trim(), file);
+      setData((d) => ({ ...d, documents: [...d.documents, doc] }));
+      navigate(`/documents/${doc.id}`);
+    };
+    input.click();
+  };
+
+  const uploadDocumentInNotebook = async (notebookId: number) => {
+    const input = Object.assign(document.createElement("input"), {
+      type: "file",
+      accept: ".pdf,.djvu",
+    });
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const name = window.prompt("Document name:", file.name.replace(/\.[^.]+$/, "")) ?? file.name;
+      const doc = await docsApi.upload({ notebookId }, name.trim(), file);
       setData((d) => ({ ...d, documents: [...d.documents, doc] }));
       navigate(`/documents/${doc.id}`);
     };
@@ -115,11 +143,16 @@ export default function Sidebar() {
   const deleteNotebook = async (nb: Notebook) => {
     if (!window.confirm(`Delete "${nb.name}" and everything inside?`)) return;
     await nbApi.delete(nb.id);
-    setData((d) => ({
-      ...d,
-      notebooks: d.notebooks.filter((n) => n.id !== nb.id),
-      folders: d.folders.filter((f) => f.notebook_id !== nb.id),
-    }));
+    setData((d) => {
+      const deletedFolderIds = new Set(d.folders.filter((f) => f.notebook_id === nb.id).map((f) => f.id));
+      return {
+        ...d,
+        notebooks: d.notebooks.filter((n) => n.id !== nb.id),
+        folders: d.folders.filter((f) => f.notebook_id !== nb.id),
+        notes: d.notes.filter((n) => n.notebook_id !== nb.id && (n.folder_id === null || !deletedFolderIds.has(n.folder_id))),
+        documents: d.documents.filter((doc) => doc.notebook_id !== nb.id && (doc.folder_id === null || !deletedFolderIds.has(doc.folder_id))),
+      };
+    });
   };
 
   const renameFolder = async (folder: Folder) => {
@@ -196,6 +229,8 @@ export default function Sidebar() {
 
         {data.notebooks.map((nb) => {
           const nbFolders = data.folders.filter((f) => f.notebook_id === nb.id);
+          const nbNotes = data.notes.filter((n) => n.notebook_id === nb.id);
+          const nbDocs = data.documents.filter((d) => d.notebook_id === nb.id);
           const isNbOpen = expandedNotebooks.has(nb.id);
 
           return (
@@ -204,81 +239,118 @@ export default function Sidebar() {
                 <ChevronIcon open={isNbOpen} />
                 <span className={css.rowLabel}>{nb.name}</span>
                 <div className={css.rowActions} onClick={stop}>
+                  <button className={css.iconBtn} title="New note" onClick={() => createNoteInNotebook(nb.id)}>✎</button>
+                  <button className={css.iconBtn} title="Upload document" onClick={() => uploadDocumentInNotebook(nb.id)}>↑</button>
                   <button className={css.iconBtn} title="New folder" onClick={() => createFolder(nb.id)}>+</button>
                   <button className={css.iconBtn} title="Rename" onClick={() => renameNotebook(nb)}>✎</button>
                   <button className={css.iconBtn} title="Delete" onClick={() => deleteNotebook(nb)}>✕</button>
                 </div>
               </div>
 
-              {isNbOpen && nbFolders.map((folder) => {
-                const folderNotes = data.notes.filter((n) => n.folder_id === folder.id);
-                const folderDocs = data.documents.filter((d) => d.folder_id === folder.id);
-                const isFolderOpen = expandedFolders.has(folder.id);
-
-                return (
-                  <div key={folder.id}>
-                    <div className={css.folderRow} onClick={() => toggleFolder(folder.id)}>
-                      <ChevronIcon open={isFolderOpen} />
-                      <span className={css.rowLabel}>{folder.name}</span>
-                      <div className={css.rowActions} onClick={stop}>
-                        <button className={css.iconBtn} title="New note" onClick={() => createNote(folder.id)}>✎</button>
-                        <button className={css.iconBtn} title="Upload document" onClick={() => uploadDocument(folder.id)}>↑</button>
-                        <button className={css.iconBtn} title="Rename" onClick={() => renameFolder(folder)}>✎</button>
-                        <button className={css.iconBtn} title="Delete" onClick={() => deleteFolder(folder)}>✕</button>
+              {isNbOpen && (
+                <>
+                  {nbNotes.map((note) => {
+                    const active = location.pathname === `/notes/${note.id}`;
+                    return (
+                      <div
+                        key={note.id}
+                        className={`${css.leafRow}${active ? " " + css.active : ""}`}
+                        style={{ paddingLeft: "calc(var(--indent-nb, 8px) + 16px)" }}
+                        onClick={() => navigate(`/notes/${note.id}`)}
+                      >
+                        <NoteIcon />
+                        <span className={css.rowLabel}>{note.name}</span>
+                        <div className={css.rowActions} onClick={stop}>
+                          <button className={css.iconBtn} title="Rename" onClick={() => renameNote(note)}>✎</button>
+                          <button className={css.iconBtn} title="Delete" onClick={() => deleteNote(note)}>✕</button>
+                        </div>
                       </div>
-                    </div>
+                    );
+                  })}
+                  {nbDocs.map((doc) => {
+                    const active = location.pathname === `/documents/${doc.id}`;
+                    return (
+                      <div
+                        key={doc.id}
+                        className={`${css.leafRow}${active ? " " + css.active : ""}`}
+                        style={{ paddingLeft: "calc(var(--indent-nb, 8px) + 16px)" }}
+                        onClick={() => navigate(`/documents/${doc.id}`)}
+                      >
+                        <DocIcon />
+                        <span className={css.rowLabel}>{doc.name}</span>
+                        <div className={css.rowActions} onClick={stop}>
+                          <button className={css.iconBtn} title="Rename" onClick={() => renameDocument(doc)}>✎</button>
+                          <button className={css.iconBtn} title="Delete" onClick={() => deleteDocument(doc)}>✕</button>
+                        </div>
+                      </div>
+                    );
+                  })}
 
-                    {isFolderOpen && (
-                      <>
-                        {folderNotes.map((note) => {
-                          const active = location.pathname === `/notes/${note.id}`;
-                          return (
-                            <div
-                              key={note.id}
-                              className={`${css.leafRow}${active ? " " + css.active : ""}`}
-                              onClick={() => navigate(`/notes/${note.id}`)}
-                            >
-                              <NoteIcon />
-                              <span className={css.rowLabel}>{note.name}</span>
-                              <div className={css.rowActions} onClick={stop}>
-                                <button className={css.iconBtn} title="Rename" onClick={() => renameNote(note)}>✎</button>
-                                <button className={css.iconBtn} title="Delete" onClick={() => deleteNote(note)}>✕</button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {folderDocs.map((doc) => {
-                          const active = location.pathname === `/documents/${doc.id}`;
-                          return (
-                            <div
-                              key={doc.id}
-                              className={`${css.leafRow}${active ? " " + css.active : ""}`}
-                              onClick={() => navigate(`/documents/${doc.id}`)}
-                            >
-                              <DocIcon />
-                              <span className={css.rowLabel}>{doc.name}</span>
-                              <div className={css.rowActions} onClick={stop}>
-                                <button className={css.iconBtn} title="Rename" onClick={() => renameDocument(doc)}>✎</button>
-                                <button className={css.iconBtn} title="Delete" onClick={() => deleteDocument(doc)}>✕</button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {folderNotes.length === 0 && folderDocs.length === 0 && (
-                          <div style={{ padding: "4px 8px 4px 34px", fontSize: 12, color: "#bbb" }}>
-                            Empty folder
+                  {nbFolders.map((folder) => {
+                    const folderNotes = data.notes.filter((n) => n.folder_id === folder.id);
+                    const folderDocs = data.documents.filter((d) => d.folder_id === folder.id);
+                    const isFolderOpen = expandedFolders.has(folder.id);
+
+                    return (
+                      <div key={folder.id}>
+                        <div className={css.folderRow} onClick={() => toggleFolder(folder.id)}>
+                          <ChevronIcon open={isFolderOpen} />
+                          <span className={css.rowLabel}>{folder.name}</span>
+                          <div className={css.rowActions} onClick={stop}>
+                            <button className={css.iconBtn} title="New note" onClick={() => createNote(folder.id)}>✎</button>
+                            <button className={css.iconBtn} title="Upload document" onClick={() => uploadDocument(folder.id)}>↑</button>
+                            <button className={css.iconBtn} title="Rename" onClick={() => renameFolder(folder)}>✎</button>
+                            <button className={css.iconBtn} title="Delete" onClick={() => deleteFolder(folder)}>✕</button>
                           </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })}
+                        </div>
 
-              {isNbOpen && nbFolders.length === 0 && (
-                <div style={{ padding: "4px 8px 4px 24px", fontSize: 12, color: "#bbb" }}>
-                  No folders
-                </div>
+                        {isFolderOpen && (
+                          <>
+                            {folderNotes.map((note) => {
+                              const active = location.pathname === `/notes/${note.id}`;
+                              return (
+                                <div
+                                  key={note.id}
+                                  className={`${css.leafRow}${active ? " " + css.active : ""}`}
+                                  onClick={() => navigate(`/notes/${note.id}`)}
+                                >
+                                  <NoteIcon />
+                                  <span className={css.rowLabel}>{note.name}</span>
+                                  <div className={css.rowActions} onClick={stop}>
+                                    <button className={css.iconBtn} title="Rename" onClick={() => renameNote(note)}>✎</button>
+                                    <button className={css.iconBtn} title="Delete" onClick={() => deleteNote(note)}>✕</button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {folderDocs.map((doc) => {
+                              const active = location.pathname === `/documents/${doc.id}`;
+                              return (
+                                <div
+                                  key={doc.id}
+                                  className={`${css.leafRow}${active ? " " + css.active : ""}`}
+                                  onClick={() => navigate(`/documents/${doc.id}`)}
+                                >
+                                  <DocIcon />
+                                  <span className={css.rowLabel}>{doc.name}</span>
+                                  <div className={css.rowActions} onClick={stop}>
+                                    <button className={css.iconBtn} title="Rename" onClick={() => renameDocument(doc)}>✎</button>
+                                    <button className={css.iconBtn} title="Delete" onClick={() => deleteDocument(doc)}>✕</button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {folderNotes.length === 0 && folderDocs.length === 0 && (
+                              <div style={{ padding: "4px 8px 4px 34px", fontSize: 12, color: "#bbb" }}>
+                                Empty folder
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
               )}
             </div>
           );

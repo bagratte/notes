@@ -14,3 +14,5 @@ class Notebook(Base):
     )
 
     folders: Mapped[list["Folder"]] = relationship(back_populates="notebook", cascade="all, delete-orphan")
+    notes: Mapped[list["Note"]] = relationship(back_populates="notebook", cascade="all, delete-orphan")
+    documents: Mapped[list["Document"]] = relationship(back_populates="notebook", cascade="all, delete-orphan")

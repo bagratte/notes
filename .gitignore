@@ -5,6 +5,7 @@ backend/app/**/__pycache__/
 backend/**/*.pyc
 notes.db
 backend/uploads/
+backend/.env
 
 # Node
 frontend/node_modules/

@@ -25,12 +25,17 @@ export const folders = {
 
 // Documents
 export const documents = {
-  list: (folderId?: number) =>
-    api.get<Document[]>(`/documents/${folderId !== undefined ? `?folder_id=${folderId}` : ""}`),
+  list: (params: { folderId?: number; notebookId?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (params.folderId !== undefined) q.set("folder_id", String(params.folderId));
+    if (params.notebookId !== undefined) q.set("notebook_id", String(params.notebookId));
+    return api.get<Document[]>(`/documents/${q.toString() ? "?" + q : ""}`);
+  },
   get: (id: number) => api.get<Document>(`/documents/${id}`),
-  upload: (folderId: number, name: string, file: File) => {
+  upload: (parent: { folderId: number } | { notebookId: number }, name: string, file: File) => {
     const form = new FormData();
-    form.append("folder_id", String(folderId));
+    if ("folderId" in parent) form.append("folder_id", String(parent.folderId));
+    else form.append("notebook_id", String(parent.notebookId));
     form.append("name", name);
     form.append("file", file);
     return api.postForm<Document>("/documents/", form);
@@ -42,11 +47,19 @@ export const documents = {
 
 // Notes
 export const notes = {
-  list: (folderId?: number) =>
-    api.get<Note[]>(`/notes/${folderId !== undefined ? `?folder_id=${folderId}` : ""}`),
+  list: (params: { folderId?: number; notebookId?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (params.folderId !== undefined) q.set("folder_id", String(params.folderId));
+    if (params.notebookId !== undefined) q.set("notebook_id", String(params.notebookId));
+    return api.get<Note[]>(`/notes/${q.toString() ? "?" + q : ""}`);
+  },
   get: (id: number) => api.get<Note>(`/notes/${id}`),
-  create: (folderId: number, name: string) =>
-    api.post<Note>("/notes/", { folder_id: folderId, name }),
+  create: (parent: { folderId: number } | { notebookId: number }, name: string) => {
+    const body = "folderId" in parent
+      ? { folder_id: parent.folderId, name }
+      : { notebook_id: parent.notebookId, name };
+    return api.post<Note>("/notes/", body);
+  },
   update: (id: number, name: string) => api.patch<Note>(`/notes/${id}`, { name }),
   delete: (id: number) => api.delete(`/notes/${id}`),
 };

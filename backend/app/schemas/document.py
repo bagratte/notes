@@ -1,11 +1,6 @@
 from datetime import datetime
+from typing import Optional
 from pydantic import BaseModel
-
-
-class DocumentCreate(BaseModel):
-    folder_id: int
-    name: str
-    type: str
 
 
 class DocumentUpdate(BaseModel):
@@ -14,7 +9,8 @@ class DocumentUpdate(BaseModel):
 
 class DocumentOut(BaseModel):
     id: int
-    folder_id: int
+    folder_id: Optional[int]
+    notebook_id: Optional[int]
     name: str
     file_path: str
     type: str
