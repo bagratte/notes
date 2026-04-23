@@ -62,8 +62,8 @@ export default function DrawingCanvas({
       const svg = svgRef.current!;
       const rect = svg.getBoundingClientRect();
       const vb = svg.viewBox.baseVal;
-      const scaleX = vb.width > 0 ? vb.width / rect.width : 1;
-      const scaleY = vb.height > 0 ? vb.height / rect.height : 1;
+      const scaleX = vb && vb.width > 0 ? vb.width / rect.width : 1;
+      const scaleY = vb && vb.height > 0 ? vb.height / rect.height : 1;
       return [
         (e.clientX - rect.left) * scaleX,
         (e.clientY - rect.top) * scaleY,
