@@ -10,7 +10,6 @@ class DocumentUpdate(BaseModel):
 class DocumentOut(BaseModel):
     id: int
     folder_id: Optional[int]
-    notebook_id: Optional[int]
     name: str
     file_path: str
     type: str

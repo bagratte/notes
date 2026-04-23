@@ -13,26 +13,20 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 
 @router.get("/", response_model=list[DocumentOut])
-def list_documents(folder_id: int | None = None, notebook_id: int | None = None, db: Session = Depends(get_db)):
+def list_documents(folder_id: int | None = None, db: Session = Depends(get_db)):
     q = db.query(Document)
     if folder_id is not None:
         q = q.filter(Document.folder_id == folder_id)
-    if notebook_id is not None:
-        q = q.filter(Document.notebook_id == notebook_id)
     return q.all()
 
 
 @router.post("/", response_model=DocumentOut, status_code=201)
 def upload_document(
     folder_id: int | None = Form(None),
-    notebook_id: int | None = Form(None),
     name: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    if (folder_id is None) == (notebook_id is None):
-        raise HTTPException(400, "Exactly one of folder_id or notebook_id must be provided")
-
     ext = os.path.splitext(file.filename or "")[-1].lower().lstrip(".")
     if ext not in ("pdf", "djvu"):
         raise HTTPException(400, "Only PDF and DjVu files are supported")
@@ -42,7 +36,7 @@ def upload_document(
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    doc = Document(folder_id=folder_id, notebook_id=notebook_id, name=name, file_path=dest, type=ext)
+    doc = Document(folder_id=folder_id, name=name, file_path=dest, type=ext)
     db.add(doc)
     db.commit()
     db.refresh(doc)

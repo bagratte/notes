@@ -1,9 +1,10 @@
 from datetime import datetime
+from typing import Optional
 from pydantic import BaseModel
 
 
 class FolderCreate(BaseModel):
-    notebook_id: int
+    parent_folder_id: Optional[int] = None
     name: str
 
 
@@ -13,7 +14,7 @@ class FolderUpdate(BaseModel):
 
 class FolderOut(BaseModel):
     id: int
-    notebook_id: int
+    parent_folder_id: Optional[int]
     name: str
     created_at: datetime
 

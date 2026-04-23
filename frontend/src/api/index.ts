@@ -1,41 +1,30 @@
 import { api } from "./client";
 import type {
-  Notebook, Folder, Document, Note, Section, Region, Stroke,
+  Folder, Document, Note, Section, Region, Stroke,
 } from "@/types";
-
-// Notebooks
-export const notebooks = {
-  list: () => api.get<Notebook[]>("/notebooks/"),
-  get: (id: number) => api.get<Notebook>(`/notebooks/${id}`),
-  create: (name: string) => api.post<Notebook>("/notebooks/", { name }),
-  update: (id: number, name: string) => api.patch<Notebook>(`/notebooks/${id}`, { name }),
-  delete: (id: number) => api.delete(`/notebooks/${id}`),
-};
 
 // Folders
 export const folders = {
-  list: (notebookId?: number) =>
-    api.get<Folder[]>(`/folders/${notebookId !== undefined ? `?notebook_id=${notebookId}` : ""}`),
+  list: (parentFolderId?: number) =>
+    api.get<Folder[]>(`/folders/${parentFolderId !== undefined ? `?parent_folder_id=${parentFolderId}` : ""}`),
   get: (id: number) => api.get<Folder>(`/folders/${id}`),
-  create: (notebookId: number, name: string) =>
-    api.post<Folder>("/folders/", { notebook_id: notebookId, name }),
+  create: (name: string, parentFolderId?: number) =>
+    api.post<Folder>("/folders/", { parent_folder_id: parentFolderId ?? null, name }),
   update: (id: number, name: string) => api.patch<Folder>(`/folders/${id}`, { name }),
   delete: (id: number) => api.delete(`/folders/${id}`),
 };
 
 // Documents
 export const documents = {
-  list: (params: { folderId?: number; notebookId?: number } = {}) => {
+  list: (params: { folderId?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.folderId !== undefined) q.set("folder_id", String(params.folderId));
-    if (params.notebookId !== undefined) q.set("notebook_id", String(params.notebookId));
     return api.get<Document[]>(`/documents/${q.toString() ? "?" + q : ""}`);
   },
   get: (id: number) => api.get<Document>(`/documents/${id}`),
-  upload: (parent: { folderId: number } | { notebookId: number }, name: string, file: File) => {
+  upload: (name: string, file: File, folderId?: number) => {
     const form = new FormData();
-    if ("folderId" in parent) form.append("folder_id", String(parent.folderId));
-    else form.append("notebook_id", String(parent.notebookId));
+    if (folderId !== undefined) form.append("folder_id", String(folderId));
     form.append("name", name);
     form.append("file", file);
     return api.postForm<Document>("/documents/", form);
@@ -47,19 +36,14 @@ export const documents = {
 
 // Notes
 export const notes = {
-  list: (params: { folderId?: number; notebookId?: number } = {}) => {
+  list: (params: { folderId?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.folderId !== undefined) q.set("folder_id", String(params.folderId));
-    if (params.notebookId !== undefined) q.set("notebook_id", String(params.notebookId));
     return api.get<Note[]>(`/notes/${q.toString() ? "?" + q : ""}`);
   },
   get: (id: number) => api.get<Note>(`/notes/${id}`),
-  create: (parent: { folderId: number } | { notebookId: number }, name: string) => {
-    const body = "folderId" in parent
-      ? { folder_id: parent.folderId, name }
-      : { notebook_id: parent.notebookId, name };
-    return api.post<Note>("/notes/", body);
-  },
+  create: (name: string, folderId?: number) =>
+    api.post<Note>("/notes/", { folder_id: folderId ?? null, name }),
   update: (id: number, name: string) => api.patch<Note>(`/notes/${id}`, { name }),
   delete: (id: number) => api.delete(`/notes/${id}`),
 };

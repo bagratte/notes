@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
-from app.routers import notebooks, folders, documents, notes, sections, regions, strokes
+from app.routers import folders, documents, notes, sections, regions, strokes
 
 Base.metadata.create_all(bind=engine)
 
@@ -15,7 +15,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(notebooks.router)
 app.include_router(folders.router)
 app.include_router(documents.router)
 app.include_router(notes.router)

@@ -40,15 +40,17 @@ The frontend proxies `/api` → `http://localhost:8000` (Vite config). There is 
 ### Data model
 
 ```
-Notebook → Folder → (Note | Document)   # folder path
-Notebook → (Note | Document)            # folderless path (folder_id null, notebook_id set)
+Folder → Folder (nested, parent_folder_id self-FK, nullable = root)
+Folder → (Note | Document)
+Note (folder_id null = root level)
+Document (folder_id null = root level)
 Note → Section
 Section ← Stroke  (section_id set,   document_id null)
 Document ← Stroke (document_id set,  section_id null, page_number set)
 Region: (document_id, page_number, x, y, width, height) → section_id
 ```
 
-Each `Note` and `Document` has exactly one of `folder_id` or `notebook_id` set — never both, never neither.
+Folders are arbitrarily nested. Top-level folders have `parent_folder_id = NULL`. Notes and Documents have an optional `folder_id` — `NULL` means root level (no folder). There are no Notebooks.
 
 `Stroke.points` is stored as JSON (`[[x, y, pressure], ...]`) in natural page coordinates (scale 1.0).
 
@@ -72,7 +74,7 @@ The strokes router has two delete endpoints that are easy to confuse:
 | DELETE | `/strokes/{id}` | per-stroke delete |
 | DELETE | `/strokes/` | bulk delete by section or page |
 | GET/POST | `/regions/` | filter by `document_id`, `page_number`, `section_id` |
-| POST | `/documents/` | multipart: (`folder_id` XOR `notebook_id`) + `name` + `file` |
+| POST | `/documents/` | multipart: optional `folder_id` + `name` + `file` |
 | GET | `/documents/{id}/file` | serves the raw file from disk |
 
 ## Frontend summary

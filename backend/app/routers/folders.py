@@ -8,16 +8,16 @@ router = APIRouter(prefix="/folders", tags=["folders"])
 
 
 @router.get("/", response_model=list[FolderOut])
-def list_folders(notebook_id: int | None = None, db: Session = Depends(get_db)):
+def list_folders(parent_folder_id: int | None = None, db: Session = Depends(get_db)):
     q = db.query(Folder)
-    if notebook_id is not None:
-        q = q.filter(Folder.notebook_id == notebook_id)
+    if parent_folder_id is not None:
+        q = q.filter(Folder.parent_folder_id == parent_folder_id)
     return q.all()
 
 
 @router.post("/", response_model=FolderOut, status_code=201)
 def create_folder(data: FolderCreate, db: Session = Depends(get_db)):
-    folder = Folder(notebook_id=data.notebook_id, name=data.name)
+    folder = Folder(parent_folder_id=data.parent_folder_id, name=data.name)
     db.add(folder)
     db.commit()
     db.refresh(folder)

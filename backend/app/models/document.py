@@ -10,7 +10,6 @@ class Document(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     folder_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("folders.id"), nullable=True)
-    notebook_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("notebooks.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(255))
     file_path: Mapped[str] = mapped_column(String(1024))
     type: Mapped[str] = mapped_column(String(10))  # pdf | djvu
@@ -19,6 +18,5 @@ class Document(Base):
     )
 
     folder: Mapped[Optional["Folder"]] = relationship(back_populates="documents")
-    notebook: Mapped[Optional["Notebook"]] = relationship(back_populates="documents")
     regions: Mapped[list["Region"]] = relationship(back_populates="document", cascade="all, delete-orphan")
     strokes: Mapped[list["Stroke"]] = relationship(back_populates="document", cascade="all, delete-orphan")

@@ -8,18 +8,16 @@ router = APIRouter(prefix="/notes", tags=["notes"])
 
 
 @router.get("/", response_model=list[NoteOut])
-def list_notes(folder_id: int | None = None, notebook_id: int | None = None, db: Session = Depends(get_db)):
+def list_notes(folder_id: int | None = None, db: Session = Depends(get_db)):
     q = db.query(Note)
     if folder_id is not None:
         q = q.filter(Note.folder_id == folder_id)
-    if notebook_id is not None:
-        q = q.filter(Note.notebook_id == notebook_id)
     return q.all()
 
 
 @router.post("/", response_model=NoteOut, status_code=201)
 def create_note(data: NoteCreate, db: Session = Depends(get_db)):
-    note = Note(folder_id=data.folder_id, notebook_id=data.notebook_id, name=data.name)
+    note = Note(folder_id=data.folder_id, name=data.name)
     db.add(note)
     db.commit()
     db.refresh(note)

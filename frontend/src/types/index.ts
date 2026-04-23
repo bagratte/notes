@@ -1,12 +1,6 @@
-export interface Notebook {
-  id: number;
-  name: string;
-  created_at: string;
-}
-
 export interface Folder {
   id: number;
-  notebook_id: number;
+  parent_folder_id: number | null;
   name: string;
   created_at: string;
 }
@@ -14,7 +8,6 @@ export interface Folder {
 export interface Document {
   id: number;
   folder_id: number | null;
-  notebook_id: number | null;
   name: string;
   file_path: string;
   type: "pdf" | "djvu";
@@ -24,7 +17,6 @@ export interface Document {
 export interface Note {
   id: number;
   folder_id: number | null;
-  notebook_id: number | null;
   name: string;
   created_at: string;
 }

@@ -10,12 +10,10 @@ class Note(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     folder_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("folders.id"), nullable=True)
-    notebook_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("notebooks.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
 
     folder: Mapped[Optional["Folder"]] = relationship(back_populates="notes")
-    notebook: Mapped[Optional["Notebook"]] = relationship(back_populates="notes")
     sections: Mapped[list["Section"]] = relationship(back_populates="note", cascade="all, delete-orphan", order_by="Section.order")
