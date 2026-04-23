@@ -61,6 +61,7 @@ export default function DocumentViewer({ url, documentId, activeSectionId, onReg
   // ── load PDF ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    let destroyed = false;
     setLoading(true);
     setError(null);
     setPageNum(1);
@@ -70,17 +71,20 @@ export default function DocumentViewer({ url, documentId, activeSectionId, onReg
     const task = pdfjsLib.getDocument(url);
     task.promise
       .then((doc) => {
+        if (destroyed) { doc.destroy(); return; }
         pdfDocRef.current = doc;
         setNumPages(doc.numPages);
         setLoading(false);
       })
       .catch((err: unknown) => {
+        if (destroyed) return;
         if (err instanceof Error && err.name === "AbortException") return;
         setError(String(err));
         setLoading(false);
       });
 
     return () => {
+      destroyed = true;
       task.destroy();
       pdfDocRef.current?.destroy();
       pdfDocRef.current = null;
