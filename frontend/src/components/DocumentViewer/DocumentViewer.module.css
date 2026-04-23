@@ -1,0 +1,145 @@
+.viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f8f6f2;
+  border-bottom: 1px solid #e0ddd8;
+  flex-shrink: 0;
+}
+
+.toolbarGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbarSep {
+  width: 1px;
+  height: 18px;
+  background: #dedad3;
+  margin: 0 4px;
+}
+
+.navBtn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #dedad3;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  padding: 0;
+}
+.navBtn:hover:not(:disabled) { background: #ede9e3; border-color: #ccc; }
+.navBtn:disabled { opacity: 0.35; cursor: default; }
+
+.pageInfo {
+  font-size: 13px;
+  color: #666;
+  min-width: 64px;
+  text-align: center;
+}
+
+.zoomBtn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #dedad3;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  padding: 0;
+  font-weight: 600;
+}
+.zoomBtn:hover { background: #ede9e3; border-color: #ccc; }
+
+.zoomLevel {
+  font-size: 12px;
+  color: #666;
+  min-width: 40px;
+  text-align: center;
+}
+
+.fitBtn {
+  padding: 0 8px;
+  height: 28px;
+  border: 1px solid #dedad3;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #666;
+}
+.fitBtn:hover { background: #ede9e3; }
+.fitBtn.active { background: #3a3a3a; color: #fff; border-color: #3a3a3a; }
+
+.annotateBtn {
+  padding: 0 10px;
+  height: 28px;
+  border: 1px solid #dedad3;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.annotateBtn:hover { background: #ede9e3; }
+.annotateBtn.active { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+
+.annotateHint {
+  font-size: 11px;
+  color: #4a6cf7;
+  padding: 0 8px;
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pageWrap {
+  position: relative;
+  display: inline-block;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  background: #fff;
+}
+
+.canvas {
+  display: block;
+}
+
+.state {
+  padding: 32px;
+  color: #aaa;
+  font-size: 14px;
+}

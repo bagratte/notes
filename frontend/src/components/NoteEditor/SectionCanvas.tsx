@@ -1,0 +1,149 @@
+import { useState, useEffect, useCallback } from "react";
+import { DrawingCanvas } from "@/components/Canvas";
+import type { StrokeData } from "@/components/Canvas";
+import { strokes as strokesApi } from "@/api";
+import type { Stroke } from "@/types";
+import type { PenSettings } from "@/components/PenToolbar";
+
+interface Props {
+  sectionId: number;
+  pen: PenSettings;
+  active?: boolean;
+  onDelete: () => void;
+}
+
+function toDisplay(s: Stroke): StrokeData {
+  return { points: s.points, color: s.color, width: s.width };
+}
+
+export default function SectionCanvas({
+  sectionId,
+  pen,
+  active = false,
+  onDelete,
+}: Props) {
+  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [_redoStack, setRedoStack] = useState<Stroke[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    strokesApi.listForSection(sectionId).then((data) => {
+      setStrokes(data);
+      setLoading(false);
+    });
+  }, [sectionId]);
+
+  // Save stroke and get back the id so undo can delete it
+  const handleStrokeComplete = useCallback(
+    async (stroke: StrokeData) => {
+      const saved = await strokesApi.create({
+        section_id: sectionId,
+        document_id: null,
+        page_number: null,
+        points: stroke.points,
+        color: stroke.color,
+        width: stroke.width,
+      });
+      setStrokes((prev) => [...prev, saved]);
+      setRedoStack([]); // new stroke clears redo history
+    },
+    [sectionId]
+  );
+
+  const undo = useCallback(() => {
+    setStrokes((prev) => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      setRedoStack((r) => [...r, last]);
+      strokesApi.delete(last.id);
+      return prev.slice(0, -1);
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setRedoStack((prev) => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      strokesApi
+        .create({
+          section_id: sectionId,
+          document_id: null,
+          page_number: null,
+          points: last.points,
+          color: last.color,
+          width: last.width,
+        })
+        .then((saved) => setStrokes((s) => [...s, saved]));
+      return prev.slice(0, -1);
+    });
+  }, [sectionId]);
+
+  // Keyboard shortcuts when this section is hovered
+  useEffect(() => {
+    if (!hovered) return;
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [hovered, undo, redo]);
+
+  return (
+    <div
+      data-section-id={sectionId}
+      style={{
+        position: "relative",
+        background: "#fff",
+        borderRadius: 4,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+        marginBottom: 2,
+        outline: active ? "2px solid rgba(74, 108, 247, 0.7)" : "2px solid transparent",
+        outlineOffset: -2,
+        transition: "outline-color 0.2s",
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {loading ? (
+        <div style={{ height: 320 }} />
+      ) : (
+        <DrawingCanvas
+          strokes={strokes.map(toDisplay)}
+          onStrokeComplete={handleStrokeComplete}
+          color={pen.color}
+          penWidth={pen.width}
+          height={320}
+        />
+      )}
+      <button
+        onClick={onDelete}
+        title="Delete section"
+        style={{
+          position: "absolute",
+          top: 8,
+          right: 8,
+          width: 24,
+          height: 24,
+          borderRadius: 4,
+          border: "1px solid #ddd",
+          background: "#fff",
+          cursor: "pointer",
+          fontSize: 16,
+          lineHeight: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: hovered ? 1 : 0,
+          transition: "opacity 0.15s",
+          pointerEvents: hovered ? "auto" : "none",
+        }}
+      >
+        ×
+      </button>
+    </div>
+  );
+}

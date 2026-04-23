@@ -1,0 +1,61 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  flex-wrap: wrap;
+}
+
+.sep {
+  width: 1px;
+  height: 18px;
+  background: #dedad3;
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.colorBtn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: transform 0.1s;
+}
+.colorBtn:hover { transform: scale(1.15); }
+.colorBtn.active { border-color: #4a6cf7; box-shadow: 0 0 0 1px #fff inset; }
+
+.widthBtn {
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: 1.5px solid #dedad3;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color 0.1s;
+}
+.widthBtn:hover { border-color: #aaa; }
+.widthBtn.active { border-color: #4a6cf7; background: #f0f2ff; }
+
+.undoBtn {
+  padding: 0 8px;
+  height: 26px;
+  border: 1.5px solid #dedad3;
+  background: #fff;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.undoBtn:hover:not(:disabled) { background: #ede9e3; border-color: #bbb; }
+.undoBtn:disabled { opacity: 0.35; cursor: default; }
