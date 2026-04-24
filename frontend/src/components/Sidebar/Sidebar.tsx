@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import type { CSSProperties } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { folders as foldersApi, notes as notesApi, documents as docsApi } from "@/api";
 import type { Folder, Note, Document } from "@/types";
@@ -75,7 +76,7 @@ interface SidebarData {
   docNotes: Record<number, Note[]>;
 }
 
-export default function Sidebar() {
+export default function Sidebar({ style }: { style?: CSSProperties }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -292,7 +293,7 @@ export default function Sidebar() {
   const isEmpty = rootFolders.length === 0 && rootNotes.length === 0 && rootDocs.length === 0;
 
   return (
-    <nav className={css.sidebar}>
+    <nav className={css.sidebar} style={style}>
       <div className={css.toolbar}>
         <button className={css.toolbarBtn} title="New note" onClick={() => createNote()}>
           <NewNoteIcon />
