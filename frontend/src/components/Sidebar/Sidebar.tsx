@@ -14,6 +14,25 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
+function NewNoteIcon() {
+  return (
+    <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
+      <path d="M4 1h5l3 3v9a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M9 1v3h3" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M7 6v4M5 8h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function NewFolderIcon() {
+  return (
+    <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
+      <path d="M1 5a1 1 0 011-1h4l1.5 2H14a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1V5z" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8 8v3M6.5 9.5h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function NoteIcon() {
   return (
     <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
@@ -197,9 +216,9 @@ export default function Sidebar() {
           <ChevronIcon open={isOpen} />
           <span className={css.rowLabel}>{folder.name}</span>
           <div className={css.rowActions} onClick={stop}>
-            <button className={css.iconBtn} title="New note" onClick={() => createNote(folder.id)}>✎</button>
+            <button className={css.iconBtn} title="New note" onClick={() => createNote(folder.id)}><NewNoteIcon /></button>
             <button className={css.iconBtn} title="Upload document" onClick={() => uploadDocument(folder.id)}>↑</button>
-            <button className={css.iconBtn} title="New subfolder" onClick={() => createFolder(folder.id)}>+</button>
+            <button className={css.iconBtn} title="New subfolder" onClick={() => createFolder(folder.id)}><NewFolderIcon /></button>
             <button className={css.iconBtn} title="Rename" onClick={() => renameFolder(folder)}>✎</button>
             <button className={css.iconBtn} title="Delete" onClick={() => deleteFolder(folder)}>✕</button>
           </div>
@@ -228,9 +247,13 @@ export default function Sidebar() {
 
   return (
     <nav className={css.sidebar}>
-      <div className={css.sidebarHeader}>
-        <span>Notes</span>
-        <button className={css.iconBtn} title="New folder" onClick={() => createFolder()}>+</button>
+      <div className={css.toolbar}>
+        <button className={css.toolbarBtn} title="New note" onClick={() => createNote()}>
+          <NewNoteIcon />
+        </button>
+        <button className={css.toolbarBtn} title="New folder" onClick={() => createFolder()}>
+          <NewFolderIcon />
+        </button>
       </div>
 
       <div className={css.tree}>
@@ -245,9 +268,6 @@ export default function Sidebar() {
         {rootDocs.map((doc) => renderDocument(doc, 8))}
       </div>
 
-      <button className={css.addNotebookBtn} onClick={() => createFolder()}>
-        + New folder
-      </button>
     </nav>
   );
 }
