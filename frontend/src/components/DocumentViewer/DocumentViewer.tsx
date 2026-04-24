@@ -14,6 +14,7 @@ interface Props {
   url: string;
   documentId: number;
   folderId?: number;
+  initialPage?: number;
 }
 
 interface NaturalSize {
@@ -34,7 +35,7 @@ function toStrokeData(s: Stroke): StrokeData {
   return { points: s.points, color: s.color, width: s.width };
 }
 
-export default function DocumentViewer({ url, documentId, folderId }: Props) {
+export default function DocumentViewer({ url, documentId, folderId, initialPage }: Props) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -42,7 +43,7 @@ export default function DocumentViewer({ url, documentId, folderId }: Props) {
   const renderTaskRef = useRef<{ cancel: () => void } | null>(null);
 
   const [numPages, setNumPages] = useState(0);
-  const [pageNum, setPageNum] = useState(1);
+  const [pageNum, setPageNum] = useState(initialPage ?? 1);
   const [fitWidth, setFitWidth] = useState(true);
   const [manualScale, setManualScale] = useState(1.0);
   const [naturalSize, setNaturalSize] = useState<NaturalSize | null>(null);

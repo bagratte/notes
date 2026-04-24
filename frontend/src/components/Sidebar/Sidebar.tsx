@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { CSSProperties } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { folders as foldersApi, notes as notesApi, documents as docsApi } from "@/api";
+import { folders as foldersApi, notes as notesApi, documents as docsApi, strokes as strokesApi } from "@/api";
 import type { Folder, Note, Document } from "@/types";
 import css from "./Sidebar.module.css";
 
@@ -58,6 +58,16 @@ function NoteIcon() {
   );
 }
 
+function AnnotatedPageIcon() {
+  return (
+    <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
+      <path d="M2 2.5A1.5 1.5 0 013.5 1H9l3 3v8.5A1.5 1.5 0 0110.5 14H3.5A1.5 1.5 0 012 12.5V2.5z" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M9 1v3h3" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M5 7l4 4-1.5.5-.5-1.5 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function DocIcon() {
   return (
     <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
@@ -74,13 +84,14 @@ interface SidebarData {
   notes: Note[];
   documents: Document[];
   docNotes: Record<number, Note[]>;
+  docAnnotatedPages: Record<number, number[]>;
 }
 
 export default function Sidebar({ style, className }: { style?: CSSProperties; className?: string }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [data, setData] = useState<SidebarData>({ folders: [], notes: [], documents: [], docNotes: {} });
+  const [data, setData] = useState<SidebarData>({ folders: [], notes: [], documents: [], docNotes: {}, docAnnotatedPages: {} });
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
   const [expandedDocuments, setExpandedDocuments] = useState<Set<number>>(new Set());
 
@@ -89,13 +100,15 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
       const [flds, nts, docs] = await Promise.all([
         foldersApi.list(), notesApi.list(), docsApi.list(),
       ]);
-      const linkedByDoc = await Promise.all(
-        docs.map((d) => notesApi.list({ documentId: d.id }).then((ns) => [d.id, ns] as const))
-      );
+      const [linkedByDoc, annotatedByDoc] = await Promise.all([
+        Promise.all(docs.map((d) => notesApi.list({ documentId: d.id }).then((ns) => [d.id, ns] as const))),
+        Promise.all(docs.map((d) => strokesApi.annotatedPages(d.id).then((r) => [d.id, r.pages] as const))),
+      ]);
       const docNotes = Object.fromEntries(linkedByDoc);
-      setData({ folders: flds, notes: nts, documents: docs, docNotes });
+      const docAnnotatedPages = Object.fromEntries(annotatedByDoc);
+      setData({ folders: flds, notes: nts, documents: docs, docNotes, docAnnotatedPages });
       setExpandedFolders(new Set(flds.map((f) => f.id)));
-      setExpandedDocuments(new Set(docs.filter((d) => docNotes[d.id]?.length > 0).map((d) => d.id)));
+      setExpandedDocuments(new Set(docs.filter((d) => docNotes[d.id]?.length > 0 || docAnnotatedPages[d.id]?.length > 0).map((d) => d.id)));
     } catch (err) {
       console.error("Failed to load sidebar data:", err);
     }
@@ -199,6 +212,17 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
+  const deleteAnnotatedPage = async (docId: number, pageNum: number) => {
+    await strokesApi.deleteForPage(docId, pageNum);
+    setData((d) => ({
+      ...d,
+      docAnnotatedPages: {
+        ...d.docAnnotatedPages,
+        [docId]: (d.docAnnotatedPages[docId] ?? []).filter((p) => p !== pageNum),
+      },
+    }));
+  };
+
   const renderNote = (note: Note, indent: number) => {
     const active = location.pathname === `/notes/${note.id}`;
     return (
@@ -220,6 +244,8 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
 
   const renderDocument = (doc: Document, indent: number) => {
     const linked = data.docNotes[doc.id] ?? [];
+    const pages = data.docAnnotatedPages[doc.id] ?? [];
+    const hasChildren = linked.length > 0 || pages.length > 0;
     const isOpen = expandedDocuments.has(doc.id);
     const active = location.pathname.startsWith(`/documents/${doc.id}`);
     const toggleDoc = (e: React.MouseEvent) => {
@@ -234,7 +260,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
           style={{ paddingLeft: `${indent}px` }}
           onClick={() => navigate(`/documents/${doc.id}`)}
         >
-          {linked.length > 0
+          {hasChildren
             ? <span onClick={toggleDoc}><ChevronIcon open={isOpen} /></span>
             : <span style={{ width: 14, display: "inline-block" }} />}
           <DocIcon />
@@ -244,7 +270,25 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
             <button className={css.iconBtn} title="Delete" onClick={() => deleteDocument(doc)}>✕</button>
           </div>
         </div>
-        {linked.length > 0 && isOpen && linked.map((n) => renderNote(n, indent + 28))}
+        {hasChildren && isOpen && (
+          <>
+            {linked.map((n) => renderNote(n, indent + 28))}
+            {pages.map((pageNum) => (
+              <div
+                key={`page-${pageNum}`}
+                className={css.leafRow}
+                style={{ paddingLeft: `${indent + 28}px` }}
+                onClick={() => navigate(`/documents/${doc.id}?page=${pageNum}`)}
+              >
+                <AnnotatedPageIcon />
+                <span className={css.rowLabel}>Page {pageNum}</span>
+                <div className={css.rowActions} onClick={stop}>
+                  <button className={css.iconBtn} title="Delete strokes" onClick={() => deleteAnnotatedPage(doc.id, pageNum)}>✕</button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     );
   };

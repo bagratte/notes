@@ -99,4 +99,6 @@ export const strokes = {
     api.delete(`/strokes/?section_id=${sectionId}`),
   deleteForPage: (documentId: number, pageNumber: number) =>
     api.delete(`/strokes/?document_id=${documentId}&page_number=${pageNumber}`),
+  annotatedPages: (documentId: number) =>
+    api.get<{ pages: number[] }>(`/strokes/annotated-pages?document_id=${documentId}`),
 };

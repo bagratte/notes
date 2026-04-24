@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { documents as docsApi } from "@/api";
 import { DocumentViewer, DjvuViewer } from "@/components/DocumentViewer";
 import type { Document } from "@/types";
 
 export default function DocumentPage() {
   const { documentId } = useParams<{ documentId: string }>();
+  const [searchParams] = useSearchParams();
+  const initialPage = searchParams.get("page") ? Number(searchParams.get("page")) : undefined;
   const [doc, setDoc] = useState<Document | null>(null);
   const [missing, setMissing] = useState(false);
 
@@ -40,9 +42,9 @@ export default function DocumentPage() {
       </div>
       <div style={styles.viewerWrap}>
         {doc.type === "pdf" ? (
-          <DocumentViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} />
+          <DocumentViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} initialPage={initialPage} />
         ) : (
-          <DjvuViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} />
+          <DjvuViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} initialPage={initialPage} />
         )}
       </div>
     </div>

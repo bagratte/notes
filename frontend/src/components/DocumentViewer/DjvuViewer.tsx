@@ -13,6 +13,7 @@ interface Props {
   url: string;
   documentId: number;
   folderId?: number;
+  initialPage?: number;
 }
 
 interface NaturalSize {
@@ -30,14 +31,14 @@ function toStrokeData(s: Stroke): StrokeData {
   return { points: s.points, color: s.color, width: s.width };
 }
 
-export default function DjvuViewer({ url, documentId, folderId }: Props) {
+export default function DjvuViewer({ url, documentId, folderId, initialPage }: Props) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const docRef = useRef<DjVuDocument | null>(null);
 
   const [numPages, setNumPages] = useState(0);
-  const [pageNum, setPageNum] = useState(1);
+  const [pageNum, setPageNum] = useState(initialPage ?? 1);
   const [naturalSize, setNaturalSize] = useState<NaturalSize | null>(null);
   const [scale, setScale] = useState(1.0);
   const [fitWidth, setFitWidth] = useState(true);

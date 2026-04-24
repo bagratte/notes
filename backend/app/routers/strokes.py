@@ -43,6 +43,18 @@ def create_strokes_batch(data: StrokeBatchCreate, db: Session = Depends(get_db))
     return strokes
 
 
+@router.get("/annotated-pages")
+def get_annotated_pages(document_id: int, db: Session = Depends(get_db)):
+    rows = (
+        db.query(Stroke.page_number)
+        .filter(Stroke.document_id == document_id, Stroke.section_id == None)
+        .distinct()
+        .order_by(Stroke.page_number)
+        .all()
+    )
+    return {"pages": [r[0] for r in rows if r[0] is not None]}
+
+
 @router.delete("/{stroke_id}", status_code=204)
 def delete_stroke(stroke_id: int, db: Session = Depends(get_db)):
     stroke = db.get(Stroke, stroke_id)
