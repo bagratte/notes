@@ -50,6 +50,7 @@ export default function SideBySidePage() {
             <DocumentViewer
               url={docsApi.fileUrl(doc.id)}
               documentId={doc.id}
+              folderId={doc.folder_id ?? undefined}
               activeSectionId={activeSectionId}
               onRegionClick={handleRegionClick}
             />
@@ -57,6 +58,7 @@ export default function SideBySidePage() {
             <DjvuViewer
               url={docsApi.fileUrl(doc.id)}
               documentId={doc.id}
+              folderId={doc.folder_id ?? undefined}
               activeSectionId={activeSectionId}
               onRegionClick={handleRegionClick}
             />

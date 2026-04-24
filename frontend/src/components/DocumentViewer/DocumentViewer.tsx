@@ -13,6 +13,7 @@ import css from "./DocumentViewer.module.css";
 interface Props {
   url: string;
   documentId: number;
+  folderId?: number;
   activeSectionId?: number | null;
   onRegionClick?: (region: EnrichedRegion) => void;
 }
@@ -35,7 +36,7 @@ function toStrokeData(s: Stroke): StrokeData {
   return { points: s.points, color: s.color, width: s.width };
 }
 
-export default function DocumentViewer({ url, documentId, activeSectionId, onRegionClick }: Props) {
+export default function DocumentViewer({ url, documentId, folderId, activeSectionId, onRegionClick }: Props) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -203,7 +204,7 @@ export default function DocumentViewer({ url, documentId, activeSectionId, onReg
   // ── region creation ────────────────────────────────────────────────────────
 
   const handleRegionComplete = useCallback(async (rect: PendingRegion) => {
-    const note = await notesApi.create("Untitled Note");
+    const note = await notesApi.create("Untitled Note", folderId);
     const existingSections = await sectionsApi.list(note.id);
     const section = await sectionsApi.create(note.id, existingSections.length);
     const region = await regionsApi.create({
