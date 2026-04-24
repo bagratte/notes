@@ -2,12 +2,11 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { pdfjsLib } from "./pdfSetup";
 import DocumentOverlay from "./DocumentOverlay";
-import RegionLinkModal from "./RegionLinkModal";
 import type { EnrichedRegion, ToolMode } from "./DocumentOverlay";
 import type { StrokeData } from "@/components/Canvas";
 import { PenToolbar, DEFAULT_PEN } from "@/components/PenToolbar";
 import type { PenSettings } from "@/components/PenToolbar";
-import { strokes as strokesApi, regions as regionsApi, sections as sectionsApi } from "@/api";
+import { strokes as strokesApi, regions as regionsApi, sections as sectionsApi, notes as notesApi } from "@/api";
 import type { Stroke } from "@/types";
 import css from "./DocumentViewer.module.css";
 
@@ -56,7 +55,6 @@ export default function DocumentViewer({ url, documentId, activeSectionId, onReg
   const [inlineRedoStack, setInlineRedoStack] = useState<Stroke[]>([]);
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
   const [regions, setRegions] = useState<EnrichedRegion[]>([]);
-  const [pendingRegion, setPendingRegion] = useState<PendingRegion | null>(null);
 
   // ── load PDF ───────────────────────────────────────────────────────────────
 
@@ -204,32 +202,20 @@ export default function DocumentViewer({ url, documentId, activeSectionId, onReg
 
   // ── region creation ────────────────────────────────────────────────────────
 
-  const handleRegionComplete = useCallback((rect: PendingRegion) => {
-    setPendingRegion(rect);
-  }, []);
-
-  const handleModalLink = useCallback(
-    async (noteId: number) => {
-      if (!pendingRegion) return;
-
-      // Count existing sections to determine order
-      const existingSections = await sectionsApi.list(noteId);
-      const section = await sectionsApi.create(noteId, existingSections.length);
-
-      const region = await regionsApi.create({
-        documentId,
-        sectionId: section.id,
-        pageNumber: pageNum,
-        ...pendingRegion,
-      });
-
-      setRegions((prev) => [...prev, { ...region, note_id: noteId }]);
-      setPendingRegion(null);
-      setToolMode("view");
-      navigate(`/notes/${noteId}`);
-    },
-    [pendingRegion, documentId, pageNum, navigate]
-  );
+  const handleRegionComplete = useCallback(async (rect: PendingRegion) => {
+    const note = await notesApi.create("Untitled Note");
+    const existingSections = await sectionsApi.list(note.id);
+    const section = await sectionsApi.create(note.id, existingSections.length);
+    const region = await regionsApi.create({
+      documentId,
+      sectionId: section.id,
+      pageNumber: pageNum,
+      ...rect,
+    });
+    setRegions((prev) => [...prev, { ...region, note_id: note.id }]);
+    setToolMode("view");
+    navigate(`/documents/${documentId}/notes/${note.id}`);
+  }, [documentId, pageNum, navigate]);
 
   // ── navigation ─────────────────────────────────────────────────────────────
 
@@ -373,12 +359,6 @@ export default function DocumentViewer({ url, documentId, activeSectionId, onReg
         )}
       </div>
 
-      {pendingRegion && (
-        <RegionLinkModal
-          onLink={handleModalLink}
-          onCancel={() => setPendingRegion(null)}
-        />
-      )}
     </div>
   );
 }
