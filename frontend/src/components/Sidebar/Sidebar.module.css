@@ -12,14 +12,14 @@
   display: flex;
   justify-content: flex-end;
   gap: 2px;
-  padding: 4px 6px;
+  padding: 8px 6px;
   border-bottom: 1px solid #dedad3;
   flex-shrink: 0;
 }
 
 .toolbarBtn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border: none;
   background: transparent;
   cursor: pointer;
