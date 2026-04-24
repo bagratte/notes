@@ -83,6 +83,17 @@ When `RegionLinkModal` confirms a link it first calls `sectionsApi.create` to ad
 
 Note section shortcuts are active only while the cursor is over that section (`onMouseEnter`/`onMouseLeave` set a `hovered` flag; the `keydown` listener is added/removed accordingly).
 
+### Cross-component events
+
+Two `window` custom events keep the sidebar and document viewers in sync without a shared store:
+
+| Event | `detail` | Fired by | Listened by |
+|-------|----------|----------|-------------|
+| `sidebar:refresh` | — | DocumentViewer/DjvuViewer (region created), MergeModal (note merged) | Sidebar — full reload |
+| `document:page-strokes-changed` | `{ documentId, pageNumber }` | DocumentViewer/DjvuViewer (first/last stroke on page), Sidebar (page strokes deleted) | Sidebar — re-fetches `annotatedPages` for that doc; DocumentViewer/DjvuViewer — reloads strokes if currently on that page |
+
+Fire `sidebar:refresh` for mutations that change the note/document/folder tree. Fire `document:page-strokes-changed` for mutations that change whether a document page has inline strokes. The `document:page-strokes-changed` event is only dispatched when a page crosses the zero-stroke boundary (empty → first stroke, or last stroke → empty).
+
 ### TypeScript config notes
 
 `strict`, `noUnusedLocals`, and `noUnusedParameters` are all enabled. Prefix intentionally unused variables with `_` to satisfy the compiler.

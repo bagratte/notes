@@ -29,6 +29,7 @@ export default function MergeModal({ sourceNoteId, onClose }: Props) {
   const handleMerge = async (targetId: number) => {
     setBusyId(targetId);
     await notesApi.merge(sourceNoteId, targetId);
+    window.dispatchEvent(new CustomEvent("sidebar:refresh"));
     onClose();
     navigate(`/notes/${targetId}`);
   };

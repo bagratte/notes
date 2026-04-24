@@ -119,6 +119,21 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     window.addEventListener("sidebar:refresh", load);
     return () => window.removeEventListener("sidebar:refresh", load);
   }, [load]);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { documentId } = (e as CustomEvent<{ documentId: number; pageNumber: number }>).detail;
+      strokesApi.annotatedPages(documentId).then((r) => {
+        setData((d) => ({
+          ...d,
+          docAnnotatedPages: { ...d.docAnnotatedPages, [documentId]: r.pages },
+        }));
+        if (r.pages.length > 0)
+          setExpandedDocuments((s) => new Set([...s, documentId]));
+      });
+    };
+    window.addEventListener("document:page-strokes-changed", handler);
+    return () => window.removeEventListener("document:page-strokes-changed", handler);
+  }, []);
 
   // ── create operations ────────────────────────────────────────────────────
 
@@ -214,6 +229,8 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
 
   const deleteAnnotatedPage = async (docId: number, pageNum: number) => {
     await strokesApi.deleteForPage(docId, pageNum);
+    window.dispatchEvent(new CustomEvent("document:page-strokes-changed",
+      { detail: { documentId: docId, pageNumber: pageNum } }));
     setData((d) => ({
       ...d,
       docAnnotatedPages: {

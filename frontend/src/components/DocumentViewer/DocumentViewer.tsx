@@ -129,6 +129,18 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
     };
   }, [pageNum, numPages, fitWidth, manualScale]);
 
+  // ── cross-component sync ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { documentId: dId, pageNumber } = (e as CustomEvent<{ documentId: number; pageNumber: number }>).detail;
+      if (dId === documentId && pageNumber === pageNum)
+        strokesApi.listForPage(documentId, pageNum).then(setInlineStrokes);
+    };
+    window.addEventListener("document:page-strokes-changed", handler);
+    return () => window.removeEventListener("document:page-strokes-changed", handler);
+  }, [documentId, pageNum]);
+
   // ── load strokes + regions for current page ────────────────────────────────
 
   useEffect(() => {
@@ -166,7 +178,12 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
         color: stroke.color,
         width: stroke.width,
       });
-      setInlineStrokes((prev) => [...prev, saved]);
+      setInlineStrokes((prev) => {
+        if (prev.length === 0)
+          window.dispatchEvent(new CustomEvent("document:page-strokes-changed",
+            { detail: { documentId, pageNumber: pageNum } }));
+        return [...prev, saved];
+      });
       setInlineRedoStack([]);
     },
     [documentId, pageNum]
@@ -178,9 +195,12 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
       const last = prev[prev.length - 1];
       setInlineRedoStack((r) => [...r, last]);
       strokesApi.delete(last.id);
+      if (prev.length === 1)
+        window.dispatchEvent(new CustomEvent("document:page-strokes-changed",
+          { detail: { documentId, pageNumber: pageNum } }));
       return prev.slice(0, -1);
     });
-  }, []);
+  }, [documentId, pageNum]);
 
   const redoInline = useCallback(() => {
     setInlineRedoStack((prev) => {
@@ -195,7 +215,12 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
           color: last.color,
           width: last.width,
         })
-        .then((saved) => setInlineStrokes((s) => [...s, saved]));
+        .then((saved) => setInlineStrokes((s) => {
+          if (s.length === 0)
+            window.dispatchEvent(new CustomEvent("document:page-strokes-changed",
+              { detail: { documentId, pageNumber: pageNum } }));
+          return [...s, saved];
+        }));
       return prev.slice(0, -1);
     });
   }, [documentId, pageNum]);
