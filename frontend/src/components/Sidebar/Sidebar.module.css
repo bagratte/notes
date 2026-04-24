@@ -42,7 +42,7 @@
 
 .emptyState {
   padding: 24px 16px;
-  font-size: 13px;
+  font-size: 16px;
   color: #aaa;
   text-align: center;
   line-height: 1.6;
@@ -58,7 +58,7 @@
   border-radius: 4px;
   margin: 0 4px;
   color: #2a2a2a;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 500;
 }
 .notebookRow:hover { background: #ede9e3; }
@@ -73,7 +73,7 @@
   border-radius: 4px;
   margin: 0 4px;
   color: #3a3a3a;
-  font-size: 13px;
+  font-size: 16px;
 }
 .folderRow:hover { background: #ede9e3; }
 
@@ -86,7 +86,7 @@
   border-radius: 4px;
   margin: 0 4px;
   color: #4a4a4a;
-  font-size: 13px;
+  font-size: 16px;
   gap: 6px;
 }
 .leafRow:hover { background: #ede9e3; }
@@ -113,8 +113,8 @@
 .leafRow:hover .rowActions { display: flex; }
 
 .iconBtn {
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -122,15 +122,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 16px;
   color: #888;
   padding: 0;
 }
 .iconBtn:hover { background: #d8d3cb; color: #333; }
 
 .chevron {
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   color: #aaa;
   transition: transform 0.15s;
@@ -138,8 +138,8 @@
 .chevron.open { transform: rotate(90deg); }
 
 .typeIcon {
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   color: #aaa;
 }

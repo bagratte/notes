@@ -17,9 +17,10 @@ function ChevronIcon({ open }: { open: boolean }) {
 function NewNoteIcon() {
   return (
     <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
-      <path d="M4 1h5l3 3v9a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M9 1v3h3" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-      <path d="M7 6v4M5 8h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <rect x="2" y="1" width="10" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M5 5h6M5 8h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="11" cy="11" r="5" fill="currentColor" />
+      <path d="M11 8.5v5M8.5 11h5" stroke="#f5f1eb" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -27,8 +28,22 @@ function NewNoteIcon() {
 function NewFolderIcon() {
   return (
     <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
-      <path d="M1 5a1 1 0 011-1h4l1.5 2H14a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1V5z" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M8 8v3M6.5 9.5h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M1 2a1 1 0 011-1h4l1.5 2H14a1 1 0 011 1v9a1 1 0 01-1 1H2a1 1 0 01-1-1V2z" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="11" cy="11" r="5" fill="currentColor" />
+      <path d="M11 8.5v5M8.5 11h5" stroke="#f5f1eb" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function RenameIcon() {
+  return (
+    <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
+      {/* T */}
+      <path d="M2 4h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M6 4v8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      {/* | cursor */}
+      <path d="M12 3v10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M10.5 3h3M10.5 13h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -45,8 +60,8 @@ function NoteIcon() {
 function DocIcon() {
   return (
     <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
-      <path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M10 2v3h3" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M2 2.5A1.5 1.5 0 013.5 1H9l3 3v8.5A1.5 1.5 0 0110.5 14H3.5A1.5 1.5 0 012 12.5V2.5z" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M9 1v3h3" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -195,7 +210,7 @@ export default function Sidebar() {
         <NoteIcon />
         <span className={css.rowLabel}>{note.name}</span>
         <div className={css.rowActions} onClick={stop}>
-          <button className={css.iconBtn} title="Rename" onClick={() => renameNote(note)}>✎</button>
+          <button className={css.iconBtn} title="Rename" onClick={() => renameNote(note)}><RenameIcon /></button>
           <button className={css.iconBtn} title="Delete" onClick={() => deleteNote(note)}>✕</button>
         </div>
       </div>
@@ -224,7 +239,7 @@ export default function Sidebar() {
           <DocIcon />
           <span className={css.rowLabel}>{doc.name}</span>
           <div className={css.rowActions} onClick={stop}>
-            <button className={css.iconBtn} title="Rename" onClick={() => renameDocument(doc)}>✎</button>
+            <button className={css.iconBtn} title="Rename" onClick={() => renameDocument(doc)}><RenameIcon /></button>
             <button className={css.iconBtn} title="Delete" onClick={() => deleteDocument(doc)}>✕</button>
           </div>
         </div>
@@ -248,9 +263,9 @@ export default function Sidebar() {
           <span className={css.rowLabel}>{folder.name}</span>
           <div className={css.rowActions} onClick={stop}>
             <button className={css.iconBtn} title="New note" onClick={() => createNote(folder.id)}><NewNoteIcon /></button>
-            <button className={css.iconBtn} title="Upload document" onClick={() => uploadDocument(folder.id)}>↑</button>
             <button className={css.iconBtn} title="New subfolder" onClick={() => createFolder(folder.id)}><NewFolderIcon /></button>
-            <button className={css.iconBtn} title="Rename" onClick={() => renameFolder(folder)}>✎</button>
+            <button className={css.iconBtn} title="Upload document" onClick={() => uploadDocument(folder.id)}>↑</button>
+            <button className={css.iconBtn} title="Rename" onClick={() => renameFolder(folder)}><RenameIcon /></button>
             <button className={css.iconBtn} title="Delete" onClick={() => deleteFolder(folder)}>✕</button>
           </div>
         </div>
