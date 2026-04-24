@@ -4,6 +4,7 @@ import type { StrokeData } from "@/components/Canvas";
 import { strokes as strokesApi } from "@/api";
 import type { Stroke } from "@/types";
 import type { PenSettings } from "@/components/PenToolbar";
+import RegionPreview from "./RegionPreview";
 
 interface Props {
   sectionId: number;
@@ -26,6 +27,7 @@ export default function SectionCanvas({
   const [_redoStack, setRedoStack] = useState<Stroke[]>([]);
   const [loading, setLoading] = useState(true);
   const [hovered, setHovered] = useState(false);
+  const [hasRegion, setHasRegion] = useState<boolean | null>(null);
 
   useEffect(() => {
     strokesApi.listForSection(sectionId).then((data) => {
@@ -108,16 +110,19 @@ export default function SectionCanvas({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {loading ? (
-        <div style={{ height: 320 }} />
-      ) : (
-        <DrawingCanvas
-          strokes={strokes.map(toDisplay)}
-          onStrokeComplete={handleStrokeComplete}
-          color={pen.color}
-          penWidth={pen.width}
-          height={320}
-        />
+      <RegionPreview sectionId={sectionId} onHasRegion={setHasRegion} />
+      {hasRegion === false && (
+        loading ? (
+          <div style={{ height: 320 }} />
+        ) : (
+          <DrawingCanvas
+            strokes={strokes.map(toDisplay)}
+            onStrokeComplete={handleStrokeComplete}
+            color={pen.color}
+            penWidth={pen.width}
+            height={320}
+          />
+        )
       )}
       <button
         onClick={onDelete}
