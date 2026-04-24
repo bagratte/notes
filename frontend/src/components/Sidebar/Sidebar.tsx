@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { CSSProperties } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { folders as foldersApi, notes as notesApi, documents as docsApi, strokes as strokesApi } from "@/api";
+import { folders as foldersApi, notes as notesApi, documents as docsApi, strokes as strokesApi, regions as regionsApi, sections as sectionsApi } from "@/api";
 import type { Folder, Note, Document } from "@/types";
 import css from "./Sidebar.module.css";
 
@@ -84,6 +84,7 @@ interface SidebarData {
   notes: Note[];
   documents: Document[];
   docNotes: Record<number, Note[]>;
+  docNotePageNums: Record<number, Record<number, number>>; // docId → noteId → pageNumber
   docAnnotatedPages: Record<number, number[]>;
 }
 
@@ -91,7 +92,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [data, setData] = useState<SidebarData>({ folders: [], notes: [], documents: [], docNotes: {}, docAnnotatedPages: {} });
+  const [data, setData] = useState<SidebarData>({ folders: [], notes: [], documents: [], docNotes: {}, docNotePageNums: {}, docAnnotatedPages: {} });
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
   const [expandedDocuments, setExpandedDocuments] = useState<Set<number>>(new Set());
 
@@ -100,13 +101,25 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
       const [flds, nts, docs] = await Promise.all([
         foldersApi.list(), notesApi.list(), docsApi.list(),
       ]);
-      const [linkedByDoc, annotatedByDoc] = await Promise.all([
+      const [linkedByDoc, pageNumsByDoc, annotatedByDoc] = await Promise.all([
         Promise.all(docs.map((d) => notesApi.list({ documentId: d.id }).then((ns) => [d.id, ns] as const))),
+        Promise.all(docs.map(async (d) => {
+          const regs = await regionsApi.list({ documentId: d.id });
+          const pairs = await Promise.all(regs.map(async (r) => {
+            const sec = await sectionsApi.get(r.section_id);
+            return { noteId: sec.note_id, pageNumber: r.page_number };
+          }));
+          const map: Record<number, number> = {};
+          for (const { noteId, pageNumber } of pairs)
+            if (map[noteId] === undefined || pageNumber < map[noteId]) map[noteId] = pageNumber;
+          return [d.id, map] as const;
+        })),
         Promise.all(docs.map((d) => strokesApi.annotatedPages(d.id).then((r) => [d.id, r.pages] as const))),
       ]);
       const docNotes = Object.fromEntries(linkedByDoc);
+      const docNotePageNums = Object.fromEntries(pageNumsByDoc);
       const docAnnotatedPages = Object.fromEntries(annotatedByDoc);
-      setData({ folders: flds, notes: nts, documents: docs, docNotes, docAnnotatedPages });
+      setData({ folders: flds, notes: nts, documents: docs, docNotes, docNotePageNums, docAnnotatedPages });
       setExpandedFolders(new Set(flds.map((f) => f.id)));
       setExpandedDocuments(new Set(docs.filter((d) => docNotes[d.id]?.length > 0 || docAnnotatedPages[d.id]?.length > 0).map((d) => d.id)));
     } catch (err) {
@@ -240,7 +253,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     }));
   };
 
-  const renderNote = (note: Note, indent: number) => {
+  const renderNote = (note: Note, indent: number, prefix?: string) => {
     const active = location.pathname === `/notes/${note.id}`;
     return (
       <div
@@ -250,7 +263,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         onClick={() => navigate(`/notes/${note.id}`)}
       >
         <NoteIcon />
-        <span className={css.rowLabel}>{note.name}</span>
+        <span className={css.rowLabel}>{prefix}{note.name}</span>
         <div className={css.rowActions} onClick={stop}>
           <button className={css.iconBtn} title="Rename" onClick={() => renameNote(note)}><RenameIcon /></button>
           <button className={css.iconBtn} title="Delete" onClick={() => deleteNote(note)}>✕</button>
@@ -289,7 +302,10 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         </div>
         {hasChildren && isOpen && (
           <>
-            {linked.map((n) => renderNote(n, indent + 28))}
+            {linked.map((n) => {
+              const pg = data.docNotePageNums[doc.id]?.[n.id];
+              return renderNote(n, indent + 28, pg !== undefined ? `Page ${pg} – ` : undefined);
+            })}
             {pages.map((pageNum) => (
               <div
                 key={`page-${pageNum}`}
@@ -298,7 +314,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
                 onClick={() => navigate(`/documents/${doc.id}?page=${pageNum}`)}
               >
                 <AnnotatedPageIcon />
-                <span className={css.rowLabel}>Page {pageNum}</span>
+                <span className={css.rowLabel}>Page {pageNum} – Annotation</span>
                 <div className={css.rowActions} onClick={stop}>
                   <button className={css.iconBtn} title="Delete strokes" onClick={() => deleteAnnotatedPage(doc.id, pageNum)}>✕</button>
                 </div>
