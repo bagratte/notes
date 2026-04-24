@@ -142,3 +142,11 @@
   color: #aaa;
 }
 
+@media (pointer: coarse) {
+  .notebookRow { padding-top: 11px; padding-bottom: 11px; }
+  .folderRow   { padding-top: 11px; padding-bottom: 11px; }
+  .leafRow     { padding-top: 11px; padding-bottom: 11px; }
+  .iconBtn     { width: 32px; height: 32px; }
+  .rowActions  { display: flex; }
+}
+

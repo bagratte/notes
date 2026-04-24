@@ -76,7 +76,7 @@ interface SidebarData {
   docNotes: Record<number, Note[]>;
 }
 
-export default function Sidebar({ style }: { style?: CSSProperties }) {
+export default function Sidebar({ style, className }: { style?: CSSProperties; className?: string }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -293,7 +293,7 @@ export default function Sidebar({ style }: { style?: CSSProperties }) {
   const isEmpty = rootFolders.length === 0 && rootNotes.length === 0 && rootDocs.length === 0;
 
   return (
-    <nav className={css.sidebar} style={style}>
+    <nav className={`${css.sidebar}${className ? " " + className : ""}`} style={style}>
       <div className={css.toolbar}>
         <button className={css.toolbarBtn} title="New note" onClick={() => createNote()}>
           <NewNoteIcon />
