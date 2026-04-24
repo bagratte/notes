@@ -15,5 +15,5 @@ class Section(Base):
     )
 
     note: Mapped["Note"] = relationship(back_populates="sections")
-    regions: Mapped[list["Region"]] = relationship(back_populates="section")
+    regions: Mapped[list["Region"]] = relationship(back_populates="section", cascade="all, delete-orphan")
     strokes: Mapped[list["Stroke"]] = relationship(back_populates="section", cascade="all, delete-orphan")
