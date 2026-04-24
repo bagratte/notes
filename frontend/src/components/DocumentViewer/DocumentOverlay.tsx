@@ -129,30 +129,24 @@ export default function DocumentOverlay({
     drawing.current = false;
 
     if (mode === "annotate") {
-      setLivePoints((prev) => {
-        if (prev.length > 0 && onStrokeComplete) {
-          onStrokeComplete({ points: prev, color, width: penWidth });
-        }
-        return [];
-      });
+      if (livePoints.length > 0 && onStrokeComplete) {
+        onStrokeComplete({ points: livePoints, color, width: penWidth });
+      }
+      setLivePoints([]);
     } else if (mode === "region") {
-      setDragStart((start) => {
-        setDragCurrent((current) => {
-          if (start && current && onRegionComplete) {
-            const x = Math.min(start[0], current[0]);
-            const y = Math.min(start[1], current[1]);
-            const w = Math.abs(current[0] - start[0]);
-            const h = Math.abs(current[1] - start[1]);
-            if (w > MIN_REGION_PX && h > MIN_REGION_PX) {
-              onRegionComplete({ x, y, width: w, height: h });
-            }
-          }
-          return null;
-        });
-        return null;
-      });
+      if (dragStart && dragCurrent && onRegionComplete) {
+        const x = Math.min(dragStart[0], dragCurrent[0]);
+        const y = Math.min(dragStart[1], dragCurrent[1]);
+        const w = Math.abs(dragCurrent[0] - dragStart[0]);
+        const h = Math.abs(dragCurrent[1] - dragStart[1]);
+        if (w > MIN_REGION_PX && h > MIN_REGION_PX) {
+          onRegionComplete({ x, y, width: w, height: h });
+        }
+      }
+      setDragStart(null);
+      setDragCurrent(null);
     }
-  }, [mode, onStrokeComplete, onRegionComplete, color, penWidth]);
+  }, [mode, onStrokeComplete, onRegionComplete, color, penWidth, livePoints, dragStart, dragCurrent]);
 
   const dragRect: DragRect | null =
     dragStart && dragCurrent
