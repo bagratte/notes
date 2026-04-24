@@ -86,6 +86,10 @@ export default function Sidebar() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    window.addEventListener("sidebar:refresh", load);
+    return () => window.removeEventListener("sidebar:refresh", load);
+  }, [load]);
 
   // ── create operations ────────────────────────────────────────────────────
 
@@ -146,7 +150,13 @@ export default function Sidebar() {
   const deleteNote = async (note: Note) => {
     if (!window.confirm(`Delete "${note.name}"?`)) return;
     await notesApi.delete(note.id);
-    setData((d) => ({ ...d, notes: d.notes.filter((n) => n.id !== note.id) }));
+    setData((d) => ({
+      ...d,
+      notes: d.notes.filter((n) => n.id !== note.id),
+      docNotes: Object.fromEntries(
+        Object.entries(d.docNotes).map(([k, ns]) => [k, (ns as Note[]).filter((n) => n.id !== note.id)])
+      ),
+    }));
     if (location.pathname === `/notes/${note.id}`) navigate("/");
   };
 

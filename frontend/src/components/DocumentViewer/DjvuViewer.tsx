@@ -203,6 +203,7 @@ export default function DjvuViewer({ url, documentId, folderId, activeSectionId,
     });
     setRegions((prev) => [...prev, { ...region, note_id: note.id }]);
     setToolMode("view");
+    window.dispatchEvent(new CustomEvent("sidebar:refresh"));
     navigate(`/documents/${documentId}/notes/${note.id}`);
   }, [documentId, pageNum, navigate]);
 
