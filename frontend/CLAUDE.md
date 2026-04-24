@@ -12,6 +12,14 @@ npx tsc --noEmit   # type-check only, no emit
 
 There is no test suite or linter configured.
 
+## Target platform
+
+The app targets **touch-only devices** (tablets, iPads) as the primary platform:
+- Minimum tap target: 44px — use `@media (pointer: coarse)` for touch-specific sizing
+- Never rely on `:hover` for functionality — actions hidden by hover must also be accessible on touch
+- Use pointer events throughout (not mouse/touch events)
+- Sidebar overlays content on touch (`position: fixed`) rather than pushing it
+
 ## Architecture
 
 ### Routing

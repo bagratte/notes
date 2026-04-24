@@ -77,6 +77,14 @@ The strokes router has two delete endpoints that are easy to confuse:
 | POST | `/documents/` | multipart: optional `folder_id` + `name` + `file` |
 | GET | `/documents/{id}/file` | serves the raw file from disk |
 
+## Target platform
+
+The app targets **touch-only devices** (tablets, iPads) as the primary platform. Consequences:
+- Minimum tap target size: 44px
+- Never rely on `:hover` for functionality — use `@media (pointer: coarse)` to show actions that would otherwise be hover-only
+- Prefer pointer events over mouse/touch events
+- Sidebar uses overlay mode on touch (position: fixed, backdrop to dismiss)
+
 ## Frontend summary
 
 - Two routes under `AppLayout` (sidebar + outlet): `/notes/:noteId`, `/documents/:documentId`
