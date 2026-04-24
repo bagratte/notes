@@ -46,6 +46,8 @@ export const notes = {
     api.post<Note>("/notes/", { folder_id: folderId ?? null, name }),
   update: (id: number, name: string) => api.patch<Note>(`/notes/${id}`, { name }),
   delete: (id: number) => api.delete(`/notes/${id}`),
+  merge: (sourceId: number, targetId: number) =>
+    api.post<void>(`/notes/${sourceId}/merge`, { target_note_id: targetId }),
 };
 
 // Sections

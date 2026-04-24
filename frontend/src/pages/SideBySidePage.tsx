@@ -4,6 +4,7 @@ import { documents as docsApi, notes as notesApi } from "@/api";
 import { DocumentViewer, DjvuViewer } from "@/components/DocumentViewer";
 import type { EnrichedRegion } from "@/components/DocumentViewer/DocumentOverlay";
 import { NoteEditor } from "@/components/NoteEditor";
+import MergeModal from "./MergeModal";
 import type { Document, Note } from "@/types";
 
 export default function SideBySidePage() {
@@ -11,6 +12,7 @@ export default function SideBySidePage() {
   const [doc, setDoc] = useState<Document | null>(null);
   const [note, setNote] = useState<Note | null>(null);
   const [activeSectionId, setActiveSectionId] = useState<number | null>(null);
+  const [merging, setMerging] = useState(false);
 
   useEffect(() => {
     if (!documentId || !noteId) return;
@@ -68,6 +70,7 @@ export default function SideBySidePage() {
       <div style={styles.pane}>
         <div style={styles.paneHeader}>
           <span style={styles.paneTitle}>{note.name}</span>
+          <button onClick={() => setMerging(true)} style={styles.mergeBtn}>Merge into…</button>
           <span style={styles.paneTag}>Note</span>
         </div>
         <div style={{ ...styles.paneBody, overflowY: "auto", background: "#f0ede8" }}>
@@ -76,6 +79,9 @@ export default function SideBySidePage() {
           </div>
         </div>
       </div>
+      {merging && note && (
+        <MergeModal sourceNoteId={note.id} onClose={() => setMerging(false)} />
+      )}
     </div>
   );
 }
@@ -116,6 +122,16 @@ const styles = {
     textOverflow: "ellipsis" as const,
     whiteSpace: "nowrap" as const,
     flex: 1,
+  },
+  mergeBtn: {
+    padding: "3px 10px",
+    fontSize: 11,
+    border: "1px solid #ddd",
+    borderRadius: 5,
+    background: "#fff",
+    cursor: "pointer",
+    color: "#555",
+    flexShrink: 0,
   },
   paneTag: {
     fontSize: 11,
