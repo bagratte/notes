@@ -16,15 +16,14 @@ There is no test suite or linter configured.
 
 ### Routing
 
-Three routes, all nested under `AppLayout` (sidebar + `<Outlet />`):
+Two routes, both nested under `AppLayout` (sidebar + `<Outlet />`):
 
 | Route | Page | Purpose |
 |-------|------|---------|
 | `/notes/:noteId` | `NotePage` | Standalone note editor |
 | `/documents/:documentId` | `DocumentPage` | Document viewer |
-| `/documents/:documentId/notes/:noteId` | `SideBySidePage` | Split view — document left, linked note right |
 
-`SideBySidePage` owns `activeSectionId` state and passes it down to both panes. Clicking a region in the document pane sets `activeSectionId`; the note pane scrolls to the matching `[data-section-id]` element.
+Creating or clicking a region navigates to `/notes/:noteId`, replacing the document view.
 
 ### API client
 

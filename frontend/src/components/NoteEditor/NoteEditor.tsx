@@ -7,10 +7,9 @@ import type { PenSettings } from "@/components/PenToolbar";
 
 interface Props {
   noteId: number;
-  activeSectionId?: number | null;
 }
 
-export default function NoteEditor({ noteId, activeSectionId }: Props) {
+export default function NoteEditor({ noteId }: Props) {
   const [sectionList, setSectionList] = useState<Section[]>([]);
   const [adding, setAdding] = useState(false);
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
@@ -18,13 +17,6 @@ export default function NoteEditor({ noteId, activeSectionId }: Props) {
   useEffect(() => {
     sectionsApi.list(noteId).then(setSectionList);
   }, [noteId]);
-
-  // Scroll to the active section whenever it changes
-  useEffect(() => {
-    if (activeSectionId == null) return;
-    const el = document.querySelector(`[data-section-id="${activeSectionId}"]`);
-    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [activeSectionId]);
 
   const addSection = async () => {
     setAdding(true);
@@ -65,7 +57,6 @@ export default function NoteEditor({ noteId, activeSectionId }: Props) {
           key={section.id}
           sectionId={section.id}
           pen={pen}
-          active={activeSectionId === section.id}
           onDelete={() => deleteSection(section.id)}
         />
       ))}

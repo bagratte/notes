@@ -9,7 +9,6 @@ import RegionPreview from "./RegionPreview";
 interface Props {
   sectionId: number;
   pen: PenSettings;
-  active?: boolean;
   onDelete: () => void;
 }
 
@@ -20,7 +19,6 @@ function toDisplay(s: Stroke): StrokeData {
 export default function SectionCanvas({
   sectionId,
   pen,
-  active = false,
   onDelete,
 }: Props) {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -103,9 +101,7 @@ export default function SectionCanvas({
         borderRadius: 4,
         boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
         marginBottom: 2,
-        outline: active ? "2px solid rgba(74, 108, 247, 0.7)" : "2px solid transparent",
-        outlineOffset: -2,
-        transition: "outline-color 0.2s",
+        outline: "none",
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}

@@ -28,7 +28,6 @@ interface Props {
   regions: EnrichedRegion[];
   onRegionComplete?: (rect: DragRect) => void;
   onRegionClick?: (region: EnrichedRegion) => void;
-  activeSectionId?: number | null;
   mode: ToolMode;
   viewBox?: string;
   naturalSize?: NaturalSize;
@@ -63,7 +62,6 @@ export default function DocumentOverlay({
   regions,
   onRegionComplete,
   onRegionClick,
-  activeSectionId,
   mode,
   viewBox,
   naturalSize,
@@ -167,34 +165,27 @@ export default function DocumentOverlay({
     >
       {/* Region boxes — clickable divs so they work independently of SVG pointer-events */}
       {naturalSize &&
-        regions.map((r) => {
-          const isActive = activeSectionId != null && r.section_id === activeSectionId;
-          return (
-            <div
-              key={r.id}
-              onClick={mode === "view" ? () => onRegionClick?.(r) : undefined}
-              title={mode === "view" ? "Open linked note" : undefined}
-              style={{
-                position: "absolute",
-                left: `${(r.x / naturalSize.width) * 100}%`,
-                top: `${(r.y / naturalSize.height) * 100}%`,
-                width: `${(r.width / naturalSize.width) * 100}%`,
-                height: `${(r.height / naturalSize.height) * 100}%`,
-                background: isActive
-                  ? "rgba(74, 108, 247, 0.22)"
-                  : "rgba(74, 108, 247, 0.1)",
-                border: isActive
-                  ? "2px solid rgba(74, 108, 247, 0.9)"
-                  : "1.5px solid rgba(74, 108, 247, 0.55)",
-                borderRadius: 2,
-                boxSizing: "border-box",
-                cursor: mode === "view" ? "pointer" : "default",
-                pointerEvents: mode === "view" ? "auto" : "none",
-                transition: "background 0.15s, border 0.15s",
-              }}
-            />
-          );
-        })}
+        regions.map((r) => (
+          <div
+            key={r.id}
+            onClick={mode === "view" ? () => onRegionClick?.(r) : undefined}
+            title={mode === "view" ? "Open linked note" : undefined}
+            style={{
+              position: "absolute",
+              left: `${(r.x / naturalSize.width) * 100}%`,
+              top: `${(r.y / naturalSize.height) * 100}%`,
+              width: `${(r.width / naturalSize.width) * 100}%`,
+              height: `${(r.height / naturalSize.height) * 100}%`,
+              background: "rgba(74, 108, 247, 0.1)",
+              border: "1.5px solid rgba(74, 108, 247, 0.55)",
+              borderRadius: 2,
+              boxSizing: "border-box",
+              cursor: mode === "view" ? "pointer" : "default",
+              pointerEvents: mode === "view" ? "auto" : "none",
+              transition: "background 0.15s, border 0.15s",
+            }}
+          />
+        ))}
 
       {/* Drawing SVG — strokes + region drag rectangle */}
       <svg

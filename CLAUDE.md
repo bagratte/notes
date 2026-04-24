@@ -79,7 +79,7 @@ The strokes router has two delete endpoints that are easy to confuse:
 
 ## Frontend summary
 
-- Three routes under `AppLayout` (sidebar + outlet): `/notes/:noteId`, `/documents/:documentId`, `/documents/:documentId/notes/:noteId`
+- Two routes under `AppLayout` (sidebar + outlet): `/notes/:noteId`, `/documents/:documentId`
 - No global state store — local component state + direct API calls throughout
 - CSS Modules for all styles
 - Drawing is SVG-based using `perfect-freehand`; strokes stored in natural page coordinates

@@ -14,8 +14,6 @@ interface Props {
   url: string;
   documentId: number;
   folderId?: number;
-  activeSectionId?: number | null;
-  onRegionClick?: (region: EnrichedRegion) => void;
 }
 
 interface NaturalSize {
@@ -36,7 +34,7 @@ function toStrokeData(s: Stroke): StrokeData {
   return { points: s.points, color: s.color, width: s.width };
 }
 
-export default function DocumentViewer({ url, documentId, folderId, activeSectionId, onRegionClick }: Props) {
+export default function DocumentViewer({ url, documentId, folderId }: Props) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -216,7 +214,7 @@ export default function DocumentViewer({ url, documentId, folderId, activeSectio
     setRegions((prev) => [...prev, { ...region, note_id: note.id }]);
     setToolMode("view");
     window.dispatchEvent(new CustomEvent("sidebar:refresh"));
-    navigate(`/documents/${documentId}/notes/${note.id}`);
+    navigate(`/notes/${note.id}`);
   }, [documentId, pageNum, navigate]);
 
   // ── navigation ─────────────────────────────────────────────────────────────
@@ -342,14 +340,7 @@ export default function DocumentViewer({ url, documentId, folderId, activeSectio
               onStrokeComplete={handleInlineStroke}
               regions={regions}
               onRegionComplete={handleRegionComplete}
-              onRegionClick={(r) => {
-                if (onRegionClick) {
-                  onRegionClick(r);
-                } else {
-                  navigate(`/documents/${documentId}/notes/${r.note_id}`);
-                }
-              }}
-              activeSectionId={activeSectionId}
+              onRegionClick={(r) => navigate(`/notes/${r.note_id}`)}
               mode={toolMode}
               viewBox={viewBox}
               naturalSize={naturalSize ?? undefined}
