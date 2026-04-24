@@ -57,22 +57,29 @@ interface SidebarData {
   folders: Folder[];
   notes: Note[];
   documents: Document[];
+  docNotes: Record<number, Note[]>;
 }
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [data, setData] = useState<SidebarData>({ folders: [], notes: [], documents: [] });
+  const [data, setData] = useState<SidebarData>({ folders: [], notes: [], documents: [], docNotes: {} });
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
+  const [expandedDocuments, setExpandedDocuments] = useState<Set<number>>(new Set());
 
   const load = useCallback(async () => {
     try {
       const [flds, nts, docs] = await Promise.all([
         foldersApi.list(), notesApi.list(), docsApi.list(),
       ]);
-      setData({ folders: flds, notes: nts, documents: docs });
+      const linkedByDoc = await Promise.all(
+        docs.map((d) => notesApi.list({ documentId: d.id }).then((ns) => [d.id, ns] as const))
+      );
+      const docNotes = Object.fromEntries(linkedByDoc);
+      setData({ folders: flds, notes: nts, documents: docs, docNotes });
       setExpandedFolders(new Set(flds.map((f) => f.id)));
+      setExpandedDocuments(new Set(docs.filter((d) => docNotes[d.id]?.length > 0).map((d) => d.id)));
     } catch (err) {
       console.error("Failed to load sidebar data:", err);
     }
@@ -186,27 +193,41 @@ export default function Sidebar() {
   };
 
   const renderDocument = (doc: Document, indent: number) => {
-    const active = location.pathname === `/documents/${doc.id}`;
+    const linked = data.docNotes[doc.id] ?? [];
+    const isOpen = expandedDocuments.has(doc.id);
+    const active = location.pathname.startsWith(`/documents/${doc.id}`);
+    const toggleDoc = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setExpandedDocuments((s) => { const n = new Set(s); n.has(doc.id) ? n.delete(doc.id) : n.add(doc.id); return n; });
+    };
+
     return (
-      <div
-        key={doc.id}
-        className={`${css.leafRow}${active ? " " + css.active : ""}`}
-        style={{ paddingLeft: `${indent}px` }}
-        onClick={() => navigate(`/documents/${doc.id}`)}
-      >
-        <DocIcon />
-        <span className={css.rowLabel}>{doc.name}</span>
-        <div className={css.rowActions} onClick={stop}>
-          <button className={css.iconBtn} title="Rename" onClick={() => renameDocument(doc)}>✎</button>
-          <button className={css.iconBtn} title="Delete" onClick={() => deleteDocument(doc)}>✕</button>
+      <div key={doc.id}>
+        <div
+          className={`${css.leafRow}${active ? " " + css.active : ""}`}
+          style={{ paddingLeft: `${indent}px` }}
+          onClick={() => navigate(`/documents/${doc.id}`)}
+        >
+          {linked.length > 0
+            ? <span onClick={toggleDoc}><ChevronIcon open={isOpen} /></span>
+            : <span style={{ width: 14, display: "inline-block" }} />}
+          <DocIcon />
+          <span className={css.rowLabel}>{doc.name}</span>
+          <div className={css.rowActions} onClick={stop}>
+            <button className={css.iconBtn} title="Rename" onClick={() => renameDocument(doc)}>✎</button>
+            <button className={css.iconBtn} title="Delete" onClick={() => deleteDocument(doc)}>✕</button>
+          </div>
         </div>
+        {linked.length > 0 && isOpen && linked.map((n) => renderNote(n, indent + 28))}
       </div>
     );
   };
 
+  const linkedNoteIds = new Set(Object.values(data.docNotes).flat().map((n) => n.id));
+
   const renderFolder = (folder: Folder, indent: number): JSX.Element => {
     const children = data.folders.filter((f) => f.parent_folder_id === folder.id);
-    const folderNotes = data.notes.filter((n) => n.folder_id === folder.id);
+    const folderNotes = data.notes.filter((n) => n.folder_id === folder.id && !linkedNoteIds.has(n.id));
     const folderDocs = data.documents.filter((d) => d.folder_id === folder.id);
     const isOpen = expandedFolders.has(folder.id);
 
@@ -241,7 +262,7 @@ export default function Sidebar() {
   };
 
   const rootFolders = data.folders.filter((f) => f.parent_folder_id === null);
-  const rootNotes = data.notes.filter((n) => n.folder_id === null);
+  const rootNotes = data.notes.filter((n) => n.folder_id === null && !linkedNoteIds.has(n.id));
   const rootDocs = data.documents.filter((d) => d.folder_id === null);
   const isEmpty = rootFolders.length === 0 && rootNotes.length === 0 && rootDocs.length === 0;
 

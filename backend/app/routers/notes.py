@@ -2,17 +2,22 @@ from sqlalchemy import func
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Note, Section
+from app.models import Note, Section, Region
 from app.schemas import NoteCreate, NoteUpdate, NoteOut, NoteMerge
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
 
 @router.get("/", response_model=list[NoteOut])
-def list_notes(folder_id: int | None = None, db: Session = Depends(get_db)):
+def list_notes(folder_id: int | None = None, document_id: int | None = None, db: Session = Depends(get_db)):
     q = db.query(Note)
     if folder_id is not None:
         q = q.filter(Note.folder_id == folder_id)
+    if document_id is not None:
+        q = (q.join(Section, Note.id == Section.note_id)
+               .join(Region, Section.id == Region.section_id)
+               .filter(Region.document_id == document_id)
+               .distinct())
     return q.all()
 
 

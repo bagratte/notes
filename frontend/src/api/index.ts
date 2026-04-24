@@ -36,9 +36,10 @@ export const documents = {
 
 // Notes
 export const notes = {
-  list: (params: { folderId?: number } = {}) => {
+  list: (params: { folderId?: number; documentId?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.folderId !== undefined) q.set("folder_id", String(params.folderId));
+    if (params.documentId !== undefined) q.set("document_id", String(params.documentId));
     return api.get<Note[]>(`/notes/${q.toString() ? "?" + q : ""}`);
   },
   get: (id: number) => api.get<Note>(`/notes/${id}`),
