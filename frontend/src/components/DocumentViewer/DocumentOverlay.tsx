@@ -8,7 +8,7 @@ export interface EnrichedRegion extends Region {
   note_id: number;
 }
 
-export type ToolMode = "view" | "annotate" | "region";
+export type ToolMode = "view" | "annotate" | "region" | "stroke-eraser";
 
 interface DragRect {
   x: number;
@@ -28,6 +28,7 @@ interface Props {
   regions: EnrichedRegion[];
   onRegionComplete?: (rect: DragRect) => void;
   onRegionClick?: (region: EnrichedRegion) => void;
+  onEraseStroke?: (id: number) => void;
   mode: ToolMode;
   viewBox?: string;
   naturalSize?: NaturalSize;
@@ -49,11 +50,12 @@ function renderStrokePath(
   points: [number, number, number][],
   color: string,
   width: number,
-  key: string | number
+  key: string | number,
+  strokeId?: number
 ) {
   const outline = getStroke(points, { ...STROKE_OPTIONS, size: width });
   const d = svgPathFromStroke(outline);
-  return <path key={key} d={d} fill={color} />;
+  return <path key={key} d={d} fill={color} data-stroke-id={strokeId} />;
 }
 
 export default function DocumentOverlay({
@@ -62,6 +64,7 @@ export default function DocumentOverlay({
   regions,
   onRegionComplete,
   onRegionClick,
+  onEraseStroke,
   mode,
   viewBox,
   naturalSize,
@@ -74,6 +77,7 @@ export default function DocumentOverlay({
   const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
   const drawing = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
+  const erasedIds = useRef(new Set<number>());
 
   const toSvgPoint = useCallback(
     (e: React.PointerEvent): [number, number, number] => {
@@ -91,6 +95,29 @@ export default function DocumentOverlay({
     []
   );
 
+  const eraseAtPoint = useCallback(
+    (e: React.PointerEvent, firstOnly: boolean) => {
+      // Sample center + cardinal offsets (8px) for area eraser brush width
+      const samples: [number, number][] = firstOnly
+        ? [[e.clientX, e.clientY]]
+        : [[e.clientX, e.clientY], [e.clientX + 8, e.clientY], [e.clientX - 8, e.clientY], [e.clientX, e.clientY + 8], [e.clientX, e.clientY - 8]];
+
+      for (const [cx, cy] of samples) {
+        for (const el of document.elementsFromPoint(cx, cy)) {
+          if (!(el instanceof SVGPathElement)) continue;
+          const idStr = el.dataset.strokeId;
+          if (idStr === undefined) continue;
+          const id = parseInt(idStr);
+          if (erasedIds.current.has(id)) continue;
+          erasedIds.current.add(id);
+          onEraseStroke?.(id);
+          if (firstOnly) return;
+        }
+      }
+    },
+    [onEraseStroke]
+  );
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (mode === "view") return;
@@ -100,26 +127,31 @@ export default function DocumentOverlay({
       drawing.current = true;
       if (mode === "annotate") {
         setLivePoints([pt]);
+      } else if (mode === "stroke-eraser") {
+        erasedIds.current.clear();
+        eraseAtPoint(e, false);
       } else {
         setDragStart([pt[0], pt[1]]);
         setDragCurrent([pt[0], pt[1]]);
       }
     },
-    [mode, toSvgPoint]
+    [mode, toSvgPoint, eraseAtPoint]  // toSvgPoint still needed for annotate/region pt
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (!drawing.current) return;
       e.preventDefault();
-      const pt = toSvgPoint(e);
       if (mode === "annotate") {
-        setLivePoints((prev) => [...prev, pt]);
-      } else {
+        setLivePoints((prev) => [...prev, toSvgPoint(e)]);
+      } else if (mode === "stroke-eraser") {
+        eraseAtPoint(e, false);
+      } else if (mode === "region") {
+        const pt = toSvgPoint(e);
         setDragCurrent([pt[0], pt[1]]);
       }
     },
-    [mode, toSvgPoint]
+    [mode, toSvgPoint, eraseAtPoint]
   );
 
   const handlePointerUp = useCallback(() => {
@@ -199,16 +231,14 @@ export default function DocumentOverlay({
           display: "block",
           touchAction: active ? "none" : "auto",
           pointerEvents: active ? "all" : "none",
-          cursor: mode === "region" ? "crosshair" : "default",
+          cursor: mode === "region" ? "crosshair" : mode === "stroke-eraser" ? "cell" : "default",
         }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
       >
-        {strokes.map((s, i) =>
-          renderStrokePath(s.points, s.color, s.width, i)
-        )}
+        {strokes.map((s, i) => renderStrokePath(s.points, s.color, s.width, i, s.id))}
         {livePoints.length > 0 &&
           renderStrokePath(livePoints, color, penWidth, "live")}
 

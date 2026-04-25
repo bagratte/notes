@@ -32,7 +32,7 @@ interface PendingRegion {
 const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
 
 function toStrokeData(s: Stroke): StrokeData {
-  return { points: s.points, color: s.color, width: s.width };
+  return { id: s.id, points: s.points, color: s.color, width: s.width };
 }
 
 export default function DocumentViewer({ url, documentId, folderId, initialPage }: Props) {
@@ -254,6 +254,19 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
     });
   }, [documentId, pageNum]);
 
+  const handleEraseStroke = useCallback((id: number) => {
+    setInlineStrokes((prev) => {
+      const stroke = prev.find((s) => s.id === id);
+      if (!stroke) return prev;
+      strokesApi.delete(id);
+      const next = prev.filter((s) => s.id !== id);
+      if (next.length === 0)
+        window.dispatchEvent(new CustomEvent("document:page-strokes-changed",
+          { detail: { documentId, pageNumber: pageNum } }));
+      return next;
+    });
+  }, [documentId, pageNum]);
+
   // ── region creation ────────────────────────────────────────────────────────
 
   const handleRegionComplete = useCallback(async (rect: PendingRegion) => {
@@ -393,7 +406,9 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
 
         <PenToolbar
           settings={pen}
-          onChange={setPen}
+          onChange={(s) => { setPen(s); if (toolMode === "stroke-eraser") setToolMode("annotate"); }}
+          eraserMode={toolMode === "stroke-eraser" ? "stroke" : null}
+          onEraserChange={(m) => setToolMode(m ? "stroke-eraser" : "annotate")}
           canUndo={inlineStrokes.length > 0}
           canRedo={inlineRedoStack.length > 0}
           onUndo={undoInline}
@@ -410,6 +425,7 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
             <DocumentOverlay
               strokes={inlineStrokes.map(toStrokeData)}
               onStrokeComplete={handleInlineStroke}
+              onEraseStroke={handleEraseStroke}
               regions={regions}
               onRegionComplete={handleRegionComplete}
               onRegionClick={(r) => navigate(`/notes/${r.note_id}`)}

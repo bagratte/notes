@@ -6,15 +6,14 @@ import { svgPathFromStroke } from "./utils";
 interface Props {
   strokes: StrokeData[];
   onStrokeComplete?: (stroke: StrokeData) => void;
+  onEraseStroke?: (id: number) => void;
+  eraserMode?: boolean;
   color?: string;
   penWidth?: number;
   readonly?: boolean;
   width?: number | string;
   height?: number | string;
-  // When set, stroke points are stored in viewBox coordinate space so they
-  // scale correctly when the SVG is rendered at different sizes (e.g. zoom).
   viewBox?: string;
-  // Lets the parent disable pointer input without unmounting (e.g. view mode).
   inputEnabled?: boolean;
   className?: string;
   style?: React.CSSProperties;
@@ -31,16 +30,19 @@ function renderPath(
   points: [number, number, number][],
   color: string,
   width: number,
-  key: string | number
+  key: string | number,
+  strokeId?: number
 ) {
   const outline = getStroke(points, { ...STROKE_OPTIONS, size: width });
   const d = svgPathFromStroke(outline);
-  return <path key={key} d={d} fill={color} />;
+  return <path key={key} d={d} fill={color} data-stroke-id={strokeId} />;
 }
 
 export default function DrawingCanvas({
   strokes,
   onStrokeComplete,
+  onEraseStroke,
+  eraserMode = false,
   color = "#000000",
   penWidth = 3,
   readonly = false,
@@ -54,6 +56,7 @@ export default function DrawingCanvas({
   const [livePoints, setLivePoints] = useState<[number, number, number][]>([]);
   const drawing = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
+  const erasedIds = useRef(new Set<number>());
 
   // Maps a pointer event's client coordinates into the SVG's own coordinate
   // space, respecting any viewBox transformation that may be in effect.
@@ -73,36 +76,68 @@ export default function DrawingCanvas({
     []
   );
 
+  const eraseAtPoint = useCallback(
+    (e: React.PointerEvent) => {
+      const samples: [number, number][] = [
+        [e.clientX, e.clientY],
+        [e.clientX + 8, e.clientY], [e.clientX - 8, e.clientY],
+        [e.clientX, e.clientY + 8], [e.clientX, e.clientY - 8],
+      ];
+      for (const [cx, cy] of samples) {
+        for (const el of document.elementsFromPoint(cx, cy)) {
+          if (!(el instanceof SVGPathElement)) continue;
+          const idStr = el.dataset.strokeId;
+          if (!idStr) continue;
+          const id = parseInt(idStr);
+          if (erasedIds.current.has(id)) continue;
+          erasedIds.current.add(id);
+          onEraseStroke?.(id);
+        }
+      }
+    },
+    [onEraseStroke]
+  );
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (readonly || !inputEnabled) return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
       drawing.current = true;
-      setLivePoints([toSvgPoint(e)]);
+      if (eraserMode) {
+        erasedIds.current.clear();
+        eraseAtPoint(e);
+      } else {
+        setLivePoints([toSvgPoint(e)]);
+      }
     },
-    [readonly, inputEnabled, toSvgPoint]
+    [readonly, inputEnabled, eraserMode, toSvgPoint, eraseAtPoint]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (!drawing.current) return;
       e.preventDefault();
-      setLivePoints((prev) => [...prev, toSvgPoint(e)]);
+      if (eraserMode) {
+        eraseAtPoint(e);
+      } else {
+        setLivePoints((prev) => [...prev, toSvgPoint(e)]);
+      }
     },
-    [toSvgPoint]
+    [eraserMode, toSvgPoint, eraseAtPoint]
   );
 
   const handlePointerUp = useCallback(() => {
     if (!drawing.current) return;
     drawing.current = false;
+    if (eraserMode) return;
     setLivePoints((prev) => {
       if (prev.length > 0 && onStrokeComplete) {
         onStrokeComplete({ points: prev, color, width: penWidth });
       }
       return [];
     });
-  }, [onStrokeComplete, color, penWidth]);
+  }, [eraserMode, onStrokeComplete, color, penWidth]);
 
   return (
     <svg
@@ -114,6 +149,7 @@ export default function DrawingCanvas({
       style={{
         touchAction: inputEnabled ? "none" : "auto",
         pointerEvents: inputEnabled ? "all" : "none",
+        cursor: eraserMode ? "cell" : "default",
         display: "block",
         ...style,
       }}
@@ -122,7 +158,7 @@ export default function DrawingCanvas({
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
     >
-      {strokes.map((s, i) => renderPath(s.points, s.color, s.width, i))}
+      {strokes.map((s, i) => renderPath(s.points, s.color, s.width, i, s.id))}
       {livePoints.length > 0 && renderPath(livePoints, color, penWidth, "live")}
     </svg>
   );

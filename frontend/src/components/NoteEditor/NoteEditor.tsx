@@ -13,6 +13,7 @@ export default function NoteEditor({ noteId }: Props) {
   const [sectionList, setSectionList] = useState<Section[]>([]);
   const [adding, setAdding] = useState(false);
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
+  const [eraserMode, setEraserMode] = useState(false);
 
   useEffect(() => {
     sectionsApi.list(noteId).then(setSectionList);
@@ -32,7 +33,12 @@ export default function NoteEditor({ noteId }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-      <PenToolbar settings={pen} onChange={setPen} />
+      <PenToolbar
+        settings={pen}
+        onChange={(s) => { setPen(s); setEraserMode(false); }}
+        eraserMode={eraserMode ? "stroke" : null}
+        onEraserChange={(m) => setEraserMode(m !== null)}
+      />
 
       {sectionList.length === 0 && (
         <div
@@ -57,6 +63,7 @@ export default function NoteEditor({ noteId }: Props) {
           key={section.id}
           sectionId={section.id}
           pen={pen}
+          eraserMode={eraserMode}
           onDelete={() => deleteSection(section.id)}
         />
       ))}

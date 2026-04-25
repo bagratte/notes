@@ -28,6 +28,8 @@ const COLORS = [
 interface Props {
   settings: PenSettings;
   onChange: (s: PenSettings) => void;
+  eraserMode?: "stroke" | null;
+  onEraserChange?: (mode: "stroke" | null) => void;
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
@@ -37,6 +39,8 @@ interface Props {
 export default function PenToolbar({
   settings,
   onChange,
+  eraserMode,
+  onEraserChange,
   canUndo,
   canRedo,
   onUndo,
@@ -69,6 +73,23 @@ export default function PenToolbar({
           </svg>
         </button>
       ))}
+
+      {onEraserChange !== undefined && (
+        <>
+          <div className={css.sep} />
+          <button
+            className={`${css.widthBtn}${eraserMode === "stroke" ? " " + css.active : ""}`}
+            title="Stroke eraser"
+            onClick={() => onEraserChange(eraserMode === "stroke" ? null : "stroke")}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M5 12H12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+              <path d="M2 9l3-6 6 2-3 6H2z" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+              <path d="M5 12l-3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </>
+      )}
 
       {showUndoRedo && (
         <>

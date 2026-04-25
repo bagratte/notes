@@ -9,16 +9,18 @@ import RegionPreview from "./RegionPreview";
 interface Props {
   sectionId: number;
   pen: PenSettings;
+  eraserMode?: boolean;
   onDelete: () => void;
 }
 
 function toDisplay(s: Stroke): StrokeData {
-  return { points: s.points, color: s.color, width: s.width };
+  return { id: s.id, points: s.points, color: s.color, width: s.width };
 }
 
 export default function SectionCanvas({
   sectionId,
   pen,
+  eraserMode = false,
   onDelete,
 }: Props) {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -50,6 +52,14 @@ export default function SectionCanvas({
     },
     [sectionId]
   );
+
+  const handleEraseStroke = useCallback((id: number) => {
+    setStrokes((prev) => {
+      if (!prev.find((s) => s.id === id)) return prev;
+      strokesApi.delete(id);
+      return prev.filter((s) => s.id !== id);
+    });
+  }, []);
 
   const undo = useCallback(() => {
     setStrokes((prev) => {
@@ -114,6 +124,8 @@ export default function SectionCanvas({
           <DrawingCanvas
             strokes={strokes.map(toDisplay)}
             onStrokeComplete={handleStrokeComplete}
+            onEraseStroke={handleEraseStroke}
+            eraserMode={eraserMode}
             color={pen.color}
             penWidth={pen.width}
             height={320}
