@@ -38,7 +38,6 @@ export default function DocumentPage() {
     <div style={styles.page}>
       <div style={styles.header}>
         <h1 style={styles.title}>{doc.name}</h1>
-        <span style={styles.typeBadge}>{doc.type.toUpperCase()}</span>
       </div>
       <div style={styles.viewerWrap}>
         {doc.type === "pdf" ? (
@@ -71,15 +70,6 @@ const styles = {
     fontWeight: 500,
     color: "#2a2a2a",
     flex: 1,
-  },
-  typeBadge: {
-    fontSize: 10,
-    fontWeight: 600,
-    letterSpacing: "0.08em",
-    color: "#aaa",
-    background: "#ede9e3",
-    padding: "2px 7px",
-    borderRadius: 10,
   },
   viewerWrap: {
     flex: 1,

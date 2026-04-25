@@ -36,12 +36,14 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const docRef = useRef<DjVuDocument | null>(null);
+  const effectiveScaleRef = useRef(1.0);
 
   const [numPages, setNumPages] = useState(0);
   const [pageNum, setPageNum] = useState(initialPage ?? 1);
+  const [pageInput, setPageInput] = useState("");
   const [naturalSize, setNaturalSize] = useState<NaturalSize | null>(null);
   const [scale, setScale] = useState(1.0);
-  const [fitWidth, setFitWidth] = useState(true);
+  const [fitMode, setFitMode] = useState<"width" | "page" | "manual">("width");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,8 +99,14 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
       const naturalH = page.getHeight();
       setNaturalSize({ width: naturalW, height: naturalH });
 
-      const containerWidth = Math.max(400, container.clientWidth - 48);
-      const effectiveScale = fitWidth ? containerWidth / naturalW : scale;
+      const containerWidth  = Math.max(400, container.clientWidth  - 48);
+      const containerHeight = Math.max(300, container.clientHeight - 48);
+      const effectiveScale =
+        fitMode === "width" ? containerWidth / naturalW :
+        fitMode === "page"  ? Math.min(containerWidth / naturalW,
+                                        containerHeight / naturalH) :
+        scale;
+      effectiveScaleRef.current = effectiveScale;
 
       canvas.width = Math.round(naturalW * effectiveScale);
       canvas.height = Math.round(naturalH * effectiveScale);
@@ -120,7 +128,19 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
     });
 
     return () => { cancelled = true; };
-  }, [pageNum, numPages, scale, fitWidth]);
+  }, [pageNum, numPages, scale, fitMode]);
+
+  // ── sync page input ────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    setPageInput(String(pageNum));
+  }, [pageNum]);
+
+  const handlePageInputSubmit = useCallback(() => {
+    const n = parseInt(pageInput.trim(), 10);
+    if (!isNaN(n) && n >= 1 && n <= numPages) { setPageNum(n); return; }
+    setPageInput(String(pageNum));
+  }, [pageInput, pageNum, numPages]);
 
   // ── cross-component sync ───────────────────────────────────────────────────
 
@@ -257,12 +277,14 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
   // ── zoom ───────────────────────────────────────────────────────────────────
 
   const zoomIn = () => {
-    setFitWidth(false);
-    setScale((s) => ZOOM_STEPS.find((z) => z > s) ?? ZOOM_STEPS[ZOOM_STEPS.length - 1]);
+    const current = effectiveScaleRef.current;
+    setFitMode("manual");
+    setScale(ZOOM_STEPS.find((z) => z > current) ?? ZOOM_STEPS[ZOOM_STEPS.length - 1]);
   };
   const zoomOut = () => {
-    setFitWidth(false);
-    setScale((s) => [...ZOOM_STEPS].reverse().find((z) => z < s) ?? ZOOM_STEPS[0]);
+    const current = effectiveScaleRef.current;
+    setFitMode("manual");
+    setScale([...ZOOM_STEPS].reverse().find((z) => z < current) ?? ZOOM_STEPS[0]);
   };
 
   // ── render ─────────────────────────────────────────────────────────────────
@@ -278,7 +300,16 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
       <div className={css.toolbar}>
         <div className={css.toolbarGroup}>
           <button className={css.navBtn} onClick={prevPage} disabled={pageNum <= 1}>‹</button>
-          <span className={css.pageInfo}>{loading ? "—" : `${pageNum} / ${numPages}`}</span>
+          <input
+            className={css.pageInput}
+            value={pageInput}
+            onChange={(e) => setPageInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handlePageInputSubmit(); }}
+            onBlur={handlePageInputSubmit}
+            disabled={loading}
+            aria-label="Page"
+          />
+          <span className={css.pageCount}>{loading ? "— / —" : `${pageNum} / ${numPages}`}</span>
           <button className={css.navBtn} onClick={nextPage} disabled={pageNum >= numPages || loading}>›</button>
         </div>
 
@@ -287,14 +318,34 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
         <div className={css.toolbarGroup}>
           <button className={css.zoomBtn} onClick={zoomOut} disabled={loading}>−</button>
           <span className={css.zoomLevel}>
-            {fitWidth ? "fit" : `${Math.round(scale * 100)}%`}
+            {fitMode === "width" ? "width" : fitMode === "page" ? "page" : `${Math.round(scale * 100)}%`}
           </span>
           <button className={css.zoomBtn} onClick={zoomIn} disabled={loading}>+</button>
           <button
-            className={`${css.fitBtn}${fitWidth ? " " + css.active : ""}`}
-            onClick={() => setFitWidth(true)}
+            className={`${css.zoomBtn}${fitMode === "width" ? " " + css.active : ""}`}
+            onClick={() => setFitMode("width")}
+            title="Fit width"
+            disabled={loading}
           >
-            Fit width
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M2 4v8M14 4v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <path d="M2 8h5M14 8H9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+              <path d="M5 6L2 8l3 2M11 6l3 2-3 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <button
+            className={`${css.zoomBtn}${fitMode === "page" ? " " + css.active : ""}`}
+            onClick={() => setFitMode("page")}
+            title="Fit page"
+            disabled={loading}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <rect x="5" y="4" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M1 1h3v3M1 1l3.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M15 1h-3v3M15 1l-3.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M1 15h3v-3M1 15l3.5-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M15 15h-3v-3M15 15l-3.5-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </button>
         </div>
 

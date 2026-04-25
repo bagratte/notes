@@ -44,11 +44,24 @@
 .navBtn:hover:not(:disabled) { background: #ede9e3; border-color: #ccc; }
 .navBtn:disabled { opacity: 0.35; cursor: default; }
 
-.pageInfo {
+.pageInput {
+  width: 48px;
+  height: 28px;
+  border: 1px solid #dedad3;
+  border-radius: 4px;
+  background: #fff;
+  text-align: center;
+  font-size: 13px;
+  color: #444;
+  padding: 0 4px;
+  outline: none;
+}
+.pageInput:focus { border-color: #aaa; }
+.pageInput:disabled { opacity: 0.35; }
+
+.pageCount {
   font-size: 13px;
   color: #666;
-  min-width: 64px;
-  text-align: center;
 }
 
 .zoomBtn {
@@ -67,6 +80,7 @@
   font-weight: 600;
 }
 .zoomBtn:hover { background: #ede9e3; border-color: #ccc; }
+.zoomBtn.active { background: #3a3a3a; color: #fff; border-color: #3a3a3a; }
 
 .zoomLevel {
   font-size: 12px;
@@ -75,18 +89,6 @@
   text-align: center;
 }
 
-.fitBtn {
-  padding: 0 8px;
-  height: 28px;
-  border: 1px solid #dedad3;
-  background: #fff;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 11px;
-  color: #666;
-}
-.fitBtn:hover { background: #ede9e3; }
-.fitBtn.active { background: #3a3a3a; color: #fff; border-color: #3a3a3a; }
 
 .annotateBtn {
   padding: 0 10px;
