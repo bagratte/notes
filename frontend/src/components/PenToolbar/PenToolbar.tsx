@@ -7,6 +7,11 @@ export interface PenSettings {
 
 export const DEFAULT_PEN: PenSettings = { color: "#2255cc", width: 2 };
 
+const WIDTHS = [
+  { value: 2, label: "Thin" },
+  { value: 5, label: "Wide" },
+];
+
 const COLORS = [
   { value: "#c0392b", label: "Red" },
   { value: "#e67e22", label: "Orange" },
@@ -49,6 +54,20 @@ export default function PenToolbar({
           title={label}
           onClick={() => onChange({ ...settings, color: value })}
         />
+      ))}
+
+      <div className={css.sep} />
+      {WIDTHS.map(({ value, label }) => (
+        <button
+          key={value}
+          className={`${css.widthBtn}${settings.width === value ? " " + css.active : ""}`}
+          title={label}
+          onClick={() => onChange({ ...settings, width: value })}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14">
+            <circle cx="7" cy="7" r={value} fill="currentColor"/>
+          </svg>
+        </button>
       ))}
 
       {showUndoRedo && (
