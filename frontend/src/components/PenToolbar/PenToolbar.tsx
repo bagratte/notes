@@ -5,14 +5,17 @@ export interface PenSettings {
   width: number;
 }
 
-export const DEFAULT_PEN: PenSettings = { color: "#1a1a1a", width: 2 };
+export const DEFAULT_PEN: PenSettings = { color: "#2255cc", width: 2 };
 
 const COLORS = [
-  { value: "#1a1a1a", label: "Black" },
-  { value: "#1a3a8c", label: "Blue" },
-  { value: "#8c1a1a", label: "Red" },
+  { value: "#c0392b", label: "Red" },
+  { value: "#e67e22", label: "Orange" },
+  { value: "#f1c40f", label: "Yellow" },
   { value: "#1a6b2a", label: "Green" },
-  { value: "#6b2d8b", label: "Purple" },
+  { value: "#2255cc", label: "Blue" },
+  { value: "#4b0082", label: "Indigo" },
+  { value: "#8b00ff", label: "Violet" },
+  { value: "#1a1a1a", label: "Black" },
 ];
 
 
