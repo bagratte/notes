@@ -5,7 +5,7 @@ export interface PenSettings {
   width: number;
 }
 
-export const DEFAULT_PEN: PenSettings = { color: "#1a1a1a", width: 4 };
+export const DEFAULT_PEN: PenSettings = { color: "#1a1a1a", width: 2 };
 
 const COLORS = [
   { value: "#1a1a1a", label: "Black" },
@@ -15,7 +15,7 @@ const COLORS = [
   { value: "#6b2d8b", label: "Purple" },
 ];
 
-const WIDTHS = [2, 4, 6, 9];
+
 
 interface Props {
   settings: PenSettings;
@@ -46,28 +46,6 @@ export default function PenToolbar({
           title={label}
           onClick={() => onChange({ ...settings, color: value })}
         />
-      ))}
-
-      <div className={css.sep} />
-
-      {WIDTHS.map((w) => (
-        <button
-          key={w}
-          className={`${css.widthBtn}${settings.width === w ? " " + css.active : ""}`}
-          title={`${w}px`}
-          onClick={() => onChange({ ...settings, width: w })}
-        >
-          <div
-            style={{
-              width: w * 1.8,
-              height: w * 1.8,
-              borderRadius: "50%",
-              background: settings.color,
-              maxWidth: 16,
-              maxHeight: 16,
-            }}
-          />
-        </button>
       ))}
 
       {showUndoRedo && (
