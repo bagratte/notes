@@ -47,7 +47,7 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [toolMode, setToolMode] = useState<ToolMode>("view");
+  const [toolMode, setToolMode] = useState<ToolMode>("annotate");
   const [inlineStrokes, setInlineStrokes] = useState<Stroke[]>([]);
   const [inlineRedoStack, setInlineRedoStack] = useState<Stroke[]>([]);
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
@@ -263,10 +263,9 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
         if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undoInline(); return; }
         if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redoInline(); return; }
       }
-      if (e.key === "a" || e.key === "A") { setToolMode((m) => m === "annotate" ? "view" : "annotate"); return; }
-      if (e.key === "r" || e.key === "R") { setToolMode((m) => m === "region" ? "view" : "region"); return; }
-      if (e.key === "Escape") { setToolMode("view"); return; }
-      if (toolMode !== "view") return;
+      if (e.key === "r" || e.key === "R") { setToolMode((m) => m === "region" ? "annotate" : "region"); return; }
+      if (e.key === "Escape") { setToolMode("annotate"); return; }
+      if (toolMode !== "annotate") return;
       if (e.key === "ArrowLeft" || e.key === "ArrowUp") prevPage();
       if (e.key === "ArrowRight" || e.key === "ArrowDown") nextPage();
     };
@@ -351,41 +350,27 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
 
         <div className={css.toolbarSep} />
 
+        {/* tools */}
         <div className={css.toolbarGroup}>
           <button
-            className={`${css.annotateBtn}${toolMode === "annotate" ? " " + css.active : ""}`}
-            onClick={() => setToolMode((m) => m === "annotate" ? "view" : "annotate")}
-            title="Annotate (A)"
-          >
-            ✎ Annotate
-          </button>
-          <button
-            className={`${css.annotateBtn}${toolMode === "region" ? " " + css.active : ""}`}
-            onClick={() => setToolMode((m) => m === "region" ? "view" : "region")}
+            className={`${css.zoomBtn} ${css.zoomBtnWide}${toolMode === "region" ? " " + css.active : ""}`}
+            onClick={() => setToolMode((m) => m === "region" ? "annotate" : "region")}
             title="Region (R)"
           >
-            ⬚ Region
+            <span>⬚</span>
           </button>
-          {toolMode !== "view" && (
-            <span className={css.annotateHint}>
-              {toolMode === "annotate" ? "Drawing on page" : "Drag to mark region"} {pageNum}
-            </span>
-          )}
         </div>
 
-        {toolMode === "annotate" && (
-          <>
-            <div className={css.toolbarSep} />
-            <PenToolbar
-              settings={pen}
-              onChange={setPen}
-              canUndo={inlineStrokes.length > 0}
-              canRedo={inlineRedoStack.length > 0}
-              onUndo={undoInline}
-              onRedo={redoInline}
-            />
-          </>
-        )}
+        <div className={css.toolbarSep} />
+
+        <PenToolbar
+          settings={pen}
+          onChange={setPen}
+          canUndo={inlineStrokes.length > 0}
+          canRedo={inlineRedoStack.length > 0}
+          onUndo={undoInline}
+          onRedo={redoInline}
+        />
       </div>
 
       <div ref={containerRef} className={css.scroll}>

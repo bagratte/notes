@@ -78,8 +78,10 @@
   color: #555;
   padding: 0;
   font-weight: 600;
+  line-height: 1;
 }
 .zoomBtn:hover { background: #ede9e3; border-color: #ccc; }
+.zoomBtnWide > * { transform: translateY(-1px); font-size: 17px; }
 .zoomBtn.active { background: #3a3a3a; color: #fff; border-color: #3a3a3a; }
 
 .zoomLevel {
@@ -89,28 +91,6 @@
   text-align: center;
 }
 
-
-.annotateBtn {
-  padding: 0 10px;
-  height: 28px;
-  border: 1px solid #dedad3;
-  background: #fff;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 11px;
-  color: #666;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.annotateBtn:hover { background: #ede9e3; }
-.annotateBtn.active { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
-
-.annotateHint {
-  font-size: 11px;
-  color: #4a6cf7;
-  padding: 0 8px;
-}
 
 .overlay {
   position: absolute;
