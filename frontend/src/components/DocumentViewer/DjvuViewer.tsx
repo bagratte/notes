@@ -353,11 +353,13 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
         {/* tools */}
         <div className={css.toolbarGroup}>
           <button
-            className={`${css.zoomBtn} ${css.zoomBtnWide}${toolMode === "region" ? " " + css.active : ""}`}
+            className={`${css.zoomBtn}${toolMode === "region" ? " " + css.active : ""}`}
             onClick={() => setToolMode((m) => m === "region" ? "annotate" : "region")}
             title="Region (R)"
           >
-            <span>⬚</span>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M1 5V2a1 1 0 0 1 1-1h3M9 1h3a1 1 0 0 1 1 1v3M13 9v3a1 1 0 0 1-1 1H9M5 13H2a1 1 0 0 1-1-1V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
           </button>
         </div>
 

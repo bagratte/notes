@@ -81,7 +81,6 @@
   line-height: 1;
 }
 .zoomBtn:hover { background: #ede9e3; border-color: #ccc; }
-.zoomBtnWide > * { transform: translateY(-1px); font-size: 17px; }
 .zoomBtn.active { background: #3a3a3a; color: #fff; border-color: #3a3a3a; }
 
 .zoomLevel {
