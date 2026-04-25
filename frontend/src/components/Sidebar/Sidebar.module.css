@@ -11,8 +11,10 @@
 .toolbar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 2px;
-  padding: 8px 6px;
+  height: 50px;
+  padding: 0 6px;
   border-bottom: 1px solid #dedad3;
   flex-shrink: 0;
 }

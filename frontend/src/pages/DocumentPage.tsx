@@ -57,7 +57,8 @@ const styles = {
     flexDirection: "column" as const,
   },
   header: {
-    padding: "12px 24px",
+    height: 50,
+    padding: "0 24px",
     borderBottom: "1px solid #e0ddd8",
     background: "#f8f6f2",
     flexShrink: 0,
@@ -70,6 +71,10 @@ const styles = {
     fontWeight: 500,
     color: "#2a2a2a",
     flex: 1,
+    overflow: "hidden" as const,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap" as const,
+    minWidth: 0,
   },
   viewerWrap: {
     flex: 1,
