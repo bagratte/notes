@@ -5,6 +5,8 @@ export interface PenSettings {
   width: number;
 }
 
+export type PenToolbarMode = "hand" | "annotate" | "stroke-eraser" | "region";
+
 export const DEFAULT_PEN: PenSettings = { color: "#2255cc", width: 2 };
 
 const WIDTHS = [
@@ -28,8 +30,8 @@ const COLORS = [
 interface Props {
   settings: PenSettings;
   onChange: (s: PenSettings) => void;
-  eraserMode?: "stroke" | null;
-  onEraserChange?: (mode: "stroke" | null) => void;
+  mode: PenToolbarMode;
+  onModeChange?: (mode: PenToolbarMode) => void;
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
@@ -39,8 +41,8 @@ interface Props {
 export default function PenToolbar({
   settings,
   onChange,
-  eraserMode,
-  onEraserChange,
+  mode,
+  onModeChange,
   canUndo,
   canRedo,
   onUndo,
@@ -50,13 +52,30 @@ export default function PenToolbar({
 
   return (
     <div className={css.toolbar}>
+      <button
+        className={`${css.widthBtn}${mode === "hand" ? " " + css.active : ""}`}
+        title="Scroll"
+        onClick={() => onModeChange?.("hand")}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M5.2 6.2V3.7a1 1 0 0 1 2 0v1.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          <path d="M7.2 5.2V3a1 1 0 1 1 2 0v2.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          <path d="M9.2 5.8V3.8a1 1 0 1 1 2 0v4.1c0 2.3-1.7 4.1-3.9 4.1H6.7c-1.8 0-3.2-1.4-3.2-3.2V6.7a1 1 0 1 1 2 0v1.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      <div className={css.sep} />
+
       {COLORS.map(({ value, label }) => (
         <button
           key={value}
-          className={`${css.colorBtn}${settings.color === value ? " " + css.active : ""}`}
+          className={`${css.colorBtn}${mode === "annotate" && settings.color === value ? " " + css.active : ""}`}
           style={{ background: value }}
           title={label}
-          onClick={() => onChange({ ...settings, color: value })}
+          onClick={() => {
+            onChange({ ...settings, color: value });
+            onModeChange?.("annotate");
+          }}
         />
       ))}
 
@@ -74,13 +93,13 @@ export default function PenToolbar({
         </button>
       ))}
 
-      {onEraserChange !== undefined && (
+      {onModeChange !== undefined && (
         <>
           <div className={css.sep} />
           <button
-            className={`${css.widthBtn}${eraserMode === "stroke" ? " " + css.active : ""}`}
+            className={`${css.widthBtn}${mode === "stroke-eraser" ? " " + css.active : ""}`}
             title="Stroke eraser"
-            onClick={() => onEraserChange(eraserMode === "stroke" ? null : "stroke")}
+            onClick={() => onModeChange(mode === "stroke-eraser" ? "annotate" : "stroke-eraser")}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M5 12H12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>

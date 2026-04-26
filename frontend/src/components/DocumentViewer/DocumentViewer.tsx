@@ -8,6 +8,7 @@ import { PenToolbar, DEFAULT_PEN } from "@/components/PenToolbar";
 import type { PenSettings } from "@/components/PenToolbar";
 import { strokes as strokesApi, regions as regionsApi, sections as sectionsApi, notes as notesApi } from "@/api";
 import type { Stroke } from "@/types";
+import { useTouchMode } from "@/context/TouchMode";
 import css from "./DocumentViewer.module.css";
 
 interface Props {
@@ -59,6 +60,7 @@ function getDisplayScale(
 
 export default function DocumentViewer({ url, documentId, folderId, initialPage }: Props) {
   const navigate = useNavigate();
+  const { isTouch } = useTouchMode();
   const containerRef = useRef<HTMLDivElement>(null);
   const pdfDocRef = useRef<Awaited<ReturnType<typeof pdfjsLib.getDocument>["promise"]> | null>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -84,7 +86,7 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
   const [regionsByPage, setRegionsByPage] = useState<Record<number, EnrichedRegion[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toolMode, setToolMode] = useState<ToolMode>("annotate");
+  const [toolMode, setToolMode] = useState<ToolMode>(() => (localStorage.getItem("touchMode") === "true" ? "view" : "annotate"));
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
 
   const [windowRange, setWindowRange] = useState(() => ({ start: 1, end: Math.max(1, initialPage ?? 1) }));
@@ -279,6 +281,12 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
   useEffect(() => {
     setPageInput(pageLabels ? pageLabels[pageNum - 1] ?? String(pageNum) : String(pageNum));
   }, [pageNum, pageLabels]);
+
+  useEffect(() => {
+    if (isTouch) {
+      setToolMode("view");
+    }
+  }, [isTouch]);
 
   // update window from active page
   useEffect(() => {
@@ -667,12 +675,12 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
 
         <PenToolbar
           settings={pen}
+          mode={toolMode === "view" ? "hand" : toolMode}
           onChange={(settings) => {
             setPen(settings);
-            if (toolMode === "stroke-eraser") setToolMode("annotate");
+            if (toolMode !== "annotate") setToolMode("annotate");
           }}
-          eraserMode={toolMode === "stroke-eraser" ? "stroke" : null}
-          onEraserChange={(mode) => setToolMode(mode ? "stroke-eraser" : "annotate")}
+          onModeChange={(mode) => setToolMode(mode === "hand" ? "view" : mode)}
           canUndo={activeStrokes.length > 0}
           canRedo={activeRedo.length > 0}
           onUndo={undoInline}

@@ -3,21 +3,29 @@ import { sections as sectionsApi } from "@/api";
 import type { Section } from "@/types";
 import SectionCanvas from "./SectionCanvas";
 import { PenToolbar, DEFAULT_PEN } from "@/components/PenToolbar";
-import type { PenSettings } from "@/components/PenToolbar";
+import type { PenSettings, PenToolbarMode } from "@/components/PenToolbar";
+import { useTouchMode } from "@/context/TouchMode";
 
 interface Props {
   noteId: number;
 }
 
 export default function NoteEditor({ noteId }: Props) {
+  const { isTouch } = useTouchMode();
   const [sectionList, setSectionList] = useState<Section[]>([]);
   const [adding, setAdding] = useState(false);
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
-  const [eraserMode, setEraserMode] = useState(false);
+  const [mode, setMode] = useState<PenToolbarMode>(() => (localStorage.getItem("touchMode") === "true" ? "hand" : "annotate"));
 
   useEffect(() => {
     sectionsApi.list(noteId).then(setSectionList);
   }, [noteId]);
+
+  useEffect(() => {
+    if (isTouch) {
+      setMode("hand");
+    }
+  }, [isTouch]);
 
   const addSection = async () => {
     setAdding(true);
@@ -35,9 +43,9 @@ export default function NoteEditor({ noteId }: Props) {
     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
       <PenToolbar
         settings={pen}
-        onChange={(s) => { setPen(s); setEraserMode(false); }}
-        eraserMode={eraserMode ? "stroke" : null}
-        onEraserChange={(m) => setEraserMode(m !== null)}
+        onChange={setPen}
+        mode={mode}
+        onModeChange={setMode}
       />
 
       {sectionList.length === 0 && (
@@ -63,7 +71,8 @@ export default function NoteEditor({ noteId }: Props) {
           key={section.id}
           sectionId={section.id}
           pen={pen}
-          eraserMode={eraserMode}
+          inputEnabled={mode !== "hand"}
+          eraserMode={mode === "stroke-eraser"}
           onDelete={() => deleteSection(section.id)}
         />
       ))}

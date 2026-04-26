@@ -59,3 +59,17 @@
 }
 .undoBtn:hover:not(:disabled) { background: #ede9e3; border-color: #bbb; }
 .undoBtn:disabled { opacity: 0.35; cursor: default; }
+
+@media (max-width: 960px) {
+  .toolbar {
+    gap: 5px;
+  }
+
+  .sep {
+    margin: 0 2px;
+  }
+
+  .undoBtn {
+    padding: 0 8px;
+  }
+}

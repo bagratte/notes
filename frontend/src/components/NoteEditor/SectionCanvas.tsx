@@ -9,6 +9,7 @@ import RegionPreview from "./RegionPreview";
 interface Props {
   sectionId: number;
   pen: PenSettings;
+  inputEnabled?: boolean;
   eraserMode?: boolean;
   onDelete: () => void;
 }
@@ -20,6 +21,7 @@ function toDisplay(s: Stroke): StrokeData {
 export default function SectionCanvas({
   sectionId,
   pen,
+  inputEnabled = true,
   eraserMode = false,
   onDelete,
 }: Props) {
@@ -125,6 +127,7 @@ export default function SectionCanvas({
             strokes={strokes.map(toDisplay)}
             onStrokeComplete={handleStrokeComplete}
             onEraseStroke={handleEraseStroke}
+            inputEnabled={inputEnabled}
             eraserMode={eraserMode}
             color={pen.color}
             penWidth={pen.width}

@@ -90,6 +90,33 @@
   text-align: center;
 }
 
+@media (max-width: 960px) {
+  .toolbar {
+    gap: 7px;
+    padding: 8px 12px;
+  }
+
+  .toolbarGroup {
+    gap: 4px;
+  }
+
+  .toolbarSep {
+    margin: 0 3px;
+  }
+
+  .pageInput {
+    width: 44px;
+  }
+
+  .pageCount {
+    font-size: 12px;
+  }
+
+  .zoomLevel {
+    min-width: 38px;
+  }
+}
+
 
 .overlay {
   position: absolute;

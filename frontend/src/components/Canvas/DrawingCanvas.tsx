@@ -149,7 +149,7 @@ export default function DrawingCanvas({
       style={{
         touchAction: inputEnabled ? "none" : "auto",
         pointerEvents: inputEnabled ? "all" : "none",
-        cursor: eraserMode ? "cell" : "default",
+        cursor: !inputEnabled ? "grab" : eraserMode ? "cell" : "default",
         display: "block",
         ...style,
       }}

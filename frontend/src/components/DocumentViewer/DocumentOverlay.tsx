@@ -189,7 +189,6 @@ export default function DocumentOverlay({
       : null;
 
   const active = mode !== "view";
-
   return (
     <div
       className={className}
