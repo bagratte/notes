@@ -19,7 +19,7 @@
 .handle:hover { background: #ccc9c2; }
 
 :global(.has-touch) .handle {
-  width: 20px;
+  width: 44px;
   background: transparent;
 }
 :global(.has-touch) .handle::after {

@@ -75,7 +75,7 @@ export default function AppLayout() {
       {visible && (
         <div
           className={css.handle}
-          style={isTouch ? { position: "fixed", left: width - 10, zIndex: 101 } : undefined}
+          style={isTouch ? { position: "fixed", left: width - 22, zIndex: 101 } : undefined}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
