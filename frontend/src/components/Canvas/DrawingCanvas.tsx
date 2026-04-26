@@ -26,6 +26,34 @@ const STROKE_OPTIONS = {
   simulatePressure: false,
 };
 
+function normalizePressure(e: React.PointerEvent): number {
+  if (e.pointerType === "pen") {
+    if (e.pressure > 0) return Math.min(1, Math.max(0.12, e.pressure));
+    return 0.2;
+  }
+  return e.pressure > 0 ? e.pressure : 0.5;
+}
+
+function appendPoint(
+  prev: [number, number, number][],
+  next: [number, number, number],
+  pointerType: string
+): [number, number, number][] {
+  if (pointerType !== "pen" || prev.length === 0) {
+    return [...prev, next];
+  }
+
+  const last = prev[prev.length - 1];
+  const alphaPos = 0.45;
+  const alphaPressure = 0.6;
+  const smoothed: [number, number, number] = [
+    last[0] + (next[0] - last[0]) * alphaPos,
+    last[1] + (next[1] - last[1]) * alphaPos,
+    last[2] + (next[2] - last[2]) * alphaPressure,
+  ];
+  return [...prev, smoothed];
+}
+
 function renderPath(
   points: [number, number, number][],
   color: string,
@@ -54,6 +82,7 @@ export default function DrawingCanvas({
   style,
 }: Props) {
   const [livePoints, setLivePoints] = useState<[number, number, number][]>([]);
+  const [activePointerType, setActivePointerType] = useState<string | null>(null);
   const drawing = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const erasedIds = useRef(new Set<number>());
@@ -70,7 +99,7 @@ export default function DrawingCanvas({
       return [
         (e.clientX - rect.left) * scaleX,
         (e.clientY - rect.top) * scaleY,
-        e.pressure > 0 ? e.pressure : 0.5,
+        normalizePressure(e),
       ];
     },
     []
@@ -100,6 +129,7 @@ export default function DrawingCanvas({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
+      setActivePointerType(e.pointerType);
       if (readonly || !inputEnabled) return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -116,18 +146,22 @@ export default function DrawingCanvas({
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      if (activePointerType !== e.pointerType) {
+        setActivePointerType(e.pointerType);
+      }
       if (!drawing.current) return;
       e.preventDefault();
       if (eraserMode) {
         eraseAtPoint(e);
       } else {
-        setLivePoints((prev) => [...prev, toSvgPoint(e)]);
+        setLivePoints((prev) => appendPoint(prev, toSvgPoint(e), e.pointerType));
       }
     },
-    [eraserMode, toSvgPoint, eraseAtPoint]
+    [eraserMode, toSvgPoint, eraseAtPoint, activePointerType]
   );
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    setActivePointerType(e.pointerType);
     if (!drawing.current) return;
     drawing.current = false;
     if (eraserMode) return;
@@ -139,6 +173,11 @@ export default function DrawingCanvas({
     });
   }, [eraserMode, onStrokeComplete, color, penWidth]);
 
+  const handlePointerLeave = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    handlePointerUp(e);
+    setActivePointerType(null);
+  }, [handlePointerUp]);
+
   return (
     <svg
       ref={svgRef}
@@ -149,14 +188,15 @@ export default function DrawingCanvas({
       style={{
         touchAction: inputEnabled ? "none" : "auto",
         pointerEvents: inputEnabled ? "all" : "none",
-        cursor: !inputEnabled ? "grab" : eraserMode ? "cell" : "default",
+        cursor: !inputEnabled ? "grab" : eraserMode ? "cell" : activePointerType === "pen" ? "none" : "default",
         display: "block",
         ...style,
       }}
+      onPointerEnter={(e) => setActivePointerType(e.pointerType)}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
+      onPointerLeave={handlePointerLeave}
     >
       {strokes.map((s, i) => renderPath(s.points, s.color, s.width, i, s.id))}
       {livePoints.length > 0 && renderPath(livePoints, color, penWidth, "live")}

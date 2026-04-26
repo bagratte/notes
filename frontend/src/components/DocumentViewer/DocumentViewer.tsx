@@ -41,11 +41,13 @@ interface PanState {
   startY: number;
   startScrollLeft: number;
   startScrollTop: number;
+  isActive: boolean;
 }
 
 const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
 const WINDOW_BUFFER = 2;
 const PAGE_GUTTER = 16;
+const PAN_DEADZONE_PX = 8;
 const PAGE_FALLBACK_WIDTH = 900;
 const PAGE_FALLBACK_HEIGHT = 1200;
 
@@ -569,10 +571,8 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
       startY: e.clientY,
       startScrollLeft: e.currentTarget.scrollLeft,
       startScrollTop: e.currentTarget.scrollTop,
+      isActive: false,
     };
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setIsPanning(true);
-    e.preventDefault();
   }, [toolMode]);
 
   const handleScrollPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -581,6 +581,14 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
 
     const dx = e.clientX - pan.startX;
     const dy = e.clientY - pan.startY;
+
+    if (!pan.isActive) {
+      if (Math.hypot(dx, dy) < PAN_DEADZONE_PX) return;
+      pan.isActive = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setIsPanning(true);
+    }
+
     e.currentTarget.scrollLeft = pan.startScrollLeft - dx;
     e.currentTarget.scrollTop = pan.startScrollTop - dy;
     e.preventDefault();
@@ -589,6 +597,10 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
   const handleScrollPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const pan = panStateRef.current;
     if (!pan || pan.pointerId !== e.pointerId) return;
+    stopPointerPan();
+  }, [stopPointerPan]);
+
+  const handleScrollPointerCancel = useCallback(() => {
     stopPointerPan();
   }, [stopPointerPan]);
 
@@ -750,7 +762,7 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
         onPointerDown={handleScrollPointerDown}
         onPointerMove={handleScrollPointerMove}
         onPointerUp={handleScrollPointerUp}
-        onPointerCancel={stopPointerPan}
+        onPointerCancel={handleScrollPointerCancel}
         onLostPointerCapture={stopPointerPan}
       >
         {loading ? (

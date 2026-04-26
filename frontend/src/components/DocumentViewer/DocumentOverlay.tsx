@@ -46,6 +46,34 @@ const STROKE_OPTIONS = {
 
 const MIN_REGION_PX = 10;
 
+function normalizePressure(e: React.PointerEvent): number {
+  if (e.pointerType === "pen") {
+    if (e.pressure > 0) return Math.min(1, Math.max(0.12, e.pressure));
+    return 0.2;
+  }
+  return e.pressure > 0 ? e.pressure : 0.5;
+}
+
+function appendPoint(
+  prev: [number, number, number][],
+  next: [number, number, number],
+  pointerType: string
+): [number, number, number][] {
+  if (pointerType !== "pen" || prev.length === 0) {
+    return [...prev, next];
+  }
+
+  const last = prev[prev.length - 1];
+  const alphaPos = 0.45;
+  const alphaPressure = 0.6;
+  const smoothed: [number, number, number] = [
+    last[0] + (next[0] - last[0]) * alphaPos,
+    last[1] + (next[1] - last[1]) * alphaPos,
+    last[2] + (next[2] - last[2]) * alphaPressure,
+  ];
+  return [...prev, smoothed];
+}
+
 function renderStrokePath(
   points: [number, number, number][],
   color: string,
@@ -75,6 +103,7 @@ export default function DocumentOverlay({
   const [livePoints, setLivePoints] = useState<[number, number, number][]>([]);
   const [dragStart, setDragStart] = useState<[number, number] | null>(null);
   const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
+  const [activePointerType, setActivePointerType] = useState<string | null>(null);
   const drawing = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const erasedIds = useRef(new Set<number>());
@@ -89,7 +118,7 @@ export default function DocumentOverlay({
       return [
         (e.clientX - rect.left) * scaleX,
         (e.clientY - rect.top) * scaleY,
-        e.pressure > 0 ? e.pressure : 0.5,
+        normalizePressure(e),
       ];
     },
     []
@@ -120,6 +149,7 @@ export default function DocumentOverlay({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
+      setActivePointerType(e.pointerType);
       if (mode === "view") return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -140,10 +170,13 @@ export default function DocumentOverlay({
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      if (activePointerType !== e.pointerType) {
+        setActivePointerType(e.pointerType);
+      }
       if (!drawing.current) return;
       e.preventDefault();
       if (mode === "annotate") {
-        setLivePoints((prev) => [...prev, toSvgPoint(e)]);
+        setLivePoints((prev) => appendPoint(prev, toSvgPoint(e), e.pointerType));
       } else if (mode === "stroke-eraser") {
         eraseAtPoint(e, false);
       } else if (mode === "region") {
@@ -151,10 +184,11 @@ export default function DocumentOverlay({
         setDragCurrent([pt[0], pt[1]]);
       }
     },
-    [mode, toSvgPoint, eraseAtPoint]
+    [mode, toSvgPoint, eraseAtPoint, activePointerType]
   );
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    setActivePointerType(e.pointerType);
     if (!drawing.current) return;
     drawing.current = false;
 
@@ -177,6 +211,11 @@ export default function DocumentOverlay({
       setDragCurrent(null);
     }
   }, [mode, onStrokeComplete, onRegionComplete, color, penWidth, livePoints, dragStart, dragCurrent]);
+
+  const handlePointerLeave = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    handlePointerUp(e);
+    setActivePointerType(null);
+  }, [handlePointerUp]);
 
   const dragRect: DragRect | null =
     dragStart && dragCurrent
@@ -230,12 +269,14 @@ export default function DocumentOverlay({
           display: "block",
           touchAction: active ? "none" : "auto",
           pointerEvents: active ? "all" : "none",
-          cursor: mode === "region" ? "crosshair" : mode === "stroke-eraser" ? "cell" : "default",
+          cursor:
+            mode === "annotate" ? (activePointerType === "pen" ? "none" : "default") : mode === "region" ? "crosshair" : mode === "stroke-eraser" ? "cell" : "default",
         }}
+        onPointerEnter={(e) => setActivePointerType(e.pointerType)}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
       >
         {strokes.map((s, i) => renderStrokePath(s.points, s.color, s.width, i, s.id))}
         {livePoints.length > 0 &&
