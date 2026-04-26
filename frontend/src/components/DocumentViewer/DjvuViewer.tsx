@@ -374,14 +374,17 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
   }, [pageInput, pageNum, numPages, scrollToPage]);
 
   const handleInlineStroke = useCallback(async (page: number, stroke: StrokeData) => {
-    const saved = await strokesApi.create({
+    const tempId = -Date.now();
+    const optimistic: Stroke = {
+      id: tempId,
       section_id: null,
       document_id: documentId,
       page_number: page,
       points: stroke.points,
       color: stroke.color,
       width: stroke.width,
-    });
+      created_at: new Date().toISOString(),
+    };
 
     setStrokesByPage((prev) => {
       const existing = prev[page] ?? [];
@@ -390,11 +393,23 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
           detail: { documentId, pageNumber: page },
         }));
       }
-      return { ...prev, [page]: [...existing, saved] };
+      return { ...prev, [page]: [...existing, optimistic] };
     });
-
     setRedoByPage((prev) => ({ ...prev, [page]: [] }));
     loadedStrokePagesRef.current.add(page);
+
+    const saved = await strokesApi.create({
+      section_id: null,
+      document_id: documentId,
+      page_number: page,
+      points: stroke.points,
+      color: stroke.color,
+      width: stroke.width,
+    });
+    setStrokesByPage((prev) => ({
+      ...prev,
+      [page]: (prev[page] ?? []).map((s) => (s.id === tempId ? saved : s)),
+    }));
   }, [documentId]);
 
   const undoInline = useCallback(() => {
@@ -403,6 +418,7 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
     if (pageStrokes.length === 0) return;
 
     const last = pageStrokes[pageStrokes.length - 1];
+    if (last.id < 0) return; // in-flight optimistic stroke — skip
     void strokesApi.delete(last.id);
 
     setStrokesByPage((prev) => ({ ...prev, [page]: pageStrokes.slice(0, -1) }));

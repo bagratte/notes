@@ -38,9 +38,24 @@ export default function SectionCanvas({
     });
   }, [sectionId]);
 
-  // Save stroke and get back the id so undo can delete it
+  // Add stroke optimistically so it stays visible immediately; replace with
+  // server-confirmed version (which has the real id) after the save completes.
   const handleStrokeComplete = useCallback(
     async (stroke: StrokeData) => {
+      const tempId = -Date.now();
+      const optimistic: Stroke = {
+        id: tempId,
+        section_id: sectionId,
+        document_id: null,
+        page_number: null,
+        points: stroke.points,
+        color: stroke.color,
+        width: stroke.width,
+        created_at: new Date().toISOString(),
+      };
+      setStrokes((prev) => [...prev, optimistic]);
+      setRedoStack([]);
+
       const saved = await strokesApi.create({
         section_id: sectionId,
         document_id: null,
@@ -49,8 +64,7 @@ export default function SectionCanvas({
         color: stroke.color,
         width: stroke.width,
       });
-      setStrokes((prev) => [...prev, saved]);
-      setRedoStack([]); // new stroke clears redo history
+      setStrokes((prev) => prev.map((s) => (s.id === tempId ? saved : s)));
     },
     [sectionId]
   );
@@ -67,6 +81,7 @@ export default function SectionCanvas({
     setStrokes((prev) => {
       if (prev.length === 0) return prev;
       const last = prev[prev.length - 1];
+      if (last.id < 0) return prev; // in-flight optimistic stroke — skip
       setRedoStack((r) => [...r, last]);
       strokesApi.delete(last.id);
       return prev.slice(0, -1);
