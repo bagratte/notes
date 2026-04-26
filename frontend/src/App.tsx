@@ -3,9 +3,11 @@ import { AppLayout } from "@/components/Layout";
 import NotePage from "@/pages/NotePage";
 import DocumentPage from "@/pages/DocumentPage";
 import FolderPage from "@/pages/FolderPage";
+import { TouchModeProvider } from "@/context/TouchMode";
 
 export default function App() {
   return (
+    <TouchModeProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<AppLayout />}>
@@ -15,5 +17,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </TouchModeProvider>
   );
 }

@@ -33,6 +33,15 @@
   padding: 0;
 }
 .toolbarBtn:hover { background: #d8d3cb; color: #333; }
+.toolbarBtnActive { background: #e3ddd5; color: #333; }
+
+.toolbarDivider {
+  width: 1px;
+  height: 20px;
+  background: #dedad3;
+  flex-shrink: 0;
+  margin: 0 2px;
+}
 
 .tree {
   flex: 1;
@@ -149,11 +158,9 @@
   color: #aaa;
 }
 
-@media (pointer: coarse) {
-  .notebookRow { padding-top: 11px; padding-bottom: 11px; }
-  .folderRow   { padding-top: 11px; padding-bottom: 11px; }
-  .leafRow     { padding-top: 11px; padding-bottom: 11px; }
-  .iconBtn     { width: 32px; height: 32px; }
-  .rowActions  { display: flex; }
-}
+:global(.has-touch) .notebookRow { padding-top: 11px; padding-bottom: 11px; }
+:global(.has-touch) .folderRow   { padding-top: 11px; padding-bottom: 11px; }
+:global(.has-touch) .leafRow     { padding-top: 11px; padding-bottom: 11px; }
+:global(.has-touch) .iconBtn     { width: 32px; height: 32px; }
+:global(.has-touch) .rowActions  { display: flex; }
 

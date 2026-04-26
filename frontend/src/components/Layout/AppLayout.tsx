@@ -1,13 +1,13 @@
 import { useRef, useState, useCallback } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
+import { useTouchMode } from "@/context/TouchMode";
 import css from "./AppLayout.module.css";
 
 const MIN_WIDTH = 160;
 
-const isTouch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
-
 export default function AppLayout() {
+  const { isTouch } = useTouchMode();
   const location = useLocation();
   const isRoot = location.pathname === "/";
 
@@ -53,11 +53,10 @@ export default function AppLayout() {
   const onSwipeMove = useCallback((e: React.PointerEvent) => {
     if (swipeStartX.current === null) return;
     if (e.clientX - swipeStartX.current > 50) {
-      setVisible(true);
-      localStorage.setItem("sidebarVisible", "true");
+      toggle();
       swipeStartX.current = null;
     }
-  }, []);
+  }, [toggle]);
 
   const onSwipeUp = useCallback(() => { swipeStartX.current = null; }, []);
 
@@ -73,39 +72,35 @@ export default function AppLayout() {
         <div className={css.backdrop} onClick={toggle} />
       )}
 
-      {!isTouch && (
+      {visible && (
         <div
           className={css.handle}
+          style={isTouch ? { position: "fixed", left: width - 10, zIndex: 101 } : undefined}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerLeave={onPointerUp}
-        >
-          <button
-            className={css.toggleBtn}
-            onClick={toggle}
-            onPointerDown={(e) => e.stopPropagation()}
-            title={visible ? "Hide sidebar" : "Show sidebar"}
-          >
-            <svg width="10" height="14" viewBox="0 0 10 14" fill="none">
-              {visible
-                ? <path d="M7 1L2 7l5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                : <path d="M3 1l5 6-5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              }
-            </svg>
-          </button>
-        </div>
+        />
+
       )}
 
-      {isTouch && !visible && (
+      {isTouch && (
         <div
           className={css.swipeZone}
+          style={visible ? { zIndex: 103 } : undefined}
           onPointerDown={onSwipeDown}
           onPointerMove={onSwipeMove}
           onPointerUp={onSwipeUp}
           onPointerLeave={onSwipeUp}
         />
       )}
+
+      <button className={css.sidebarBtn} onClick={toggle} title={visible ? "Close sidebar" : "Open sidebar"}>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="1.5" y="2.5" width="15" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M6.5 2.5v13" stroke="currentColor" strokeWidth="1.3" />
+        </svg>
+      </button>
 
       <main className={css.main}>
         {isRoot ? (

@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { folders as foldersApi, notes as notesApi, documents as docsApi, strokes as strokesApi, regions as regionsApi, sections as sectionsApi } from "@/api";
 import type { Folder, Note, Document } from "@/types";
 import MergeModal from "@/components/MergeModal";
+import { useTouchMode } from "@/context/TouchMode";
 import css from "./Sidebar.module.css";
 
 // ── tiny inline icons ──────────────────────────────────────────────────────
@@ -12,6 +13,15 @@ function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg className={`${css.chevron}${open ? " " + css.open : ""}`} viewBox="0 0 16 16" fill="none">
       <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function TouchModeIcon() {
+  return (
+    <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
+      <path d="M8 2a2 2 0 0 0-2 2v5a2 2 0 0 0 4 0V4a2 2 0 0 0-2-2z" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M6 7.5H4.5A1.5 1.5 0 0 0 3 9v.5A5 5 0 0 0 13 9.5V9A1.5 1.5 0 0 0 11.5 7.5H10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -102,6 +112,7 @@ interface SidebarData {
 export default function Sidebar({ style, className }: { style?: CSSProperties; className?: string }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isTouch, toggle: toggleTouchMode } = useTouchMode();
 
   const [data, setData] = useState<SidebarData>({ folders: [], notes: [], documents: [], docNotes: {}, docNotePageNums: {}, docAnnotatedPages: {} });
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
@@ -393,6 +404,14 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         </button>
         <button className={css.toolbarBtn} title="New folder" onClick={() => createFolder()}>
           <NewFolderIcon />
+        </button>
+        <div className={css.toolbarDivider} />
+        <button
+          className={`${css.toolbarBtn}${isTouch ? " " + css.toolbarBtnActive : ""}`}
+          title={isTouch ? "Switch to desktop mode" : "Switch to touch mode"}
+          onClick={toggleTouchMode}
+        >
+          <TouchModeIcon />
         </button>
       </div>
 
