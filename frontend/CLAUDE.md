@@ -24,12 +24,13 @@ The app targets **touch-only devices** (tablets, iPads) as the primary platform:
 
 ### Routing
 
-Two routes, both nested under `AppLayout` (sidebar + `<Outlet />`):
+Three routes, all nested under `AppLayout` (sidebar + `<Outlet />`):
 
 | Route | Page | Purpose |
 |-------|------|---------|
 | `/notes/:noteId` | `NotePage` | Standalone note editor |
 | `/documents/:documentId` | `DocumentPage` | Document viewer |
+| `/folders/:folderId` | `FolderPage` | Folder contents (notes + documents + subfolders) |
 
 Creating or clicking a region navigates to `/notes/:noteId`, replacing the document view.
 
@@ -37,7 +38,7 @@ Creating or clicking a region navigates to `/notes/:noteId`, replacing the docum
 
 `src/api/client.ts` wraps `fetch` with typed helpers (`get`, `post`, `patch`, `delete`, `postForm`). All methods prepend `/api`, which Vite proxies to `http://localhost:8000`. The exports in `src/api/index.ts` are domain-grouped (e.g. `strokes.create(...)`, `regions.list(...)`).
 
-The `Sidebar` loads all notebooks, folders, notes, and documents in a single `Promise.all` on mount — there is no lazy per-folder fetching.
+The `Sidebar` loads all folders, notes, and documents in a single `Promise.all` on mount — there is no lazy per-folder fetching.
 
 ### Drawing
 
@@ -82,6 +83,14 @@ When `RegionLinkModal` confirms a link it first calls `sectionsApi.create` to ad
 | `Ctrl+Shift+Z` / `Ctrl+Y` | Document viewers, note sections (hovered) | Redo |
 
 Note section shortcuts are active only while the cursor is over that section (`onMouseEnter`/`onMouseLeave` set a `hovered` flag; the `keydown` listener is added/removed accordingly).
+
+### Touch mode
+
+`TouchModeProvider` (`src/context/TouchMode.tsx`) wraps the entire app and exposes `{ isTouch, toggle }` via `useTouchMode()`. The value is persisted to `localStorage` and the `has-touch` class is toggled on `<html>` so CSS can target it. The sidebar toggle button calls `toggle()`; CSS rules keyed on `.has-touch` adjust tap-target sizes, show/hide controls, and switch the sidebar to overlay mode.
+
+### MergeModal
+
+`MergeModal` (`src/components/MergeModal.tsx`) lets the user merge all sections of the current note into another note. It is opened from the note title bar. On confirm it calls the merge API, navigates to the target note, and fires `sidebar:refresh` so the sidebar removes the now-deleted source note.
 
 ### Cross-component events
 
