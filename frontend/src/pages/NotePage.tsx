@@ -1,12 +1,42 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { notes as notesApi } from "@/api";
 import { NoteEditor } from "@/components/NoteEditor";
-import MergeModal from "./MergeModal";
+import MergeModal from "@/components/MergeModal";
 import type { Note } from "@/types";
+
+function RenameIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M2 4h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M6 4v8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M12 3v10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M10.5 3h3M10.5 13h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M3 4h10M6 4V2.5h4V4M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MergeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M3 2v3.5A4.5 4.5 0 007.5 10H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M13 2v1.5A4.5 4.5 0 018.5 8H7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M7 8l2 2-2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export default function NotePage() {
   const { noteId } = useParams<{ noteId: string }>();
+  const navigate = useNavigate();
   const [note, setNote] = useState<Note | null>(null);
   const [missing, setMissing] = useState(false);
   const [merging, setMerging] = useState(false);
@@ -30,13 +60,30 @@ export default function NotePage() {
     return <div style={styles.centered}><span style={{ color: "#ccc", fontSize: 14 }}>Loading…</span></div>;
   }
 
+  const renameNote = async () => {
+    const name = window.prompt("Rename note:", note.name);
+    if (!name?.trim() || name === note.name) return;
+    const updated = await notesApi.update(note.id, name.trim());
+    setNote(updated);
+    window.dispatchEvent(new CustomEvent("sidebar:refresh"));
+  };
+
+  const deleteNote = async () => {
+    if (!window.confirm(`Delete "${note.name}"?`)) return;
+    await notesApi.delete(note.id);
+    window.dispatchEvent(new CustomEvent("sidebar:refresh"));
+    navigate("/");
+  };
+
   return (
     <div style={styles.page}>
       <div style={{ ...styles.header, display: "flex", alignItems: "center" }}>
         <h1 style={styles.title}>{note.name}</h1>
-        <button onClick={() => setMerging(true)} style={styles.mergeBtn}>
-          Merge into…
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <button onClick={renameNote} style={styles.actionBtn}><RenameIcon /> Rename</button>
+          <button onClick={deleteNote} style={styles.actionBtn}><DeleteIcon /> Delete</button>
+          <button onClick={() => setMerging(true)} style={styles.actionBtn}><MergeIcon /> Merge into…</button>
+        </div>
       </div>
       <div style={styles.body}>
         <NoteEditor noteId={note.id} />
@@ -82,10 +129,12 @@ const styles = {
     margin: "0 auto",
     flex: 1,
   },
-  mergeBtn: {
-    marginLeft: "auto",
-    padding: "5px 12px",
-    fontSize: 12,
+  actionBtn: {
+    display: "flex" as const,
+    alignItems: "center" as const,
+    gap: 5,
+    padding: "5px 11px",
+    fontSize: 13,
     border: "1px solid #ddd",
     borderRadius: 5,
     background: "#fff",
