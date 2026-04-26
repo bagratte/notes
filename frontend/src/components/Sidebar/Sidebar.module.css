@@ -95,6 +95,11 @@
   color: #1a1a1a;
   font-weight: 500;
 }
+.folderRow.active {
+  background: #e3ddd5;
+  color: #1a1a1a;
+  font-weight: 500;
+}
 
 .rowLabel {
   flex: 1;

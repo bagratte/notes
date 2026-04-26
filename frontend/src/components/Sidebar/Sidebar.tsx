@@ -333,11 +333,14 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     const folderNotes = data.notes.filter((n) => n.folder_id === folder.id && !linkedNoteIds.has(n.id));
     const folderDocs = data.documents.filter((d) => d.folder_id === folder.id);
     const isOpen = expandedFolders.has(folder.id);
+    const active = location.pathname === `/folders/${folder.id}`;
 
     return (
       <div key={folder.id}>
-        <div className={css.folderRow} style={{ paddingLeft: `${indent}px` }} onClick={() => toggleFolder(folder.id)}>
-          <ChevronIcon open={isOpen} />
+        <div className={`${css.folderRow}${active ? " " + css.active : ""}`} style={{ paddingLeft: `${indent}px` }} onClick={() => navigate(`/folders/${folder.id}`)}>
+          <span onClick={(e) => { e.stopPropagation(); toggleFolder(folder.id); }} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+            <ChevronIcon open={isOpen} />
+          </span>
           <span className={css.rowLabel}>{folder.name}</span>
           <div className={css.rowActions} onClick={stop}>
             <button className={css.iconBtn} title="New note" onClick={() => createNote(folder.id)}><NewNoteIcon /></button>
