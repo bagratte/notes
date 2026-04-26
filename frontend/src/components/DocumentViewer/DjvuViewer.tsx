@@ -34,6 +34,14 @@ interface ViewportSize {
   height: number;
 }
 
+interface PanState {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startScrollLeft: number;
+  startScrollTop: number;
+}
+
 const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
 const WINDOW_BUFFER = 2;
 const PAGE_GUTTER = 16;
@@ -67,6 +75,7 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
   const loadedRegionPagesRef = useRef<Set<number>>(new Set());
   const sectionNoteCacheRef = useRef<Map<number, number>>(new Map());
   const suppressScrollSyncRef = useRef(false);
+  const panStateRef = useRef<PanState | null>(null);
 
   const [numPages, setNumPages] = useState(0);
   const [pageNum, setPageNum] = useState(() => Math.max(1, initialPage ?? 1));
@@ -82,6 +91,7 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
   const [error, setError] = useState<string | null>(null);
   const [toolMode, setToolMode] = useState<ToolMode>(() => (localStorage.getItem("touchMode") === "true" ? "view" : "annotate"));
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
+  const [isPanning, setIsPanning] = useState(false);
 
   const [windowRange, setWindowRange] = useState(() => ({ start: 1, end: Math.max(1, initialPage ?? 1) }));
 
@@ -480,6 +490,47 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
   const prevPage = useCallback(() => scrollToPage(pageNum - 1), [pageNum, scrollToPage]);
   const nextPage = useCallback(() => scrollToPage(pageNum + 1), [pageNum, scrollToPage]);
 
+  const stopPointerPan = useCallback(() => {
+    if (panStateRef.current) {
+      panStateRef.current = null;
+      setIsPanning(false);
+    }
+  }, []);
+
+  const handleScrollPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (toolMode !== "view") return;
+    if (e.pointerType === "touch") return;
+    if (e.button !== 0) return;
+
+    panStateRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startScrollLeft: e.currentTarget.scrollLeft,
+      startScrollTop: e.currentTarget.scrollTop,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsPanning(true);
+    e.preventDefault();
+  }, [toolMode]);
+
+  const handleScrollPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const pan = panStateRef.current;
+    if (!pan || pan.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - pan.startX;
+    const dy = e.clientY - pan.startY;
+    e.currentTarget.scrollLeft = pan.startScrollLeft - dx;
+    e.currentTarget.scrollTop = pan.startScrollTop - dy;
+    e.preventDefault();
+  }, []);
+
+  const handleScrollPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const pan = panStateRef.current;
+    if (!pan || pan.pointerId !== e.pointerId) return;
+    stopPointerPan();
+  }, [stopPointerPan]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
@@ -627,7 +678,20 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
         />
       </div>
 
-      <div ref={containerRef} className={css.scroll}>
+      <div
+        ref={containerRef}
+        className={css.scroll}
+        style={
+          toolMode === "view"
+            ? { cursor: isPanning ? "grabbing" : "grab", userSelect: isPanning ? "none" : undefined }
+            : undefined
+        }
+        onPointerDown={handleScrollPointerDown}
+        onPointerMove={handleScrollPointerMove}
+        onPointerUp={handleScrollPointerUp}
+        onPointerCancel={stopPointerPan}
+        onLostPointerCapture={stopPointerPan}
+      >
         {loading ? (
           <div className={css.state}>Loading...</div>
         ) : (
