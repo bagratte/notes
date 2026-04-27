@@ -165,6 +165,16 @@
 :global(.has-touch) .notebookRow { padding-top: 11px; padding-bottom: 11px; }
 :global(.has-touch) .folderRow   { padding-top: 11px; padding-bottom: 11px; }
 :global(.has-touch) .leafRow     { padding-top: 11px; padding-bottom: 11px; }
+:global(.has-touch) .toolbar {
+  height: 56px;
+  gap: 4px;
+  padding-right: 14px;
+}
+:global(.has-touch) .toolbarBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+}
 :global(.has-touch) .iconBtn     { width: 32px; height: 32px; }
 :global(.has-touch) .rowActions  { display: flex; }
 

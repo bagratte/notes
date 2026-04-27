@@ -20,8 +20,13 @@ function ChevronIcon({ open }: { open: boolean }) {
 function SettingsIcon() {
   return (
     <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="2.2" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path
+        d="M6.2 1.4h3.6l.45 1.55c.35.11.68.3.99.52l1.56-.53 1.8 3.12-1.12 1.13c.05.37.05.74 0 1.1l1.12 1.13-1.8 3.12-1.56-.53c-.31.22-.64.41-.99.52l-.45 1.55H6.2l-.45-1.55a3.83 3.83 0 0 1-.99-.52l-1.56.53-1.8-3.12 1.12-1.13a4.47 4.47 0 0 1 0-1.1L1.4 6.1l1.8-3.12 1.56.53c.31-.22.64-.41.99-.52L6.2 1.4Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <circle cx="8" cy="8" r="2.1" stroke="currentColor" strokeWidth="1.2" />
     </svg>
   );
 }
