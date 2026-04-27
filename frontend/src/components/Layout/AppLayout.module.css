@@ -16,7 +16,6 @@
   position: relative;
   z-index: 10;
 }
-.handle:hover { background: #ccc9c2; }
 
 :global(.has-touch) .handle {
   width: 44px;
@@ -33,7 +32,6 @@
   background: #dedad3;
   pointer-events: none;
 }
-:global(.has-touch) .handle:hover::after { background: #ccc9c2; }
 
 
 .sidebarOverlay {
@@ -80,7 +78,11 @@
   padding: 0;
   box-shadow: 0 4px 14px rgba(0,0,0,0.18);
 }
-.sidebarBtn:hover { background: #d8d3cb; color: #333; }
+
+@media (hover: hover) and (pointer: fine) {
+  .handle:hover { background: #ccc9c2; }
+  .sidebarBtn:hover { background: #d8d3cb; color: #333; }
+}
 
 .main {
   flex: 1;

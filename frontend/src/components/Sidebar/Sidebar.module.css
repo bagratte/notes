@@ -32,8 +32,11 @@
   color: #888;
   padding: 0;
 }
-.toolbarBtn:hover { background: #d8d3cb; color: #333; }
 .toolbarBtnActive { background: #e3ddd5; color: #333; }
+
+@media (hover: hover) and (pointer: fine) {
+  .toolbarBtn:hover { background: #d8d3cb; color: #333; }
+}
 
 .toolbarSpacer {
   flex: 1;
@@ -74,7 +77,6 @@
   font-size: 16px;
   font-weight: 500;
 }
-.notebookRow:hover { background: #ede9e3; }
 
 /* Folder row */
 .folderRow {
@@ -88,7 +90,6 @@
   color: #3a3a3a;
   font-size: 16px;
 }
-.folderRow:hover { background: #ede9e3; }
 
 /* Leaf row (note or document) */
 .leafRow {
@@ -102,7 +103,6 @@
   font-size: 16px;
   gap: 6px;
 }
-.leafRow:hover { background: #ede9e3; }
 .leafRow.active {
   background: #e3ddd5;
   color: #1a1a1a;
@@ -144,7 +144,13 @@
   color: #888;
   padding: 0;
 }
-.iconBtn:hover { background: #d8d3cb; color: #333; }
+
+@media (hover: hover) and (pointer: fine) {
+  .notebookRow:hover { background: #ede9e3; }
+  .folderRow:hover { background: #ede9e3; }
+  .leafRow:hover { background: #ede9e3; }
+  .iconBtn:hover { background: #d8d3cb; color: #333; }
+}
 
 .chevron {
   width: 20px;
