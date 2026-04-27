@@ -22,7 +22,7 @@ interface Props {
 const STROKE_OPTIONS = {
   thinning: 0.5,
   smoothing: 0.5,
-  streamline: 0.5,
+  streamline: 0.1,
   simulatePressure: false,
 };
 
@@ -32,19 +32,6 @@ function normalizePressure(pressure: number, pointerType: string): number {
     return 0.2;
   }
   return pressure > 0 ? pressure : 0.5;
-}
-
-function smoothPoint(
-  last: [number, number, number],
-  next: [number, number, number],
-  pointerType: string
-): [number, number, number] {
-  if (pointerType !== "pen") return next;
-  return [
-    last[0] + (next[0] - last[0]) * 0.45,
-    last[1] + (next[1] - last[1]) * 0.45,
-    last[2] + (next[2] - last[2]) * 0.6,
-  ];
 }
 
 export default function DrawingCanvas({
@@ -62,24 +49,17 @@ export default function DrawingCanvas({
   className,
   style,
 }: Props) {
-  // activePointerType is only used for the cursor — it's fine as state since
-  // it only changes when the pointer type switches (pen ↔ mouse/touch), not
-  // on every move event.
   const [activePointerType, setActivePointerType] = useState<string | null>(null);
 
   const drawing = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
-  // Live stroke is drawn by mutating this path element directly — no React
-  // state update occurs during a stroke, eliminating per-frame re-renders.
-  const livePathRef = useRef<SVGPathElement>(null);
+  // Live stroke is drawn to this canvas — bypasses SVG DOM and paints directly
+  // to a GPU-backed buffer, eliminating the path-parse overhead on every move.
+  const liveCanvasRef = useRef<HTMLCanvasElement>(null);
   const livePointsRef = useRef<[number, number, number][]>([]);
   const erasedIds = useRef(new Set<number>());
-  // Cache computed SVG path strings for completed strokes so getStroke() and
-  // svgPathFromStroke() are not re-run on every render.
-  const strokePathCache = useRef<Map<number | string, { points: StrokeData["points"]; d: string }>>(new Map());
+  const strokePathCache = useRef<Map<number | StrokeData, { points: StrokeData["points"]; d: string }>>(new Map());
 
-  // Mirror mutable props into refs so imperative callbacks always read the
-  // current value without needing to appear in their dependency arrays.
   const colorRef = useRef(color);
   const penWidthRef = useRef(penWidth);
   const onStrokeCompleteRef = useRef(onStrokeComplete);
@@ -87,8 +67,28 @@ export default function DrawingCanvas({
   useEffect(() => { penWidthRef.current = penWidth; }, [penWidth]);
   useEffect(() => { onStrokeCompleteRef.current = onStrokeComplete; }, [onStrokeComplete]);
 
-  // Returns a converter function that captures the current SVG geometry once,
-  // so callers can convert multiple points without triggering repeated layout reads.
+  // Match canvas resolution to the SVG coordinate space so strokes align pixel-perfectly.
+  useEffect(() => {
+    const canvas = liveCanvasRef.current;
+    const svg = svgRef.current;
+    if (!canvas || !svg) return;
+
+    if (viewBox) {
+      const parts = viewBox.split(" ").map(Number);
+      canvas.width = parts[2];
+      canvas.height = parts[3];
+      return;
+    }
+
+    // No viewBox: stroke coords are CSS pixels, so track the SVG's displayed size.
+    const ro = new ResizeObserver(([entry]) => {
+      canvas.width = entry.contentRect.width;
+      canvas.height = entry.contentRect.height;
+    });
+    ro.observe(svg);
+    return () => ro.disconnect();
+  }, [viewBox]);
+
   const getSvgTransform = useCallback(() => {
     const svg = svgRef.current!;
     const rect = svg.getBoundingClientRect();
@@ -100,15 +100,25 @@ export default function DrawingCanvas({
   }, []);
 
   const updateLivePath = useCallback(() => {
-    const path = livePathRef.current;
-    if (!path) return;
+    const canvas = liveCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     const pts = livePointsRef.current;
-    if (pts.length === 0) {
-      path.setAttribute("d", "");
-      return;
-    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (pts.length === 0) return;
     const outline = getStroke(pts, { ...STROKE_OPTIONS, size: penWidthRef.current });
-    path.setAttribute("d", svgPathFromStroke(outline));
+    if (outline.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(outline[0][0], outline[0][1]);
+    for (let i = 0; i < outline.length; i++) {
+      const [x0, y0] = outline[i];
+      const [x1, y1] = outline[(i + 1) % outline.length];
+      ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
+    }
+    ctx.closePath();
+    ctx.fillStyle = colorRef.current;
+    ctx.fill();
   }, []);
 
   const eraseAtPoint = useCallback(
@@ -147,9 +157,6 @@ export default function DrawingCanvas({
         const toSvgCoords = getSvgTransform();
         const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
         livePointsRef.current = [pt];
-        if (livePathRef.current) {
-          livePathRef.current.setAttribute("fill", colorRef.current);
-        }
         updateLivePath();
       }
     },
@@ -163,22 +170,13 @@ export default function DrawingCanvas({
       if (eraserMode) {
         eraseAtPoint(e);
       } else {
-        // getCoalescedEvents gives all intermediate positions between frames,
-        // producing smoother lines especially on high-frequency stylus input.
         const coalescedEvents =
           (e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? [e.nativeEvent as PointerEvent];
-        // Read SVG geometry once before the loop to avoid layout thrashing
-        // (getBoundingClientRect forces a layout recalculation on each call).
         const toSvgCoords = getSvgTransform();
         const pts = livePointsRef.current;
         for (const ce of coalescedEvents) {
           const pressure = normalizePressure(ce.pressure, ce.pointerType);
-          const raw = toSvgCoords(ce.clientX, ce.clientY, pressure);
-          if (pts.length > 0) {
-            pts.push(smoothPoint(pts[pts.length - 1], raw, ce.pointerType));
-          } else {
-            pts.push(raw);
-          }
+          pts.push(toSvgCoords(ce.clientX, ce.clientY, pressure));
         }
         updateLivePath();
       }
@@ -199,7 +197,11 @@ export default function DrawingCanvas({
       });
     }
     livePointsRef.current = [];
-    if (livePathRef.current) livePathRef.current.setAttribute("d", "");
+    const canvas = liveCanvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    }
   }, [eraserMode]);
 
   const handlePointerUp = useCallback(
@@ -219,40 +221,51 @@ export default function DrawingCanvas({
   );
 
   return (
-    <svg
-      ref={svgRef}
-      width={width}
-      height={height}
-      viewBox={viewBox}
+    <div
       className={className}
-      style={{
-        touchAction: inputEnabled ? "none" : "auto",
-        pointerEvents: inputEnabled ? "all" : "none",
-        cursor: !inputEnabled ? "grab" : eraserMode ? "cell" : activePointerType === "pen" ? "none" : "default",
-        display: "block",
-        ...style,
-      }}
-      onPointerEnter={(e) => setActivePointerType(e.pointerType)}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerLeave}
+      style={{ position: "relative", width, height, display: "block", ...style }}
     >
-      {strokes.map((s) => {
-        const cacheKey = s.id ?? s;
-        const cached = strokePathCache.current.get(cacheKey);
-        let d: string;
-        if (cached && cached.points === s.points) {
-          d = cached.d;
-        } else {
-          const outline = getStroke(s.points, { ...STROKE_OPTIONS, size: s.width });
-          d = svgPathFromStroke(outline);
-          strokePathCache.current.set(cacheKey, { points: s.points, d });
-        }
-        return <path key={s.id ?? cacheKey} d={d} fill={s.color} data-stroke-id={s.id} />;
-      })}
-      {/* Live path is mutated imperatively — React never writes to its `d` attribute */}
-      <path ref={livePathRef} d="" fill="" />
-    </svg>
+      <svg
+        ref={svgRef}
+        width="100%"
+        height="100%"
+        viewBox={viewBox}
+        style={{
+          touchAction: inputEnabled ? "none" : "auto",
+          pointerEvents: inputEnabled ? "all" : "none",
+          cursor: !inputEnabled ? "grab" : eraserMode ? "cell" : activePointerType === "pen" ? "none" : "default",
+          display: "block",
+        }}
+        onPointerEnter={(e) => setActivePointerType(e.pointerType)}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
+      >
+        {strokes.map((s, i) => {
+          const cacheKey: number | StrokeData = s.id ?? s;
+          const cached = strokePathCache.current.get(cacheKey);
+          let d: string;
+          if (cached && cached.points === s.points) {
+            d = cached.d;
+          } else {
+            const outline = getStroke(s.points, { ...STROKE_OPTIONS, size: s.width });
+            d = svgPathFromStroke(outline);
+            strokePathCache.current.set(cacheKey, { points: s.points, d });
+          }
+          return <path key={s.id ?? i} d={d} fill={s.color} data-stroke-id={s.id} />;
+        })}
+      </svg>
+      <canvas
+        ref={liveCanvasRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+        }}
+      />
+    </div>
   );
 }

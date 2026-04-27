@@ -40,7 +40,7 @@ interface Props {
 const STROKE_OPTIONS = {
   thinning: 0.5,
   smoothing: 0.5,
-  streamline: 0.5,
+  streamline: 0.1,
   simulatePressure: false,
 };
 
@@ -52,33 +52,6 @@ function normalizePressure(pressure: number, pointerType: string): number {
     return 0.2;
   }
   return pressure > 0 ? pressure : 0.5;
-}
-
-function smoothPoint(
-  last: [number, number, number],
-  next: [number, number, number],
-  pointerType: string
-): [number, number, number] {
-  if (pointerType !== "pen") return next;
-  return [
-    last[0] + (next[0] - last[0]) * 0.45,
-    last[1] + (next[1] - last[1]) * 0.45,
-    last[2] + (next[2] - last[2]) * 0.6,
-  ];
-}
-
-
-
-function renderStrokePath(
-  points: [number, number, number][],
-  color: string,
-  width: number,
-  key: string | number,
-  strokeId?: number
-) {
-  const outline = getStroke(points, { ...STROKE_OPTIONS, size: width });
-  const d = svgPathFromStroke(outline);
-  return <path key={key} d={d} fill={color} data-stroke-id={strokeId} />;
 }
 
 export default function DocumentOverlay({
@@ -100,9 +73,10 @@ export default function DocumentOverlay({
   const [activePointerType, setActivePointerType] = useState<string | null>(null);
   const drawing = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
-  const livePathRef = useRef<SVGPathElement>(null);
+  const liveCanvasRef = useRef<HTMLCanvasElement>(null);
   const livePointsRef = useRef<[number, number, number][]>([]);
   const erasedIds = useRef(new Set<number>());
+  const strokePathCache = useRef<Map<number | string, { points: StrokeData["points"]; d: string }>>(new Map());
 
   const colorRef = useRef(color);
   const penWidthRef = useRef(penWidth);
@@ -111,33 +85,53 @@ export default function DocumentOverlay({
   useEffect(() => { penWidthRef.current = penWidth; }, [penWidth]);
   useEffect(() => { onStrokeCompleteRef.current = onStrokeComplete; }, [onStrokeComplete]);
 
-  const toSvgCoords = useCallback(
-    (clientX: number, clientY: number, pressure: number): [number, number, number] => {
+  useEffect(() => {
+    const canvas = liveCanvasRef.current;
+    if (!canvas || !viewBox) return;
+    const parts = viewBox.split(" ").map(Number);
+    canvas.width = parts[2];
+    canvas.height = parts[3];
+  }, [viewBox]);
+
+  // Returns a converter that captures SVG geometry once per event batch,
+  // avoiding repeated getBoundingClientRect calls across coalesced events.
+  const getSvgTransform = useCallback(
+    () => {
       const svg = svgRef.current!;
       const rect = svg.getBoundingClientRect();
       const vb = svg.viewBox.baseVal;
       const scaleX = vb.width > 0 ? vb.width / rect.width : 1;
       const scaleY = vb.height > 0 ? vb.height / rect.height : 1;
-      return [(clientX - rect.left) * scaleX, (clientY - rect.top) * scaleY, pressure];
+      return (clientX: number, clientY: number, pressure: number): [number, number, number] =>
+        [(clientX - rect.left) * scaleX, (clientY - rect.top) * scaleY, pressure];
     },
     []
   );
 
   const updateLivePath = useCallback(() => {
-    const path = livePathRef.current;
-    if (!path) return;
+    const canvas = liveCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     const pts = livePointsRef.current;
-    if (pts.length === 0) {
-      path.setAttribute("d", "");
-      return;
-    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (pts.length === 0) return;
     const outline = getStroke(pts, { ...STROKE_OPTIONS, size: penWidthRef.current });
-    path.setAttribute("d", svgPathFromStroke(outline));
+    if (outline.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(outline[0][0], outline[0][1]);
+    for (let i = 0; i < outline.length; i++) {
+      const [x0, y0] = outline[i];
+      const [x1, y1] = outline[(i + 1) % outline.length];
+      ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
+    }
+    ctx.closePath();
+    ctx.fillStyle = colorRef.current;
+    ctx.fill();
   }, []);
 
   const eraseAtPoint = useCallback(
     (e: React.PointerEvent, firstOnly: boolean) => {
-      // Sample center + cardinal offsets (8px) for area eraser brush width
       const samples: [number, number][] = firstOnly
         ? [[e.clientX, e.clientY]]
         : [[e.clientX, e.clientY], [e.clientX + 8, e.clientY], [e.clientX - 8, e.clientY], [e.clientX, e.clientY + 8], [e.clientX, e.clientY - 8]];
@@ -164,13 +158,11 @@ export default function DocumentOverlay({
       if (mode === "view") return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
+      const toSvgCoords = getSvgTransform();
       const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
       drawing.current = true;
       if (mode === "annotate") {
         livePointsRef.current = [pt];
-        if (livePathRef.current) {
-          livePathRef.current.setAttribute("fill", colorRef.current);
-        }
         updateLivePath();
       } else if (mode === "stroke-eraser") {
         erasedIds.current.clear();
@@ -180,7 +172,7 @@ export default function DocumentOverlay({
         setDragCurrent([pt[0], pt[1]]);
       }
     },
-    [mode, toSvgCoords, eraseAtPoint, updateLivePath]
+    [mode, getSvgTransform, eraseAtPoint, updateLivePath]
   );
 
   const handlePointerMove = useCallback(
@@ -193,25 +185,21 @@ export default function DocumentOverlay({
       if (mode === "annotate") {
         const coalescedEvents =
           (e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? [e.nativeEvent as PointerEvent];
+        const toSvgCoords = getSvgTransform();
         const pts = livePointsRef.current;
         for (const ce of coalescedEvents) {
           const pressure = normalizePressure(ce.pressure, ce.pointerType);
-          const raw = toSvgCoords(ce.clientX, ce.clientY, pressure);
-          if (pts.length > 0) {
-            pts.push(smoothPoint(pts[pts.length - 1], raw, ce.pointerType));
-          } else {
-            pts.push(raw);
-          }
+          pts.push(toSvgCoords(ce.clientX, ce.clientY, pressure));
         }
         updateLivePath();
       } else if (mode === "stroke-eraser") {
         eraseAtPoint(e, false);
       } else if (mode === "region") {
-        const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
+        const pt = getSvgTransform()(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
         setDragCurrent([pt[0], pt[1]]);
       }
     },
-    [mode, toSvgCoords, eraseAtPoint, updateLivePath]
+    [mode, getSvgTransform, eraseAtPoint, updateLivePath]
   );
 
   const handlePointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
@@ -225,7 +213,11 @@ export default function DocumentOverlay({
         onStrokeCompleteRef.current?.({ points: [...pts], color: colorRef.current, width: penWidthRef.current });
       }
       livePointsRef.current = [];
-      if (livePathRef.current) livePathRef.current.setAttribute("d", "");
+      const canvas = liveCanvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        ctx?.clearRect(0, 0, canvas.width, canvas.height);
+      }
     } else if (mode === "region") {
       if (dragStart && dragCurrent && onRegionComplete) {
         const x = Math.min(dragStart[0], dragCurrent[0]);
@@ -286,7 +278,7 @@ export default function DocumentOverlay({
           />
         ))}
 
-      {/* Drawing SVG — strokes + region drag rectangle */}
+      {/* Drawing SVG — completed strokes + region drag rectangle */}
       <svg
         ref={svgRef}
         viewBox={viewBox}
@@ -307,8 +299,19 @@ export default function DocumentOverlay({
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerLeave}
       >
-        {strokes.map((s, i) => renderStrokePath(s.points, s.color, s.width, i, s.id))}
-        <path ref={livePathRef} d="" fill="" />
+        {strokes.map((s, i) => {
+          const cacheKey = s.id ?? i;
+          const cached = strokePathCache.current.get(cacheKey);
+          let d: string;
+          if (cached && cached.points === s.points) {
+            d = cached.d;
+          } else {
+            const outline = getStroke(s.points, { ...STROKE_OPTIONS, size: s.width });
+            d = svgPathFromStroke(outline);
+            strokePathCache.current.set(cacheKey, { points: s.points, d });
+          }
+          return <path key={cacheKey} d={d} fill={s.color} data-stroke-id={s.id} />;
+        })}
 
         {dragRect && (
           <rect
@@ -323,6 +326,18 @@ export default function DocumentOverlay({
           />
         )}
       </svg>
+
+      {/* Live canvas — draws the in-progress stroke without touching the SVG DOM */}
+      <canvas
+        ref={liveCanvasRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+        }}
+      />
     </div>
   );
 }
