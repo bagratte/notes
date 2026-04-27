@@ -35,6 +35,10 @@
 .toolbarBtn:hover { background: #d8d3cb; color: #333; }
 .toolbarBtnActive { background: #e3ddd5; color: #333; }
 
+.toolbarSpacer {
+  flex: 1;
+}
+
 .toolbarDivider {
   width: 1px;
   height: 20px;
