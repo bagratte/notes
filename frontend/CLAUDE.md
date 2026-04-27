@@ -31,6 +31,7 @@ Three routes, all nested under `AppLayout` (sidebar + `<Outlet />`):
 | `/notes/:noteId` | `NotePage` | Standalone note editor |
 | `/documents/:documentId` | `DocumentPage` | Document viewer |
 | `/folders/:folderId` | `FolderPage` | Folder contents (notes + documents + subfolders) |
+| `/settings` | `SettingsPage` | App-wide drawing settings |
 
 Creating or clicking a region navigates to `/notes/:noteId`, replacing the document view.
 
@@ -42,7 +43,9 @@ The `Sidebar` loads all folders, notes, and documents in a single `Promise.all` 
 
 ### Drawing
 
-All drawing surfaces are SVG. `DrawingCanvas` is the generic component; `DocumentOverlay` is a variant used inside document viewers that also handles the region drag-rectangle mode.
+`DrawingCanvas` is the generic drawing component; `DocumentOverlay` is a variant used inside document viewers that also handles the region drag-rectangle mode.
+
+**Hybrid Canvas2D + SVG rendering:** Completed strokes are rendered as SVG `<path>` elements (persistent, resolution-independent). The in-progress stroke (while the pen is down) renders to a `<canvas>` overlay positioned on top of the SVG — this avoids the per-frame SVG DOM mutation cost and keeps latency low. On pointer-up the canvas is cleared and the finalized stroke is added to the SVG.
 
 Strokes are stored as `[x, y, pressure][]` tuples in **natural page coordinates** (scale 1.0). The SVG `viewBox` is set to `"0 0 W H"` matching the natural size, so the browser handles scaling at any zoom. Input coordinates are converted:
 
@@ -52,6 +55,22 @@ const x = (e.clientX - rect.left) * scaleX;
 ```
 
 `perfect-freehand` turns the point array into a smooth filled path via `getStroke` + `svgPathFromStroke` (`src/components/Canvas/utils.ts`).
+
+### DrawingSettings context
+
+`src/context/DrawingSettings.tsx` provides five algorithm parameters consumed by `DrawingCanvas` and `DocumentOverlay`:
+
+| Setting | Type | Default | Effect |
+|---------|------|---------|--------|
+| `streamline` | `number` 0–0.5 | 0.1 | Cursor-lag smoothing (0 = exact, 0.5 = max lag) |
+| `thinning` | `number` 0–1 | 0.5 | Pressure-based width variation |
+| `smoothing` | `number` 0–1 | 0.5 | Stroke outline smoothness |
+| `simulatePressure` | `boolean` | false | Infer pressure from velocity when hardware pressure unavailable |
+| `predictive` | `boolean` | false | Draw ahead of pen tip using `getPredictedEvents()` |
+
+Settings are persisted to `localStorage` as JSON under key `"drawingSettings"`. The context provides `{ settings, update(patch), reset() }`.
+
+Both drawing components read these via refs (same pattern as `colorRef`/`penWidthRef`) so stale closures in `useCallback` event handlers always see current values. Changing any render-affecting setting (all except `predictive`) also clears `strokePathCache` so completed strokes are redrawn with the new parameters.
 
 ### Undo / redo
 
