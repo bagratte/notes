@@ -8,11 +8,12 @@ export interface PenSettings {
 
 export type PenToolbarMode = "hand" | "annotate" | "stroke-eraser" | "region";
 
-export const DEFAULT_PEN: PenSettings = { color: "#2255cc", width: 2 };
+export const DEFAULT_PEN: PenSettings = { color: "#2255cc", width: 4 };
 
 const WIDTHS = [
   { value: 2, label: "Thin" },
-  { value: 5, label: "Wide" },
+  { value: 4, label: "Medium" },
+  { value: 6, label: "Wide" },
 ];
 
 const COLORS = [
