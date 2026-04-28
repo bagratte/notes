@@ -96,13 +96,6 @@ export default function DocumentOverlay({
   useEffect(() => { palmThresholdRef.current = ds.palmThreshold; }, [ds.palmThreshold]);
   useEffect(() => { strokePathCache.current.clear(); }, [ds.streamline, ds.thinning, ds.smoothing, ds.simulatePressure]);
 
-  useEffect(() => {
-    const canvas = liveCanvasRef.current;
-    if (!canvas || !viewBox) return;
-    const parts = viewBox.split(" ").map(Number);
-    canvas.width = parts[2];
-    canvas.height = parts[3];
-  }, [viewBox]);
 
   // Returns a converter that captures SVG geometry once per event batch,
   // avoiding repeated getBoundingClientRect calls across coalesced events.
@@ -121,9 +114,22 @@ export default function DocumentOverlay({
 
   const updateLivePath = useCallback((pts: [number, number, number][]) => {
     const canvas = liveCanvasRef.current;
-    if (!canvas) return;
+    const svg = svgRef.current;
+    if (!canvas || !svg) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    // Size the canvas buffer to physical pixels so strokes are sharp on HiDPI displays.
+    const dpr = window.devicePixelRatio || 1;
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox.baseVal;
+    const physW = Math.round(rect.width * dpr);
+    const physH = Math.round(rect.height * dpr);
+    if (canvas.width !== physW || canvas.height !== physH) {
+      canvas.width = physW;
+      canvas.height = physH;
+    }
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (pts.length === 0) return;
     const outline = getStroke(pts, {
@@ -134,6 +140,11 @@ export default function DocumentOverlay({
       size: penWidthRef.current,
     });
     if (outline.length < 2) return;
+    // Scale from viewBox coords to physical pixels.
+    const scaleX = vb.width > 0 ? physW / vb.width : dpr;
+    const scaleY = vb.height > 0 ? physH / vb.height : dpr;
+    ctx.save();
+    ctx.scale(scaleX, scaleY);
     ctx.beginPath();
     ctx.moveTo(outline[0][0], outline[0][1]);
     for (let i = 0; i < outline.length; i++) {
@@ -144,6 +155,7 @@ export default function DocumentOverlay({
     ctx.closePath();
     ctx.fillStyle = colorRef.current;
     ctx.fill();
+    ctx.restore();
   }, []);
 
   const eraseAtPoint = useCallback(

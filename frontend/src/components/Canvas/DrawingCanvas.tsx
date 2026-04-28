@@ -54,6 +54,7 @@ export default function DrawingCanvas({
   const livePointsRef = useRef<[number, number, number][]>([]);
   const erasedIds = useRef(new Set<number>());
   const strokePathCache = useRef<Map<number | StrokeData, { points: StrokeData["points"]; d: string }>>(new Map());
+  const canvasScaleRef = useRef(1);
 
   const colorRef = useRef(color);
   const penWidthRef = useRef(penWidth);
@@ -91,10 +92,12 @@ export default function DrawingCanvas({
       return;
     }
 
-    // No viewBox: stroke coords are CSS pixels, so track the SVG's displayed size.
+    // No viewBox: stroke coords are CSS pixels. Scale buffer by DPR for HiDPI sharpness.
     const ro = new ResizeObserver(([entry]) => {
-      canvas.width = entry.contentRect.width;
-      canvas.height = entry.contentRect.height;
+      const dpr = window.devicePixelRatio || 1;
+      canvasScaleRef.current = dpr;
+      canvas.width = entry.contentRect.width * dpr;
+      canvas.height = entry.contentRect.height * dpr;
     });
     ro.observe(svg);
     return () => ro.disconnect();
@@ -125,6 +128,9 @@ export default function DrawingCanvas({
       size: penWidthRef.current,
     });
     if (outline.length < 2) return;
+    ctx.save();
+    const scale = canvasScaleRef.current;
+    if (scale !== 1) ctx.scale(scale, scale);
     ctx.beginPath();
     ctx.moveTo(outline[0][0], outline[0][1]);
     for (let i = 0; i < outline.length; i++) {
@@ -135,6 +141,7 @@ export default function DrawingCanvas({
     ctx.closePath();
     ctx.fillStyle = colorRef.current;
     ctx.fill();
+    ctx.restore();
   }, []);
 
   const eraseAtPoint = useCallback(
