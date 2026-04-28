@@ -78,6 +78,38 @@ export default function SettingsPage() {
 
           <div className={css.row}>
             <div>
+              <div className={css.rowLabel}>Palm rejection</div>
+              <div className={css.rowHint}>Block touch contacts larger than the threshold below</div>
+            </div>
+            <button
+              className={`${css.toggle}${settings.palmRejection ? " " + css.toggleOn : ""}`}
+              onClick={() => update({ palmRejection: !settings.palmRejection })}
+              title={settings.palmRejection ? "On" : "Off"}
+            />
+          </div>
+
+          <div className={css.row}>
+            <div>
+              <div className={css.rowLabel}>Palm threshold</div>
+              <div className={css.rowHint}>Max touch contact size (px) before it's treated as a palm</div>
+            </div>
+            <div className={css.sliderGroup}>
+              <input
+                type="range"
+                className={css.slider}
+                min="20"
+                max="200"
+                step="5"
+                value={settings.palmThreshold}
+                disabled={!settings.palmRejection}
+                onChange={(e) => update({ palmThreshold: Number(e.target.value) })}
+              />
+              <span className={css.sliderValue}>{settings.palmThreshold}</span>
+            </div>
+          </div>
+
+          <div className={css.row}>
+            <div>
               <div className={css.rowLabel}>Simulate pressure</div>
               <div className={css.rowHint}>Infer pressure from velocity when unavailable</div>
             </div>

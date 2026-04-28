@@ -6,6 +6,8 @@ export interface DrawingSettings {
   thinning: number;
   smoothing: number;
   simulatePressure: boolean;
+  palmRejection: boolean;
+  palmThreshold: number;
 }
 
 export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
@@ -14,6 +16,8 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   thinning: 0.5,
   smoothing: 0.5,
   simulatePressure: false,
+  palmRejection: true,
+  palmThreshold: 60,
 };
 
 const STORAGE_KEY = "drawingSettings";

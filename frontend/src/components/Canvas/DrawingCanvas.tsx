@@ -63,6 +63,8 @@ export default function DrawingCanvas({
   const thinningRef = useRef(ds.thinning);
   const smoothingRef = useRef(ds.smoothing);
   const simulatePressureRef = useRef(ds.simulatePressure);
+  const palmRejectionRef = useRef(ds.palmRejection);
+  const palmThresholdRef = useRef(ds.palmThreshold);
 
   useEffect(() => { colorRef.current = color; }, [color]);
   useEffect(() => { penWidthRef.current = penWidth; }, [penWidth]);
@@ -72,6 +74,8 @@ export default function DrawingCanvas({
   useEffect(() => { thinningRef.current = ds.thinning; }, [ds.thinning]);
   useEffect(() => { smoothingRef.current = ds.smoothing; }, [ds.smoothing]);
   useEffect(() => { simulatePressureRef.current = ds.simulatePressure; }, [ds.simulatePressure]);
+  useEffect(() => { palmRejectionRef.current = ds.palmRejection; }, [ds.palmRejection]);
+  useEffect(() => { palmThresholdRef.current = ds.palmThreshold; }, [ds.palmThreshold]);
   useEffect(() => { strokePathCache.current.clear(); }, [ds.streamline, ds.thinning, ds.smoothing, ds.simulatePressure]);
 
   // Match canvas resolution to the SVG coordinate space so strokes align pixel-perfectly.
@@ -159,6 +163,8 @@ export default function DrawingCanvas({
     (e: React.PointerEvent<SVGSVGElement>) => {
       setActivePointerType(e.pointerType);
       if (readonly || !inputEnabled) return;
+      if (palmRejectionRef.current && e.pointerType === "touch" &&
+          (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
       drawing.current = true;

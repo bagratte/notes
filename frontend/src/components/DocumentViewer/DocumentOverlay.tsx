@@ -81,6 +81,8 @@ export default function DocumentOverlay({
   const thinningRef = useRef(ds.thinning);
   const smoothingRef = useRef(ds.smoothing);
   const simulatePressureRef = useRef(ds.simulatePressure);
+  const palmRejectionRef = useRef(ds.palmRejection);
+  const palmThresholdRef = useRef(ds.palmThreshold);
 
   useEffect(() => { colorRef.current = color; }, [color]);
   useEffect(() => { penWidthRef.current = penWidth; }, [penWidth]);
@@ -90,6 +92,8 @@ export default function DocumentOverlay({
   useEffect(() => { thinningRef.current = ds.thinning; }, [ds.thinning]);
   useEffect(() => { smoothingRef.current = ds.smoothing; }, [ds.smoothing]);
   useEffect(() => { simulatePressureRef.current = ds.simulatePressure; }, [ds.simulatePressure]);
+  useEffect(() => { palmRejectionRef.current = ds.palmRejection; }, [ds.palmRejection]);
+  useEffect(() => { palmThresholdRef.current = ds.palmThreshold; }, [ds.palmThreshold]);
   useEffect(() => { strokePathCache.current.clear(); }, [ds.streamline, ds.thinning, ds.smoothing, ds.simulatePressure]);
 
   useEffect(() => {
@@ -168,6 +172,8 @@ export default function DocumentOverlay({
     (e: React.PointerEvent<SVGSVGElement>) => {
       setActivePointerType(e.pointerType);
       if (mode === "view") return;
+      if (palmRejectionRef.current && e.pointerType === "touch" &&
+          (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
       const toSvgCoords = getSvgTransform();
