@@ -83,12 +83,63 @@
 .zoomBtn:hover { background: #ede9e3; border-color: #ccc; }
 .active { background: #3a3a3a; color: #fff; border-color: #3a3a3a; }
 
-.zoomLevel {
+.fitWrapper {
+  position: relative;
+  z-index: 11;
+}
+
+.fitBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+.fitPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #e0dbd3;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 110px;
+}
+
+.fitPopoverItem {
+  height: 32px;
+  padding: 0 12px;
+  background: none;
+  border: none;
+  border-top: 1px solid #f0ece6;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: #555;
+  font-size: 13px;
+  white-space: nowrap;
+  text-align: left;
+}
+.fitPopoverItem:first-child { border-top: none; }
+.fitPopoverItem:hover { background: #f5f3ef; }
+.fitPopoverItemActive { background: #f0f2ff; color: #4a6cf7; font-weight: 500; }
+
+.zoomLevelBtn {
   font-size: 12px;
   color: #666;
-  min-width: 40px;
+  min-width: 48px;
   text-align: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
 }
+.zoomLevelBtn:hover:not(:disabled) { background: #ede9e3; color: #444; }
+.zoomLevelBtn:disabled { opacity: 0.35; cursor: default; }
 
 @media (max-width: 960px) {
   .toolbar {
@@ -112,9 +163,6 @@
     font-size: 12px;
   }
 
-  .zoomLevel {
-    min-width: 38px;
-  }
 }
 
 

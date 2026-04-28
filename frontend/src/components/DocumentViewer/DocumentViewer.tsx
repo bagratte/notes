@@ -89,6 +89,7 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
   const [pageLabels, setPageLabels] = useState<string[] | null>(null);
   const [pageInput, setPageInput] = useState("");
   const [fitMode, setFitMode] = useState<"width" | "page" | "manual">("width");
+  const [fitPopoverOpen, setFitPopoverOpen] = useState(false);
   const [manualScale, setManualScale] = useState(1.0);
   const [viewport, setViewport] = useState<ViewportSize>({ width: 1200, height: 900 });
   const [naturalSizes, setNaturalSizes] = useState<Record<number, NaturalSize>>({});
@@ -699,36 +700,34 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
 
         <div className={css.toolbarGroup}>
           <button className={css.zoomBtn} onClick={zoomOut} disabled={loading}>-</button>
-          <span className={css.zoomLevel}>
-            {fitMode === "width" ? "width" : fitMode === "page" ? "page" : `${Math.round(manualScale * 100)}%`}
-          </span>
+          {fitPopoverOpen && <div className={css.fitBackdrop} onPointerDown={() => setFitPopoverOpen(false)} />}
+          <div className={css.fitWrapper}>
+            <button
+              className={css.zoomLevelBtn}
+              onClick={() => setFitPopoverOpen((o) => !o)}
+              disabled={loading}
+              title="Zoom"
+            >
+              {Math.round(getPageDisplaySize(pageNum).scale * 100)}%
+            </button>
+            {fitPopoverOpen && (
+              <div className={css.fitPopover}>
+                <button
+                  className={`${css.fitPopoverItem}${fitMode === "width" ? " " + css.fitPopoverItemActive : ""}`}
+                  onPointerDown={(e) => { e.stopPropagation(); setFitMode("width"); setFitPopoverOpen(false); }}
+                >Fit Width</button>
+                <button
+                  className={`${css.fitPopoverItem}${fitMode === "page" ? " " + css.fitPopoverItemActive : ""}`}
+                  onPointerDown={(e) => { e.stopPropagation(); setFitMode("page"); setFitPopoverOpen(false); }}
+                >Fit Page</button>
+                <button
+                  className={`${css.fitPopoverItem}${fitMode === "manual" && manualScale === 1.0 ? " " + css.fitPopoverItemActive : ""}`}
+                  onPointerDown={(e) => { e.stopPropagation(); setFitMode("manual"); setManualScale(1.0); setFitPopoverOpen(false); }}
+                >Actual Size</button>
+              </div>
+            )}
+          </div>
           <button className={css.zoomBtn} onClick={zoomIn} disabled={loading}>+</button>
-          <button
-            className={`${css.zoomBtn}${fitMode === "width" ? ` ${css.active}` : ""}`}
-            onClick={() => setFitMode("width")}
-            title="Fit width"
-            disabled={loading}
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M2 4v8M14 4v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              <path d="M2 8h5M14 8H9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-              <path d="M5 6L2 8l3 2M11 6l3 2-3 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-          <button
-            className={`${css.zoomBtn}${fitMode === "page" ? ` ${css.active}` : ""}`}
-            onClick={() => setFitMode("page")}
-            title="Fit page"
-            disabled={loading}
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <rect x="5" y="4" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-              <path d="M1 1h3v3M1 1l3.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M15 1h-3v3M15 1l-3.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M1 15h3v-3M1 15l3.5-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M15 15h-3v-3M15 15l-3.5-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
         </div>
 
         <div className={css.toolbarSep} />
