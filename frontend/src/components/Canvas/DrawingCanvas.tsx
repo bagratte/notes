@@ -23,6 +23,15 @@ interface Props {
   style?: React.CSSProperties;
 }
 
+const PEN_CONTEXT_MENU_SUPPRESS_MS = 800;
+
+function getPenHwOverride(e: React.PointerEvent | PointerEvent): "segment-eraser" | "stroke-eraser" | null {
+  if (e.pointerType !== "pen") return null;
+  if (e.buttons & 32) return "segment-eraser";
+  if (e.buttons & 2) return "stroke-eraser";
+  return null;
+}
+
 function normalizePressure(pressure: number, pointerType: string): number {
   if (pointerType === "pen") {
     if (pressure > 0) return Math.min(1, Math.max(0.12, pressure));
@@ -62,6 +71,8 @@ export default function DrawingCanvas({
   const erasedIds = useRef(new Set<number>());
   const strokePathCache = useRef<Map<number | StrokeData, { points: StrokeData["points"]; d: string }>>(new Map());
   const canvasScaleRef = useRef(1);
+  const suppressContextMenuUntilRef = useRef(0);
+  const effectiveModeRef = useRef<"annotate" | "stroke-eraser" | "segment-eraser">("annotate");
 
   const colorRef = useRef(color);
   const penWidthRef = useRef(penWidth);
@@ -157,8 +168,8 @@ export default function DrawingCanvas({
     const svg = svgRef.current!;
     const rect = svg.getBoundingClientRect();
     const vb = svg.viewBox.baseVal;
-    const scaleX = vb && vb.width > 0 ? vb.width / rect.width : (window.devicePixelRatio || 1);
-    const scaleY = vb && vb.height > 0 ? vb.height / rect.height : (window.devicePixelRatio || 1);
+    const scaleX = vb && vb.width > 0 ? vb.width / rect.width : 1;
+    const scaleY = vb && vb.height > 0 ? vb.height / rect.height : 1;
     const nx = (clientX - rect.left) * scaleX;
     const ny = (clientY - rect.top) * scaleY;
     const nr = penWidthRef.current;
@@ -212,6 +223,17 @@ export default function DrawingCanvas({
     [onEraseStroke]
   );
 
+  const markPenContextMenuSuppressed = useCallback((pointerType: string) => {
+    if (pointerType !== "pen") return;
+    suppressContextMenuUntilRef.current = Date.now() + PEN_CONTEXT_MENU_SUPPRESS_MS;
+  }, []);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (Date.now() <= suppressContextMenuUntilRef.current) {
+      e.preventDefault();
+    }
+  }, []);
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       setActivePointerType(e.pointerType);
@@ -220,12 +242,16 @@ export default function DrawingCanvas({
       if (palmRejectionRef.current && e.pointerType === "touch" &&
           (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
       e.preventDefault();
+        markPenContextMenuSuppressed(e.pointerType);
       e.currentTarget.setPointerCapture(e.pointerId);
       drawing.current = true;
-      if (segmentEraserMode) {
+      const hwOverride = getPenHwOverride(e);
+      const effectiveMode = hwOverride ?? (segmentEraserMode ? "segment-eraser" : eraserMode ? "stroke-eraser" : "annotate");
+      effectiveModeRef.current = effectiveMode;
+      if (effectiveMode === "segment-eraser") {
         setErasePreview(new Map());
         applyEraserStep(e.clientX, e.clientY);
-      } else if (eraserMode) {
+      } else if (effectiveMode === "stroke-eraser") {
         erasedIds.current.clear();
         eraseAtPoint(e);
       } else {
@@ -235,22 +261,29 @@ export default function DrawingCanvas({
         updateLivePath(livePointsRef.current);
       }
     },
-    [readonly, inputEnabled, segmentEraserMode, eraserMode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep]
+    [readonly, inputEnabled, segmentEraserMode, eraserMode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep, markPenContextMenuSuppressed]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
-      if (segmentEraserMode) {
+      markPenContextMenuSuppressed(e.pointerType);
+      const hwOverride = getPenHwOverride(e);
+      const baseMode = segmentEraserMode ? "segment-eraser" : eraserMode ? "stroke-eraser" : "annotate";
+      const effectiveMode = drawing.current ? effectiveModeRef.current : hwOverride ?? baseMode;
+      effectiveModeRef.current = effectiveMode;
+      if (effectiveMode === "segment-eraser") {
         const toNatural = getSvgTransform();
         const pt = toNatural(e.clientX, e.clientY, 0);
         setEraserPos([pt[0], pt[1]]);
+      } else if (eraserPos !== null) {
+        setEraserPos(null);
       }
       if (!drawing.current) return;
       if (fingerScrollsRef.current && e.pointerType === "touch") return;
       e.preventDefault();
-      if (segmentEraserMode) {
+      if (effectiveMode === "segment-eraser") {
         applyEraserStep(e.clientX, e.clientY);
-      } else if (eraserMode) {
+      } else if (effectiveMode === "stroke-eraser") {
         eraseAtPoint(e);
       } else {
         const coalescedEvents =
@@ -269,22 +302,24 @@ export default function DrawingCanvas({
         updateLivePath(drawPts);
       }
     },
-    [segmentEraserMode, eraserMode, eraseAtPoint, applyEraserStep, getSvgTransform, updateLivePath, activePointerType]
+    [segmentEraserMode, eraserMode, eraseAtPoint, applyEraserStep, getSvgTransform, updateLivePath, activePointerType, markPenContextMenuSuppressed, eraserPos]
   );
 
   const finishStroke = useCallback(() => {
     if (!drawing.current) return;
     drawing.current = false;
-    if (segmentEraserMode) {
+    const effectiveMode = effectiveModeRef.current;
+    if (effectiveMode === "segment-eraser") {
       if (erasePreview.size > 0) {
         const deleted = [...erasePreview.keys()];
         const created = [...erasePreview.values()].flat();
         onSegmentErase?.(deleted, created);
       }
       setErasePreview(new Map());
+      setEraserPos(null);
       return;
     }
-    if (eraserMode) return;
+    if (effectiveMode === "stroke-eraser") return;
     const pts = livePointsRef.current;
     if (pts.length > 0) {
       onStrokeCompleteRef.current?.({
@@ -299,7 +334,7 @@ export default function DrawingCanvas({
       const ctx = canvas.getContext("2d");
       ctx?.clearRect(0, 0, canvas.width, canvas.height);
     }
-  }, [segmentEraserMode, eraserMode, onSegmentErase, erasePreview]);
+  }, [onSegmentErase, erasePreview]);
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
@@ -330,7 +365,7 @@ export default function DrawingCanvas({
         style={{
           touchAction: inputEnabled && !ds.fingerScrolls ? "none" : "auto",
           pointerEvents: inputEnabled ? "all" : "none",
-          cursor: !inputEnabled ? "grab" : eraserMode ? "cell" : segmentEraserMode ? "none" : activePointerType === "pen" ? "none" : "default",
+          cursor: !inputEnabled ? "grab" : effectiveModeRef.current === "stroke-eraser" ? "cell" : effectiveModeRef.current === "segment-eraser" ? "none" : activePointerType === "pen" ? "none" : "default",
           display: "block",
         }}
         onPointerEnter={(e) => setActivePointerType(e.pointerType)}
@@ -338,6 +373,7 @@ export default function DrawingCanvas({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={() => { setEraserPos(null); handlePointerLeave(); }}
+        onContextMenu={handleContextMenu}
       >
         {strokes
           .filter(s => !erasePreview.has(s.id as number))
@@ -370,7 +406,7 @@ export default function DrawingCanvas({
           });
           return <path key={`ef-${i}`} d={svgPathFromStroke(outline)} fill={frag.color} />;
         })}
-        {segmentEraserMode && eraserPos && (
+        {effectiveModeRef.current === "segment-eraser" && eraserPos && (
           <circle
             cx={eraserPos[0]}
             cy={eraserPos[1]}

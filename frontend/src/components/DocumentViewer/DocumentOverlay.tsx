@@ -41,6 +41,14 @@ interface Props {
 }
 
 const MIN_REGION_PX = 10;
+const PEN_CONTEXT_MENU_SUPPRESS_MS = 800;
+
+function getPenHwOverride(e: React.PointerEvent | PointerEvent): "segment-eraser" | "stroke-eraser" | null {
+  if (e.pointerType !== "pen") return null;
+  if (e.buttons & 32) return "segment-eraser";
+  if (e.buttons & 2)  return "stroke-eraser";
+  return null;
+}
 
 function normalizePressure(pressure: number, pointerType: string): number {
   if (pointerType === "pen") {
@@ -77,6 +85,8 @@ export default function DocumentOverlay({
   const livePointsRef = useRef<[number, number, number][]>([]);
   const erasedIds = useRef(new Set<number>());
   const strokePathCache = useRef<Map<number | string, { points: StrokeData["points"]; d: string }>>(new Map());
+  const effectiveModeRef = useRef<ToolMode | "stroke-eraser" | "segment-eraser">("annotate");
+  const suppressContextMenuUntilRef = useRef(0);
 
   const colorRef = useRef(color);
   const penWidthRef = useRef(penWidth);
@@ -224,6 +234,16 @@ export default function DocumentOverlay({
     [onEraseStroke]
   );
 
+  const markPenContextMenuSuppressed = useCallback(() => {
+    suppressContextMenuUntilRef.current = Date.now() + PEN_CONTEXT_MENU_SUPPRESS_MS;
+  }, []);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (Date.now() <= suppressContextMenuUntilRef.current) {
+      e.preventDefault();
+    }
+  }, []);
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       setActivePointerType(e.pointerType);
@@ -236,13 +256,17 @@ export default function DocumentOverlay({
       const toSvgCoords = getSvgTransform();
       const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
       drawing.current = true;
-      if (mode === "annotate") {
+      const hwOverride = getPenHwOverride(e);
+      if (hwOverride) markPenContextMenuSuppressed();
+      const effectiveMode = hwOverride ?? mode;
+      effectiveModeRef.current = effectiveMode;
+      if (effectiveMode === "annotate") {
         livePointsRef.current = [pt];
         updateLivePath(livePointsRef.current);
-      } else if (mode === "stroke-eraser") {
+      } else if (effectiveMode === "stroke-eraser") {
         erasedIds.current.clear();
         eraseAtPoint(e, false);
-      } else if (mode === "segment-eraser") {
+      } else if (effectiveMode === "segment-eraser") {
         setErasePreview(new Map());
         applyEraserStep(e.clientX, e.clientY);
       } else {
@@ -250,7 +274,7 @@ export default function DocumentOverlay({
         setDragCurrent([pt[0], pt[1]]);
       }
     },
-    [mode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep]
+    [mode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep, markPenContextMenuSuppressed]
   );
 
   const handlePointerMove = useCallback(
@@ -258,7 +282,11 @@ export default function DocumentOverlay({
       if (activePointerType !== e.pointerType) {
         setActivePointerType(e.pointerType);
       }
-      if (mode === "segment-eraser") {
+      const hwOverride = getPenHwOverride(e);
+      if (hwOverride) markPenContextMenuSuppressed();
+      const effectiveMode = hwOverride ?? mode;
+      effectiveModeRef.current = effectiveMode;
+      if (effectiveMode === "segment-eraser") {
         const toNatural = getSvgTransform();
         const pt = toNatural(e.clientX, e.clientY, 0);
         setEraserPos([pt[0], pt[1]]);
@@ -266,7 +294,7 @@ export default function DocumentOverlay({
       if (!drawing.current) return;
       if (fingerScrollsRef.current && e.pointerType === "touch") return;
       e.preventDefault();
-      if (mode === "annotate") {
+      if (effectiveMode === "annotate") {
         const coalescedEvents =
           (e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? [e.nativeEvent as PointerEvent];
         const toSvgCoords = getSvgTransform();
@@ -281,16 +309,16 @@ export default function DocumentOverlay({
           ? [...pts, ...predictedEvents.map((pe) => toSvgCoords(pe.clientX, pe.clientY, normalizePressure(pe.pressure, pe.pointerType)))]
           : pts;
         updateLivePath(drawPts);
-      } else if (mode === "stroke-eraser") {
+      } else if (effectiveMode === "stroke-eraser") {
         eraseAtPoint(e, false);
-      } else if (mode === "segment-eraser") {
+      } else if (effectiveMode === "segment-eraser") {
         applyEraserStep(e.clientX, e.clientY);
-      } else if (mode === "region") {
+      } else if (effectiveMode === "region") {
         const pt = getSvgTransform()(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
         setDragCurrent([pt[0], pt[1]]);
       }
     },
-    [mode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep, activePointerType]
+    [mode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep, activePointerType, markPenContextMenuSuppressed]
   );
 
   const handlePointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
@@ -298,7 +326,8 @@ export default function DocumentOverlay({
     if (!drawing.current) return;
     drawing.current = false;
 
-    if (mode === "annotate") {
+    const effectiveMode = effectiveModeRef.current;
+    if (effectiveMode === "annotate") {
       const pts = livePointsRef.current;
       if (pts.length > 0) {
         onStrokeCompleteRef.current?.({ points: [...pts], color: colorRef.current, width: penWidthRef.current });
@@ -309,14 +338,14 @@ export default function DocumentOverlay({
         const ctx = canvas.getContext("2d");
         ctx?.clearRect(0, 0, canvas.width, canvas.height);
       }
-    } else if (mode === "segment-eraser") {
+    } else if (effectiveMode === "segment-eraser") {
       if (erasePreview.size > 0) {
         const deleted = [...erasePreview.keys()];
         const created = [...erasePreview.values()].flat();
         onSegmentErase?.(deleted, created);
         setErasePreview(new Map());
       }
-    } else if (mode === "region") {
+    } else if (effectiveMode === "region") {
       if (dragStart && dragCurrent && onRegionComplete) {
         const x = Math.min(dragStart[0], dragCurrent[0]);
         const y = Math.min(dragStart[1], dragCurrent[1]);
@@ -329,12 +358,13 @@ export default function DocumentOverlay({
       setDragStart(null);
       setDragCurrent(null);
     }
-  }, [mode, onSegmentErase, onRegionComplete, erasePreview, dragStart, dragCurrent]);
+  }, [onSegmentErase, onRegionComplete, erasePreview, dragStart, dragCurrent]);
 
   const handlePointerLeave = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     handlePointerUp(e);
     setActivePointerType(null);
     setEraserPos(null);
+    effectiveModeRef.current = "annotate";
   }, [handlePointerUp]);
 
   const dragRect: DragRect | null =
@@ -390,13 +420,14 @@ export default function DocumentOverlay({
           touchAction: active && !ds.fingerScrolls ? "none" : "auto",
           pointerEvents: active ? "all" : "none",
           cursor:
-            mode === "annotate" ? (activePointerType === "pen" ? "none" : "default") : mode === "region" ? "crosshair" : mode === "stroke-eraser" ? "cell" : mode === "segment-eraser" ? "none" : "default",
+            effectiveModeRef.current === "annotate" ? (activePointerType === "pen" ? "none" : "default") : effectiveModeRef.current === "region" ? "crosshair" : effectiveModeRef.current === "stroke-eraser" ? "cell" : effectiveModeRef.current === "segment-eraser" ? "none" : "default",
         }}
         onPointerEnter={(e) => setActivePointerType(e.pointerType)}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerLeave}
+        onContextMenu={handleContextMenu}
       >
         {strokes
           .filter(s => !erasePreview.has(s.id as number))
@@ -442,7 +473,7 @@ export default function DocumentOverlay({
             strokeDasharray="5 3"
           />
         )}
-        {mode === "segment-eraser" && eraserPos && (
+        {effectiveModeRef.current === "segment-eraser" && eraserPos && (
           <circle
             cx={eraserPos[0]}
             cy={eraserPos[1]}
