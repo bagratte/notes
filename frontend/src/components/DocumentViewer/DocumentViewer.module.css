@@ -81,7 +81,11 @@
   line-height: 1;
 }
 .zoomBtn:hover { background: #ede9e3; border-color: #ccc; }
-.active { background: #3a3a3a; color: #fff; border-color: #3a3a3a; }
+.zoomBtn.active,
+.zoomBtn.active:hover {
+  background: #f0f2ff;
+  border-color: #4a6cf7;
+}
 
 .fitWrapper {
   position: relative;
