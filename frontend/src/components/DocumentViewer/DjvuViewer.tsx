@@ -476,6 +476,35 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
     });
   }, [documentId]);
 
+  const handleSegmentErase = useCallback((page: number, deleted: number[], created: StrokeData[]) => {
+    setStrokesByPage(prev => {
+      const current = prev[page] ?? [];
+      const next = current.filter(s => !deleted.includes(s.id!));
+      if (next.length === 0 && current.length > 0 && created.length === 0) {
+        window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
+          detail: { documentId, pageNumber: page },
+        }));
+      }
+      return { ...prev, [page]: next };
+    });
+    deleted.forEach(id => strokesApi.delete(id));
+    if (created.length > 0) {
+      void strokesApi.createBatch(created.map(s => ({
+        section_id: null,
+        document_id: documentId,
+        page_number: page,
+        points: s.points,
+        color: s.color,
+        width: s.width,
+      }))).then(saved => {
+        setStrokesByPage(prev => ({
+          ...prev,
+          [page]: [...(prev[page] ?? []), ...saved],
+        }));
+      });
+    }
+  }, [documentId]);
+
   const handleRegionComplete = useCallback(async (page: number, rect: PendingRegion) => {
     const note = await notesApi.create("Untitled Note", folderId);
     const existingSections = await sectionsApi.list(note.id);
@@ -750,6 +779,7 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
                         strokes={strokes.map(toStrokeData)}
                         onStrokeComplete={(stroke) => handleInlineStroke(page, stroke)}
                         onEraseStroke={(id) => handleEraseStroke(page, id)}
+                        onSegmentErase={(del, cr) => handleSegmentErase(page, del, cr)}
                         regions={regions}
                         onRegionComplete={(rect) => handleRegionComplete(page, rect)}
                         onRegionClick={(region) => navigate(`/notes/${region.note_id}`)}

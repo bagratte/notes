@@ -69,6 +69,7 @@ export default function NoteEditor({ noteId }: Props) {
           pen={pen}
           inputEnabled={mode !== "hand"}
           eraserMode={mode === "stroke-eraser"}
+          segmentEraserMode={mode === "segment-eraser"}
           onDelete={() => deleteSection(section.id)}
         />
       ))}

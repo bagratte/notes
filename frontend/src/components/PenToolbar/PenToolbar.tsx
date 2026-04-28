@@ -6,7 +6,7 @@ export interface PenSettings {
   width: number;
 }
 
-export type PenToolbarMode = "hand" | "annotate" | "stroke-eraser" | "region";
+export type PenToolbarMode = "hand" | "annotate" | "stroke-eraser" | "segment-eraser" | "region";
 
 export const DEFAULT_PEN: PenSettings = { color: "#2255cc", width: 4 };
 
@@ -172,6 +172,16 @@ export default function PenToolbar({
               <path d="M5 12H12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
               <path d="M2 9l3-6 6 2-3 6H2z" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
               <path d="M5 12l-3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+          </button>
+          <button
+            className={`${css.widthBtn}${mode === "segment-eraser" ? " " + css.active : ""}`}
+            title="Precision eraser"
+            onClick={() => onModeChange(mode === "segment-eraser" ? "annotate" : "segment-eraser")}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M7 4.5v5M4.5 7h5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
             </svg>
           </button>
         </>

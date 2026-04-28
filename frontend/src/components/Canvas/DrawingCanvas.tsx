@@ -2,13 +2,16 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { getStroke } from "perfect-freehand";
 import type { StrokeData } from "./types";
 import { svgPathFromStroke } from "./utils";
+import { eraseFromStroke } from "./eraserUtils";
 import { useDrawingSettings } from "@/context/DrawingSettings";
 
 interface Props {
   strokes: StrokeData[];
   onStrokeComplete?: (stroke: StrokeData) => void;
   onEraseStroke?: (id: number) => void;
+  onSegmentErase?: (deleted: number[], created: StrokeData[]) => void;
   eraserMode?: boolean;
+  segmentEraserMode?: boolean;
   color?: string;
   penWidth?: number;
   readonly?: boolean;
@@ -32,7 +35,9 @@ export default function DrawingCanvas({
   strokes,
   onStrokeComplete,
   onEraseStroke,
+  onSegmentErase,
   eraserMode = false,
+  segmentEraserMode = false,
   color = "#000000",
   penWidth = 3,
   readonly = false,
@@ -44,6 +49,8 @@ export default function DrawingCanvas({
   style,
 }: Props) {
   const [activePointerType, setActivePointerType] = useState<string | null>(null);
+  const [erasePreview, setErasePreview] = useState<Map<number, StrokeData[]>>(new Map());
+  const [eraserPos, setEraserPos] = useState<[number, number] | null>(null);
   const { settings: ds } = useDrawingSettings();
 
   const drawing = useRef(false);
@@ -146,6 +153,43 @@ export default function DrawingCanvas({
     ctx.restore();
   }, []);
 
+  const applyEraserStep = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current!;
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox.baseVal;
+    const scaleX = vb && vb.width > 0 ? vb.width / rect.width : (window.devicePixelRatio || 1);
+    const scaleY = vb && vb.height > 0 ? vb.height / rect.height : (window.devicePixelRatio || 1);
+    const nx = (clientX - rect.left) * scaleX;
+    const ny = (clientY - rect.top) * scaleY;
+    const nr = penWidthRef.current;
+
+    setErasePreview(prev => {
+      let changed = false;
+      const updated = new Map(prev);
+      for (const stroke of strokes) {
+        const id = stroke.id as number;
+        const current: StrokeData[] = updated.has(id)
+          ? updated.get(id)!
+          : [{ id: stroke.id, points: stroke.points, color: stroke.color, width: stroke.width }];
+        const newFrags: StrokeData[] = [];
+        let fragChanged = false;
+        for (const frag of current) {
+          const result = eraseFromStroke(frag.points, nx, ny, nr + frag.width / 2);
+          if (result === null) {
+            newFrags.push(frag);
+          } else {
+            fragChanged = true;
+            for (const pts of result) {
+              newFrags.push({ points: pts, color: frag.color, width: frag.width });
+            }
+          }
+        }
+        if (fragChanged) { updated.set(id, newFrags); changed = true; }
+      }
+      return changed ? updated : prev;
+    });
+  }, [strokes]);
+
   const eraseAtPoint = useCallback(
     (e: React.PointerEvent) => {
       const samples: [number, number][] = [
@@ -178,7 +222,10 @@ export default function DrawingCanvas({
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
       drawing.current = true;
-      if (eraserMode) {
+      if (segmentEraserMode) {
+        setErasePreview(new Map());
+        applyEraserStep(e.clientX, e.clientY);
+      } else if (eraserMode) {
         erasedIds.current.clear();
         eraseAtPoint(e);
       } else {
@@ -188,15 +235,22 @@ export default function DrawingCanvas({
         updateLivePath(livePointsRef.current);
       }
     },
-    [readonly, inputEnabled, eraserMode, getSvgTransform, eraseAtPoint, updateLivePath]
+    [readonly, inputEnabled, segmentEraserMode, eraserMode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
+      if (segmentEraserMode) {
+        const toNatural = getSvgTransform();
+        const pt = toNatural(e.clientX, e.clientY, 0);
+        setEraserPos([pt[0], pt[1]]);
+      }
       if (!drawing.current) return;
       if (fingerScrollsRef.current && e.pointerType === "touch") return;
       e.preventDefault();
-      if (eraserMode) {
+      if (segmentEraserMode) {
+        applyEraserStep(e.clientX, e.clientY);
+      } else if (eraserMode) {
         eraseAtPoint(e);
       } else {
         const coalescedEvents =
@@ -215,12 +269,21 @@ export default function DrawingCanvas({
         updateLivePath(drawPts);
       }
     },
-    [eraserMode, eraseAtPoint, getSvgTransform, updateLivePath]
+    [segmentEraserMode, eraserMode, eraseAtPoint, applyEraserStep, getSvgTransform, updateLivePath, activePointerType]
   );
 
   const finishStroke = useCallback(() => {
     if (!drawing.current) return;
     drawing.current = false;
+    if (segmentEraserMode) {
+      if (erasePreview.size > 0) {
+        const deleted = [...erasePreview.keys()];
+        const created = [...erasePreview.values()].flat();
+        onSegmentErase?.(deleted, created);
+      }
+      setErasePreview(new Map());
+      return;
+    }
     if (eraserMode) return;
     const pts = livePointsRef.current;
     if (pts.length > 0) {
@@ -236,7 +299,7 @@ export default function DrawingCanvas({
       const ctx = canvas.getContext("2d");
       ctx?.clearRect(0, 0, canvas.width, canvas.height);
     }
-  }, [eraserMode]);
+  }, [segmentEraserMode, eraserMode, onSegmentErase, erasePreview]);
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
@@ -267,34 +330,58 @@ export default function DrawingCanvas({
         style={{
           touchAction: inputEnabled && !ds.fingerScrolls ? "none" : "auto",
           pointerEvents: inputEnabled ? "all" : "none",
-          cursor: !inputEnabled ? "grab" : eraserMode ? "cell" : activePointerType === "pen" ? "none" : "default",
+          cursor: !inputEnabled ? "grab" : eraserMode ? "cell" : segmentEraserMode ? "none" : activePointerType === "pen" ? "none" : "default",
           display: "block",
         }}
         onPointerEnter={(e) => setActivePointerType(e.pointerType)}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerLeave}
+        onPointerLeave={() => { setEraserPos(null); handlePointerLeave(); }}
       >
-        {strokes.map((s, i) => {
-          const cacheKey: number | StrokeData = s.id ?? s;
-          const cached = strokePathCache.current.get(cacheKey);
-          let d: string;
-          if (cached && cached.points === s.points) {
-            d = cached.d;
-          } else {
-            const outline = getStroke(s.points, {
-              thinning: thinningRef.current,
-              smoothing: smoothingRef.current,
-              streamline: streamlineRef.current,
-              simulatePressure: simulatePressureRef.current,
-              size: s.width,
-            });
-            d = svgPathFromStroke(outline);
-            strokePathCache.current.set(cacheKey, { points: s.points, d });
-          }
-          return <path key={s.id ?? i} d={d} fill={s.color} data-stroke-id={s.id} />;
+        {strokes
+          .filter(s => !erasePreview.has(s.id as number))
+          .map((s, i) => {
+            const cacheKey: number | StrokeData = s.id ?? s;
+            const cached = strokePathCache.current.get(cacheKey);
+            let d: string;
+            if (cached && cached.points === s.points) {
+              d = cached.d;
+            } else {
+              const outline = getStroke(s.points, {
+                thinning: thinningRef.current,
+                smoothing: smoothingRef.current,
+                streamline: streamlineRef.current,
+                simulatePressure: simulatePressureRef.current,
+                size: s.width,
+              });
+              d = svgPathFromStroke(outline);
+              strokePathCache.current.set(cacheKey, { points: s.points, d });
+            }
+            return <path key={s.id ?? i} d={d} fill={s.color} data-stroke-id={s.id} />;
+          })}
+        {erasePreview.size > 0 && [...erasePreview.values()].flat().map((frag, i) => {
+          const outline = getStroke(frag.points, {
+            thinning: thinningRef.current,
+            smoothing: smoothingRef.current,
+            streamline: streamlineRef.current,
+            simulatePressure: simulatePressureRef.current,
+            size: frag.width,
+          });
+          return <path key={`ef-${i}`} d={svgPathFromStroke(outline)} fill={frag.color} />;
         })}
+        {segmentEraserMode && eraserPos && (
+          <circle
+            cx={eraserPos[0]}
+            cy={eraserPos[1]}
+            r={penWidthRef.current}
+            fill="none"
+            stroke="rgba(80,80,80,0.6)"
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+            style={{ pointerEvents: "none" }}
+          />
+        )}
       </svg>
       <canvas
         ref={liveCanvasRef}

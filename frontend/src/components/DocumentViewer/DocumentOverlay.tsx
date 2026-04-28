@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getStroke } from "perfect-freehand";
 import { svgPathFromStroke } from "@/components/Canvas/utils";
+import { eraseFromStroke } from "@/components/Canvas/eraserUtils";
 import type { StrokeData } from "@/components/Canvas";
 import type { Region } from "@/types";
 import { useDrawingSettings } from "@/context/DrawingSettings";
@@ -9,7 +10,7 @@ export interface EnrichedRegion extends Region {
   note_id: number;
 }
 
-export type ToolMode = "view" | "annotate" | "region" | "stroke-eraser";
+export type ToolMode = "view" | "annotate" | "region" | "stroke-eraser" | "segment-eraser";
 
 interface DragRect {
   x: number;
@@ -30,6 +31,7 @@ interface Props {
   onRegionComplete?: (rect: DragRect) => void;
   onRegionClick?: (region: EnrichedRegion) => void;
   onEraseStroke?: (id: number) => void;
+  onSegmentErase?: (deleted: number[], created: StrokeData[]) => void;
   mode: ToolMode;
   viewBox?: string;
   naturalSize?: NaturalSize;
@@ -55,6 +57,7 @@ export default function DocumentOverlay({
   onRegionComplete,
   onRegionClick,
   onEraseStroke,
+  onSegmentErase,
   mode,
   viewBox,
   naturalSize,
@@ -65,6 +68,8 @@ export default function DocumentOverlay({
   const [dragStart, setDragStart] = useState<[number, number] | null>(null);
   const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
   const [activePointerType, setActivePointerType] = useState<string | null>(null);
+  const [erasePreview, setErasePreview] = useState<Map<number, StrokeData[]>>(new Map());
+  const [eraserPos, setEraserPos] = useState<[number, number] | null>(null);
   const { settings: ds } = useDrawingSettings();
   const drawing = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -160,6 +165,43 @@ export default function DocumentOverlay({
     ctx.restore();
   }, []);
 
+  const applyEraserStep = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current!;
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox.baseVal;
+    const scaleX = vb.width > 0 ? vb.width / rect.width : 1;
+    const scaleY = vb.height > 0 ? vb.height / rect.height : 1;
+    const nx = (clientX - rect.left) * scaleX;
+    const ny = (clientY - rect.top) * scaleY;
+    const nr = penWidthRef.current;
+
+    setErasePreview(prev => {
+      let changed = false;
+      const updated = new Map(prev);
+      for (const stroke of strokes) {
+        const id = stroke.id as number;
+        const current: StrokeData[] = updated.has(id)
+          ? updated.get(id)!
+          : [{ id: stroke.id, points: stroke.points, color: stroke.color, width: stroke.width }];
+        const newFrags: StrokeData[] = [];
+        let fragChanged = false;
+        for (const frag of current) {
+          const result = eraseFromStroke(frag.points, nx, ny, nr + frag.width / 2);
+          if (result === null) {
+            newFrags.push(frag);
+          } else {
+            fragChanged = true;
+            for (const pts of result) {
+              newFrags.push({ points: pts, color: frag.color, width: frag.width });
+            }
+          }
+        }
+        if (fragChanged) { updated.set(id, newFrags); changed = true; }
+      }
+      return changed ? updated : prev;
+    });
+  }, [strokes]);
+
   const eraseAtPoint = useCallback(
     (e: React.PointerEvent, firstOnly: boolean) => {
       const samples: [number, number][] = firstOnly
@@ -200,18 +242,26 @@ export default function DocumentOverlay({
       } else if (mode === "stroke-eraser") {
         erasedIds.current.clear();
         eraseAtPoint(e, false);
+      } else if (mode === "segment-eraser") {
+        setErasePreview(new Map());
+        applyEraserStep(e.clientX, e.clientY);
       } else {
         setDragStart([pt[0], pt[1]]);
         setDragCurrent([pt[0], pt[1]]);
       }
     },
-    [mode, getSvgTransform, eraseAtPoint, updateLivePath]
+    [mode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (activePointerType !== e.pointerType) {
         setActivePointerType(e.pointerType);
+      }
+      if (mode === "segment-eraser") {
+        const toNatural = getSvgTransform();
+        const pt = toNatural(e.clientX, e.clientY, 0);
+        setEraserPos([pt[0], pt[1]]);
       }
       if (!drawing.current) return;
       if (fingerScrollsRef.current && e.pointerType === "touch") return;
@@ -233,12 +283,14 @@ export default function DocumentOverlay({
         updateLivePath(drawPts);
       } else if (mode === "stroke-eraser") {
         eraseAtPoint(e, false);
+      } else if (mode === "segment-eraser") {
+        applyEraserStep(e.clientX, e.clientY);
       } else if (mode === "region") {
         const pt = getSvgTransform()(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
         setDragCurrent([pt[0], pt[1]]);
       }
     },
-    [mode, getSvgTransform, eraseAtPoint, updateLivePath]
+    [mode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep, activePointerType]
   );
 
   const handlePointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
@@ -257,6 +309,13 @@ export default function DocumentOverlay({
         const ctx = canvas.getContext("2d");
         ctx?.clearRect(0, 0, canvas.width, canvas.height);
       }
+    } else if (mode === "segment-eraser") {
+      if (erasePreview.size > 0) {
+        const deleted = [...erasePreview.keys()];
+        const created = [...erasePreview.values()].flat();
+        onSegmentErase?.(deleted, created);
+        setErasePreview(new Map());
+      }
     } else if (mode === "region") {
       if (dragStart && dragCurrent && onRegionComplete) {
         const x = Math.min(dragStart[0], dragCurrent[0]);
@@ -270,11 +329,12 @@ export default function DocumentOverlay({
       setDragStart(null);
       setDragCurrent(null);
     }
-  }, [mode, onRegionComplete, dragStart, dragCurrent]);
+  }, [mode, onSegmentErase, onRegionComplete, erasePreview, dragStart, dragCurrent]);
 
   const handlePointerLeave = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     handlePointerUp(e);
     setActivePointerType(null);
+    setEraserPos(null);
   }, [handlePointerUp]);
 
   const dragRect: DragRect | null =
@@ -330,7 +390,7 @@ export default function DocumentOverlay({
           touchAction: active && !ds.fingerScrolls ? "none" : "auto",
           pointerEvents: active ? "all" : "none",
           cursor:
-            mode === "annotate" ? (activePointerType === "pen" ? "none" : "default") : mode === "region" ? "crosshair" : mode === "stroke-eraser" ? "cell" : "default",
+            mode === "annotate" ? (activePointerType === "pen" ? "none" : "default") : mode === "region" ? "crosshair" : mode === "stroke-eraser" ? "cell" : mode === "segment-eraser" ? "none" : "default",
         }}
         onPointerEnter={(e) => setActivePointerType(e.pointerType)}
         onPointerDown={handlePointerDown}
@@ -338,24 +398,36 @@ export default function DocumentOverlay({
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerLeave}
       >
-        {strokes.map((s, i) => {
-          const cacheKey = s.id ?? i;
-          const cached = strokePathCache.current.get(cacheKey);
-          let d: string;
-          if (cached && cached.points === s.points) {
-            d = cached.d;
-          } else {
-            const outline = getStroke(s.points, {
-              thinning: thinningRef.current,
-              smoothing: smoothingRef.current,
-              streamline: streamlineRef.current,
-              simulatePressure: simulatePressureRef.current,
-              size: s.width,
-            });
-            d = svgPathFromStroke(outline);
-            strokePathCache.current.set(cacheKey, { points: s.points, d });
-          }
-          return <path key={cacheKey} d={d} fill={s.color} data-stroke-id={s.id} />;
+        {strokes
+          .filter(s => !erasePreview.has(s.id as number))
+          .map((s, i) => {
+            const cacheKey = s.id ?? i;
+            const cached = strokePathCache.current.get(cacheKey);
+            let d: string;
+            if (cached && cached.points === s.points) {
+              d = cached.d;
+            } else {
+              const outline = getStroke(s.points, {
+                thinning: thinningRef.current,
+                smoothing: smoothingRef.current,
+                streamline: streamlineRef.current,
+                simulatePressure: simulatePressureRef.current,
+                size: s.width,
+              });
+              d = svgPathFromStroke(outline);
+              strokePathCache.current.set(cacheKey, { points: s.points, d });
+            }
+            return <path key={cacheKey} d={d} fill={s.color} data-stroke-id={s.id} />;
+          })}
+        {erasePreview.size > 0 && [...erasePreview.values()].flat().map((frag, i) => {
+          const outline = getStroke(frag.points, {
+            thinning: thinningRef.current,
+            smoothing: smoothingRef.current,
+            streamline: streamlineRef.current,
+            simulatePressure: simulatePressureRef.current,
+            size: frag.width,
+          });
+          return <path key={`ef-${i}`} d={svgPathFromStroke(outline)} fill={frag.color} />;
         })}
 
         {dragRect && (
@@ -368,6 +440,18 @@ export default function DocumentOverlay({
             stroke="rgba(74, 108, 247, 0.7)"
             strokeWidth={1}
             strokeDasharray="5 3"
+          />
+        )}
+        {mode === "segment-eraser" && eraserPos && (
+          <circle
+            cx={eraserPos[0]}
+            cy={eraserPos[1]}
+            r={penWidthRef.current}
+            fill="none"
+            stroke="rgba(80,80,80,0.6)"
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+            style={{ pointerEvents: "none" }}
           />
         )}
       </svg>

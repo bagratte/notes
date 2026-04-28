@@ -11,6 +11,7 @@ interface Props {
   pen: PenSettings;
   inputEnabled?: boolean;
   eraserMode?: boolean;
+  segmentEraserMode?: boolean;
   onDelete: () => void;
 }
 
@@ -23,6 +24,7 @@ export default function SectionCanvas({
   pen,
   inputEnabled = true,
   eraserMode = false,
+  segmentEraserMode = false,
   onDelete,
 }: Props) {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -76,6 +78,21 @@ export default function SectionCanvas({
       return prev.filter((s) => s.id !== id);
     });
   }, []);
+
+  const handleSegmentErase = useCallback((deleted: number[], created: StrokeData[]) => {
+    setStrokes(prev => prev.filter(s => !deleted.includes(s.id)));
+    deleted.forEach(id => strokesApi.delete(id));
+    if (created.length > 0) {
+      void strokesApi.createBatch(created.map(s => ({
+        section_id: sectionId,
+        document_id: null,
+        page_number: null,
+        points: s.points,
+        color: s.color,
+        width: s.width,
+      }))).then(saved => setStrokes(prev => [...prev, ...saved]));
+    }
+  }, [sectionId]);
 
   const undo = useCallback(() => {
     setStrokes((prev) => {
@@ -142,8 +159,10 @@ export default function SectionCanvas({
             strokes={strokes.map(toDisplay)}
             onStrokeComplete={handleStrokeComplete}
             onEraseStroke={handleEraseStroke}
+            onSegmentErase={handleSegmentErase}
             inputEnabled={inputEnabled}
             eraserMode={eraserMode}
+            segmentEraserMode={segmentEraserMode}
             color={pen.color}
             penWidth={pen.width}
             height={320}
