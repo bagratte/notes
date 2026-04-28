@@ -7,7 +7,9 @@ from app.database import get_db
 from app.models import Document
 from app.schemas import DocumentUpdate, DocumentOut
 
-UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "../../uploads")
+UPLOADS_DIR = os.environ.get("DOCUMENT_ROOT") or os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../uploads")
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
