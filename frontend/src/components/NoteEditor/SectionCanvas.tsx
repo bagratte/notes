@@ -80,17 +80,27 @@ export default function SectionCanvas({
   }, []);
 
   const handleSegmentErase = useCallback((deleted: number[], created: StrokeData[]) => {
-    setStrokes(prev => prev.filter(s => !deleted.includes(s.id)));
+    const tempIds = created.map((_, i) => -(Date.now() + i));
+    setStrokes(prev => {
+      const remaining = prev.filter(s => !deleted.includes(s.id));
+      const optimistic: Stroke[] = created.map((s, i) => ({
+        id: tempIds[i], section_id: sectionId, document_id: null, page_number: null,
+        points: s.points, color: s.color, width: s.width,
+        created_at: new Date().toISOString(),
+      }));
+      return [...remaining, ...optimistic];
+    });
     deleted.forEach(id => strokesApi.delete(id));
     if (created.length > 0) {
       void strokesApi.createBatch(created.map(s => ({
-        section_id: sectionId,
-        document_id: null,
-        page_number: null,
-        points: s.points,
-        color: s.color,
-        width: s.width,
-      }))).then(saved => setStrokes(prev => [...prev, ...saved]));
+        section_id: sectionId, document_id: null, page_number: null,
+        points: s.points, color: s.color, width: s.width,
+      }))).then(saved => {
+        setStrokes(prev => {
+          const without = prev.filter(s => !tempIds.includes(s.id));
+          return [...without, ...saved];
+        });
+      });
     }
   }, [sectionId]);
 

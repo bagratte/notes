@@ -539,6 +539,7 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
   }, [documentId]);
 
   const handleSegmentErase = useCallback((page: number, deleted: number[], created: StrokeData[]) => {
+    const tempIds = created.map((_, i) => -(Date.now() + i));
     setStrokesByPage(prev => {
       const current = prev[page] ?? [];
       const next = current.filter(s => !deleted.includes(s.id!));
@@ -547,22 +548,23 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
           detail: { documentId, pageNumber: page },
         }));
       }
-      return { ...prev, [page]: next };
+      const optimistic: Stroke[] = created.map((s, i) => ({
+        id: tempIds[i], section_id: null, document_id: documentId,
+        page_number: page, points: s.points, color: s.color, width: s.width,
+        created_at: new Date().toISOString(),
+      }));
+      return { ...prev, [page]: [...next, ...optimistic] };
     });
     deleted.forEach(id => strokesApi.delete(id));
     if (created.length > 0) {
       void strokesApi.createBatch(created.map(s => ({
-        section_id: null,
-        document_id: documentId,
-        page_number: page,
-        points: s.points,
-        color: s.color,
-        width: s.width,
+        section_id: null, document_id: documentId, page_number: page,
+        points: s.points, color: s.color, width: s.width,
       }))).then(saved => {
-        setStrokesByPage(prev => ({
-          ...prev,
-          [page]: [...(prev[page] ?? []), ...saved],
-        }));
+        setStrokesByPage(prev => {
+          const without = (prev[page] ?? []).filter(s => !tempIds.includes(s.id));
+          return { ...prev, [page]: [...without, ...saved] };
+        });
       });
     }
   }, [documentId]);
