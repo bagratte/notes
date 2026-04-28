@@ -720,7 +720,7 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
           mode={toolMode === "view" ? "hand" : toolMode}
           onChange={(settings) => {
             setPen(settings);
-            if (toolMode !== "annotate") setToolMode("annotate");
+            if (toolMode === "view") setToolMode("annotate");
           }}
           onModeChange={(mode) => setToolMode(mode === "hand" ? "view" : mode)}
           fingerScrolls={ds.fingerScrolls}

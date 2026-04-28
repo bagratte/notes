@@ -782,7 +782,7 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
           mode={toolMode === "view" ? "hand" : toolMode}
           onChange={(settings) => {
             setPen(settings);
-            if (toolMode !== "annotate") setToolMode("annotate");
+            if (toolMode === "view") setToolMode("annotate");
           }}
           onModeChange={(mode) => setToolMode(mode === "hand" ? "view" : mode)}
           fingerScrolls={ds.fingerScrolls}
