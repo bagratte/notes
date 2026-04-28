@@ -1,9 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, Base
 from app.routers import folders, documents, notes, sections, regions, strokes
-
-Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Notes API")
 

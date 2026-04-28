@@ -42,7 +42,13 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Copy `.env.example` to `.env` and set `DATABASE_URL` to the SQLite path for your machine (e.g. `sqlite:////home/you/notes/notes.db`). The database and uploaded files (`uploads/`) are created automatically on first run.
+Copy `.env.example` to `.env` and set `DATABASE_URL` to the SQLite path for your machine (e.g. `sqlite:////home/you/notes/notes.db`). Then apply migrations to create the database schema:
+
+```sh
+alembic upgrade head
+```
+
+Uploaded files (`uploads/`) are created automatically on first run.
 
 ### Frontend
 
@@ -60,7 +66,7 @@ Open [http://localhost:5173](http://localhost:5173).
 notes/
 ├── backend/
 │   └── app/
-│       ├── main.py          # FastAPI app, router mounts, DB init
+│       ├── main.py          # FastAPI app, router mounts
 │       ├── database.py      # SQLite engine, session, Base
 │       ├── models/          # SQLAlchemy models
 │       ├── schemas/         # Pydantic schemas

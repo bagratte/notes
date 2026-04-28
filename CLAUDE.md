@@ -35,7 +35,20 @@ The frontend proxies `/api` → `http://localhost:8000` (Vite config). There is 
 
 ### Schema management
 
-`Base.metadata.create_all(bind=engine)` runs on every startup in `main.py`, creating tables that don't yet exist. There are no migrations to run. Alembic is listed in `requirements.txt` but is not configured — the `alembic/` directory is empty.
+Alembic is configured. Migrations live in `backend/alembic/versions/`. To apply pending migrations:
+
+```sh
+cd backend && alembic upgrade head
+```
+
+To create a migration after editing a model:
+
+```sh
+alembic revision --autogenerate -m "describe the change"
+alembic upgrade head
+```
+
+`create_all` is no longer used — schema changes must go through Alembic.
 
 ### Data model
 
