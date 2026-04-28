@@ -31,6 +31,20 @@ npm run dev                   # Vite dev server on :5173
 
 The frontend proxies `/api` → `http://localhost:8000` (Vite config). There is a `GET /health` endpoint for liveness checks.
 
+## Running as services
+
+Unit files live in `systemd/`. To install:
+
+```sh
+ln -s ~/src/notes/systemd/notes.target ~/.config/systemd/user/
+ln -s ~/src/notes/systemd/notes-backend.service ~/.config/systemd/user/
+ln -s ~/src/notes/systemd/notes-frontend.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now notes.target
+```
+
+Frontend runs on `:5173` (Vite dev server with HMR). Backend reloads on Python file changes (`--reload`).
+
 ## Backend architecture
 
 ### Schema management

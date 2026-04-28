@@ -60,6 +60,20 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173).
 
+### Running as persistent services (systemd)
+
+To have both processes start automatically at login:
+
+```sh
+ln -s ~/src/notes/systemd/notes.target ~/.config/systemd/user/
+ln -s ~/src/notes/systemd/notes-backend.service ~/.config/systemd/user/
+ln -s ~/src/notes/systemd/notes-frontend.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now notes.target
+```
+
+The app is then available at [http://localhost:5173](http://localhost:5173). Both services reload automatically on code changes (Vite HMR for the frontend, `--reload` for the backend).
+
 ## Project structure
 
 ```

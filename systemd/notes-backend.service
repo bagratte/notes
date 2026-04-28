@@ -1,0 +1,14 @@
+[Unit]
+Description=Notes backend (FastAPI/uvicorn)
+After=network.target
+PartOf=notes.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/bagrat/src/notes/backend
+EnvironmentFile=/home/bagrat/src/notes/backend/.env
+ExecStart=/home/bagrat/src/notes/backend/.venv/bin/uvicorn app.main:app --port 8000 --reload
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

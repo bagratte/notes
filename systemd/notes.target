@@ -1,0 +1,7 @@
+[Unit]
+Description=Notes app
+Wants=notes-backend.service notes-frontend.service
+After=notes-backend.service notes-frontend.service
+
+[Install]
+WantedBy=default.target

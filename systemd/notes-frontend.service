@@ -1,0 +1,13 @@
+[Unit]
+Description=Notes frontend (Vite dev server)
+After=notes-backend.service
+PartOf=notes.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/bagrat/src/notes/frontend
+ExecStart=/home/bagrat/src/notes/frontend/node_modules/.bin/vite --port 5173
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
