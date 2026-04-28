@@ -1,3 +1,4 @@
+import { useState } from "react";
 import css from "./PenToolbar.module.css";
 
 export interface PenSettings {
@@ -32,6 +33,8 @@ interface Props {
   onChange: (s: PenSettings) => void;
   mode: PenToolbarMode;
   onModeChange?: (mode: PenToolbarMode) => void;
+  fingerScrolls?: boolean;
+  onFingerScrollsChange?: (v: boolean) => void;
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
@@ -43,6 +46,8 @@ export default function PenToolbar({
   onChange,
   mode,
   onModeChange,
+  fingerScrolls,
+  onFingerScrollsChange,
   canUndo,
   canRedo,
   onUndo,
@@ -50,19 +55,80 @@ export default function PenToolbar({
 }: Props) {
   const showUndoRedo = onUndo !== undefined || onRedo !== undefined;
 
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  type InputMode = "all" | "stylus" | "view";
+  const inputMode: InputMode = mode === "hand" ? "view" : fingerScrolls ? "stylus" : "all";
+
+  const selectInputMode = (m: InputMode) => {
+    setPopoverOpen(false);
+    if (m === "view") {
+      onModeChange?.("hand");
+    } else {
+      if (mode === "hand") onModeChange?.("annotate");
+      onFingerScrollsChange?.(m === "stylus");
+    }
+  };
+
+  // Pen icon — used for "all draw" mode
+  const PenPaths = () => (
+    <>
+      <path d="M10 2l2 2-7 7.5-2.5.5.5-2.5L10 2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill="none"/>
+      <path d="M8.5 3.5l2 2" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+    </>
+  );
+
+  // "A" (Auto) — stylus draws, finger scrolls
+  const MixedPaths = () => (
+    <text x="7" y="11" textAnchor="middle" fontSize="11" fontWeight="600" fill="currentColor" fontFamily="system-ui,-apple-system,sans-serif">A</text>
+  );
+
+  // Hand icon — used for "view" mode
+  const HandPaths = () => (
+    <>
+      <path d="M5.2 6.2V3.7a1 1 0 0 1 2 0v1.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M7.2 5.2V3a1 1 0 1 1 2 0v2.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M9.2 5.8V3.8a1 1 0 1 1 2 0v4.1c0 2.3-1.7 4.1-3.9 4.1H6.7c-1.8 0-3.2-1.4-3.2-3.2V6.7a1 1 0 1 1 2 0v1.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    </>
+  );
+
+  const INPUT_MODES: { id: InputMode; title: string; Paths: () => React.ReactElement }[] = [
+    { id: "all",    title: "All draw",                   Paths: PenPaths },
+    { id: "stylus", title: "Stylus draws · finger scrolls", Paths: MixedPaths },
+    { id: "view",   title: "View",                       Paths: HandPaths },
+  ];
+
+  const currentPaths = INPUT_MODES.find(m => m.id === inputMode)!.Paths;
+
   return (
     <div className={css.toolbar}>
-      <button
-        className={`${css.widthBtn}${mode === "hand" ? " " + css.active : ""}`}
-        title="Scroll"
-        onClick={() => onModeChange?.("hand")}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M5.2 6.2V3.7a1 1 0 0 1 2 0v1.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          <path d="M7.2 5.2V3a1 1 0 1 1 2 0v2.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          <path d="M9.2 5.8V3.8a1 1 0 1 1 2 0v4.1c0 2.3-1.7 4.1-3.9 4.1H6.7c-1.8 0-3.2-1.4-3.2-3.2V6.7a1 1 0 1 1 2 0v1.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
+      {popoverOpen && <div className={css.backdrop} onPointerDown={() => setPopoverOpen(false)} />}
+      <div className={css.handWrapper}>
+        <button
+          className={css.widthBtn}
+          title="Input mode"
+          onClick={() => setPopoverOpen(o => !o)}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            {currentPaths()}
+          </svg>
+        </button>
+        {popoverOpen && (
+          <div className={css.popover}>
+            {INPUT_MODES.map(({ id, title, Paths }) => (
+              <button
+                key={id}
+                className={`${css.popoverItem}${inputMode === id ? " " + css.popoverItemActive : ""}`}
+                title={title}
+                onPointerDown={(e) => { e.stopPropagation(); selectInputMode(id); }}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <Paths />
+                </svg>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className={css.sep} />
 

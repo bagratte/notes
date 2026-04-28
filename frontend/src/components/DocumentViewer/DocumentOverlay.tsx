@@ -83,6 +83,7 @@ export default function DocumentOverlay({
   const simulatePressureRef = useRef(ds.simulatePressure);
   const palmRejectionRef = useRef(ds.palmRejection);
   const palmThresholdRef = useRef(ds.palmThreshold);
+  const fingerScrollsRef = useRef(ds.fingerScrolls);
 
   useEffect(() => { colorRef.current = color; }, [color]);
   useEffect(() => { penWidthRef.current = penWidth; }, [penWidth]);
@@ -94,6 +95,7 @@ export default function DocumentOverlay({
   useEffect(() => { simulatePressureRef.current = ds.simulatePressure; }, [ds.simulatePressure]);
   useEffect(() => { palmRejectionRef.current = ds.palmRejection; }, [ds.palmRejection]);
   useEffect(() => { palmThresholdRef.current = ds.palmThreshold; }, [ds.palmThreshold]);
+  useEffect(() => { fingerScrollsRef.current = ds.fingerScrolls; }, [ds.fingerScrolls]);
   useEffect(() => { strokePathCache.current.clear(); }, [ds.streamline, ds.thinning, ds.smoothing, ds.simulatePressure]);
 
 
@@ -184,6 +186,7 @@ export default function DocumentOverlay({
     (e: React.PointerEvent<SVGSVGElement>) => {
       setActivePointerType(e.pointerType);
       if (mode === "view") return;
+      if (fingerScrollsRef.current && e.pointerType === "touch") return;
       if (palmRejectionRef.current && e.pointerType === "touch" &&
           (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
       e.preventDefault();
@@ -211,6 +214,7 @@ export default function DocumentOverlay({
         setActivePointerType(e.pointerType);
       }
       if (!drawing.current) return;
+      if (fingerScrollsRef.current && e.pointerType === "touch") return;
       e.preventDefault();
       if (mode === "annotate") {
         const coalescedEvents =
@@ -323,7 +327,7 @@ export default function DocumentOverlay({
           width: "100%",
           height: "100%",
           display: "block",
-          touchAction: active ? "none" : "auto",
+          touchAction: active && !ds.fingerScrolls ? "none" : "auto",
           pointerEvents: active ? "all" : "none",
           cursor:
             mode === "annotate" ? (activePointerType === "pen" ? "none" : "default") : mode === "region" ? "crosshair" : mode === "stroke-eraser" ? "cell" : "default",

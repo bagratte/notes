@@ -8,6 +8,7 @@ export interface DrawingSettings {
   simulatePressure: boolean;
   palmRejection: boolean;
   palmThreshold: number;
+  fingerScrolls: boolean;
 }
 
 export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
@@ -18,6 +19,7 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   simulatePressure: false,
   palmRejection: true,
   palmThreshold: 60,
+  fingerScrolls: true,
 };
 
 const STORAGE_KEY = "drawingSettings";

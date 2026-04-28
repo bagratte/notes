@@ -4,28 +4,22 @@ import type { Section } from "@/types";
 import SectionCanvas from "./SectionCanvas";
 import { PenToolbar, DEFAULT_PEN } from "@/components/PenToolbar";
 import type { PenSettings, PenToolbarMode } from "@/components/PenToolbar";
-import { useTouchMode } from "@/context/TouchMode";
+import { useDrawingSettings } from "@/context/DrawingSettings";
 
 interface Props {
   noteId: number;
 }
 
 export default function NoteEditor({ noteId }: Props) {
-  const { isTouch } = useTouchMode();
+  const { settings: ds, update: updateDs } = useDrawingSettings();
   const [sectionList, setSectionList] = useState<Section[]>([]);
   const [adding, setAdding] = useState(false);
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
-  const [mode, setMode] = useState<PenToolbarMode>(() => (localStorage.getItem("touchMode") === "true" ? "hand" : "annotate"));
+  const [mode, setMode] = useState<PenToolbarMode>("annotate");
 
   useEffect(() => {
     sectionsApi.list(noteId).then(setSectionList);
   }, [noteId]);
-
-  useEffect(() => {
-    if (isTouch) {
-      setMode("hand");
-    }
-  }, [isTouch]);
 
   const addSection = async () => {
     setAdding(true);
@@ -46,6 +40,8 @@ export default function NoteEditor({ noteId }: Props) {
         onChange={setPen}
         mode={mode}
         onModeChange={setMode}
+        fingerScrolls={ds.fingerScrolls}
+        onFingerScrollsChange={(v) => updateDs({ fingerScrolls: v })}
       />
 
       {sectionList.length === 0 && (

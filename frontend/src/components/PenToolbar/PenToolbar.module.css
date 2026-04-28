@@ -44,6 +44,48 @@
 .widthBtn:hover { border-color: #aaa; }
 .widthBtn.active { border-color: #4a6cf7; background: #f0f2ff; }
 
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+.handWrapper {
+  position: relative;
+  z-index: 11;
+  flex-shrink: 0;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #e0dbd3;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  display: flex;
+}
+
+.popoverItem {
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  border-left: 1px solid #f0ece6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #555;
+  flex-shrink: 0;
+}
+.popoverItem:first-child { border-left: none; }
+.popoverItem:hover { background: #f5f3ef; }
+.popoverItemActive { background: #f0f2ff; color: #4a6cf7; }
+
 .undoBtn {
   padding: 0 8px;
   height: 26px;
