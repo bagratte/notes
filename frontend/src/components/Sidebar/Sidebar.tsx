@@ -61,6 +61,16 @@ function NewFolderIcon() {
   );
 }
 
+function UploadIcon() {
+  return (
+    <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
+      <path d="M8 2v8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M5 5l3-3 3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2 11v1.5A1.5 1.5 0 003.5 14h9a1.5 1.5 0 001.5-1.5V11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function RenameIcon() {
   return (
     <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
@@ -418,6 +428,9 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         </button>
         <button className={css.toolbarBtn} title="New folder" onClick={() => createFolder()}>
           <NewFolderIcon />
+        </button>
+        <button className={css.toolbarBtn} title="Upload document" onClick={() => uploadDocument()}>
+          <UploadIcon />
         </button>
         <div className={css.toolbarDivider} />
         <button
