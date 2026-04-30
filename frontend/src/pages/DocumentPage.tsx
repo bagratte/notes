@@ -27,7 +27,8 @@ export default function DocumentPage() {
   const { documentId } = useParams<{ documentId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const initialPage = searchParams.get("page") ? Number(searchParams.get("page")) : undefined;
+  const pageFromUrl = searchParams.get("page") ? Number(searchParams.get("page")) : undefined;
+  const initialPage = pageFromUrl ?? (documentId ? Number(localStorage.getItem(`doc:${documentId}:page`)) || undefined : undefined);
   const [doc, setDoc] = useState<Document | null>(null);
   const [missing, setMissing] = useState(false);
 

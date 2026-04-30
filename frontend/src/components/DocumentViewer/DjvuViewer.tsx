@@ -98,6 +98,10 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
 
   const [windowRange, setWindowRange] = useState(() => ({ start: 1, end: Math.max(1, initialPage ?? 1) }));
 
+  useEffect(() => {
+    localStorage.setItem(`doc:${documentId}:page`, String(pageNum));
+  }, [documentId, pageNum]);
+
   const activeStrokes = strokesByPage[pageNum] ?? [];
   const activeRedo = redoByPage[pageNum] ?? [];
 
