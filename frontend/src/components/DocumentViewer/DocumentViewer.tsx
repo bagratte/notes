@@ -253,9 +253,9 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
         }
         pdfDocRef.current = doc;
         setNumPages(doc.numPages);
+        setLoading(false);
         const labels = await doc.getPageLabels().catch(() => null);
         if (!destroyed) setPageLabels(labels);
-        setLoading(false);
       })
       .catch((err: unknown) => {
         if (destroyed) return;
