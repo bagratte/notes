@@ -36,22 +36,30 @@ export default function RegionPreview({ sectionId, onHasRegion }: Props) {
       const canvas = canvasRef.current;
       if (!canvas) return;
 
-      const h = Math.round(PREVIEW_W * region.height / region.width);
-      canvas.width = PREVIEW_W;
+      const dpr = window.devicePixelRatio || 1;
+      const bufW = Math.round(PREVIEW_W * dpr);
+      const h = Math.round(bufW * region.height / region.width);
+      canvas.width = bufW;
       canvas.height = h;
       const ctx = canvas.getContext("2d")!;
 
       const off = document.createElement("canvas");
+      let srcX = region.x, srcY = region.y, srcW = region.width, srcH = region.height;
 
       if (doc.type === "pdf") {
         const pdfDoc = await pdfjsLib.getDocument(url).promise;
         if (cancelled) return;
         const page = await pdfDoc.getPage(region.page_number);
         if (cancelled) return;
-        const vp = page.getViewport({ scale: 1 });
-        off.width = vp.width;
-        off.height = vp.height;
+        const renderScale = Math.min(3, bufW / region.width);
+        const vp = page.getViewport({ scale: renderScale });
+        off.width = Math.round(vp.width);
+        off.height = Math.round(vp.height);
         await page.render({ canvasContext: off.getContext("2d")!, viewport: vp }).promise;
+        srcX = region.x * renderScale;
+        srcY = region.y * renderScale;
+        srcW = region.width * renderScale;
+        srcH = region.height * renderScale;
       } else {
         const buffer = await fetch(url).then((r) => r.arrayBuffer());
         if (cancelled) return;
@@ -66,7 +74,7 @@ export default function RegionPreview({ sectionId, onHasRegion }: Props) {
       }
 
       if (cancelled) return;
-      ctx.drawImage(off, region.x, region.y, region.width, region.height, 0, 0, PREVIEW_W, h);
+      ctx.drawImage(off, srcX, srcY, srcW, srcH, 0, 0, bufW, h);
       setReady(true);
     }
 
