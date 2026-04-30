@@ -25,6 +25,7 @@ export interface Section {
   id: number;
   note_id: number;
   order: number;
+  height: number;
   created_at: string;
 }
 

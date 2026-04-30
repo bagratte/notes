@@ -1,13 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { DrawingCanvas } from "@/components/Canvas";
 import type { StrokeData } from "@/components/Canvas";
-import { strokes as strokesApi } from "@/api";
+import { strokes as strokesApi, sections as sectionsApi } from "@/api";
 import type { Stroke } from "@/types";
 import type { PenSettings } from "@/components/PenToolbar";
 import RegionPreview from "./RegionPreview";
 
+const MIN_H = 80;
+const MAX_H = 3000;
+
 interface Props {
   sectionId: number;
+  initialHeight?: number;
   pen: PenSettings;
   inputEnabled?: boolean;
   eraserMode?: boolean;
@@ -21,6 +25,7 @@ function toDisplay(s: Stroke): StrokeData {
 
 export default function SectionCanvas({
   sectionId,
+  initialHeight = 320,
   pen,
   inputEnabled = true,
   eraserMode = false,
@@ -32,6 +37,7 @@ export default function SectionCanvas({
   const [loading, setLoading] = useState(true);
   const [hovered, setHovered] = useState(false);
   const [hasRegion, setHasRegion] = useState<boolean | null>(null);
+  const [height, setHeight] = useState(initialHeight);
 
   useEffect(() => {
     strokesApi.listForSection(sectionId).then((data) => {
@@ -133,6 +139,24 @@ export default function SectionCanvas({
     });
   }, [sectionId]);
 
+  const onResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const startY = e.clientY;
+    const startH = height;
+    function onMove(ev: PointerEvent) {
+      setHeight(Math.max(MIN_H, Math.min(MAX_H, startH + ev.clientY - startY)));
+    }
+    function onUp(ev: PointerEvent) {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const final = Math.max(MIN_H, Math.min(MAX_H, startH + ev.clientY - startY));
+      void sectionsApi.update(sectionId, { height: final });
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, [sectionId, height]);
+
   // Keyboard shortcuts when this section is hovered
   useEffect(() => {
     if (!hovered) return;
@@ -162,22 +186,38 @@ export default function SectionCanvas({
     >
       <RegionPreview sectionId={sectionId} onHasRegion={setHasRegion} />
       {hasRegion === false && (
-        loading ? (
-          <div style={{ height: 320 }} />
-        ) : (
-          <DrawingCanvas
-            strokes={strokes.map(toDisplay)}
-            onStrokeComplete={handleStrokeComplete}
-            onEraseStroke={handleEraseStroke}
-            onSegmentErase={handleSegmentErase}
-            inputEnabled={inputEnabled}
-            eraserMode={eraserMode}
-            segmentEraserMode={segmentEraserMode}
-            color={pen.color}
-            penWidth={pen.width}
-            height={320}
-          />
-        )
+        <>
+          {loading ? (
+            <div style={{ height }} />
+          ) : (
+            <DrawingCanvas
+              strokes={strokes.map(toDisplay)}
+              onStrokeComplete={handleStrokeComplete}
+              onEraseStroke={handleEraseStroke}
+              onSegmentErase={handleSegmentErase}
+              inputEnabled={inputEnabled}
+              eraserMode={eraserMode}
+              segmentEraserMode={segmentEraserMode}
+              color={pen.color}
+              penWidth={pen.width}
+              height={height}
+            />
+          )}
+          <div
+            onPointerDown={onResizeStart}
+            style={{
+              height: 44,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "ns-resize",
+              touchAction: "none",
+              userSelect: "none",
+            }}
+          >
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: "#d0ccc6" }} />
+          </div>
+        </>
       )}
       <button
         onClick={onDelete}

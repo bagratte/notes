@@ -66,6 +66,7 @@ export default function NoteEditor({ noteId }: Props) {
         <SectionCanvas
           key={section.id}
           sectionId={section.id}
+          initialHeight={section.height}
           pen={pen}
           inputEnabled={mode !== "hand"}
           eraserMode={mode === "stroke-eraser"}

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Section
-from app.schemas import SectionCreate, SectionReorder, SectionOut
+from app.schemas import SectionCreate, SectionReorder, SectionOut, SectionUpdate
 
 router = APIRouter(prefix="/sections", tags=["sections"])
 
@@ -26,6 +26,17 @@ def get_section(section_id: int, db: Session = Depends(get_db)):
     section = db.get(Section, section_id)
     if not section:
         raise HTTPException(404)
+    return section
+
+
+@router.patch("/{section_id}", response_model=SectionOut)
+def update_section(section_id: int, data: SectionUpdate, db: Session = Depends(get_db)):
+    section = db.get(Section, section_id)
+    if not section:
+        raise HTTPException(404)
+    section.height = data.height
+    db.commit()
+    db.refresh(section)
     return section
 
 

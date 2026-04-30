@@ -8,7 +8,7 @@ class SectionCreate(BaseModel):
 
 
 class SectionUpdate(BaseModel):
-    order: int
+    height: int
 
 
 class SectionReorder(BaseModel):
@@ -19,6 +19,7 @@ class SectionOut(BaseModel):
     id: int
     note_id: int
     order: int
+    height: int
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -10,6 +10,7 @@ class Section(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     note_id: Mapped[int] = mapped_column(ForeignKey("notes.id"))
     order: Mapped[int] = mapped_column(Integer, default=0)
+    height: Mapped[int] = mapped_column(Integer, default=320)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

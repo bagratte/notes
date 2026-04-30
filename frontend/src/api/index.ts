@@ -59,6 +59,8 @@ export const sections = {
     api.post<Section>("/sections/", { note_id: noteId, order }),
   reorder: (sectionIds: number[]) =>
     api.post<void>("/sections/reorder", { section_ids: sectionIds }),
+  update: (id: number, data: { height: number }) =>
+    api.patch<Section>(`/sections/${id}`, data),
   delete: (id: number) => api.delete(`/sections/${id}`),
 };
 
