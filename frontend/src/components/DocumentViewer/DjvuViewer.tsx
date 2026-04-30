@@ -381,13 +381,10 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
       created_at: new Date().toISOString(),
     };
 
+    let firstStroke = false;
     setStrokesByPage((prev) => {
       const existing = prev[page] ?? [];
-      if (existing.length === 0) {
-        window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
-          detail: { documentId, pageNumber: page },
-        }));
-      }
+      firstStroke = existing.length === 0;
       return { ...prev, [page]: [...existing, optimistic] };
     });
     setRedoByPage((prev) => ({ ...prev, [page]: [] }));
@@ -405,19 +402,26 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
       ...prev,
       [page]: (prev[page] ?? []).map((s) => (s.id === tempId ? saved : s)),
     }));
+
+    if (firstStroke) {
+      window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
+        detail: { documentId, pageNumber: page },
+      }));
+    }
   }, [documentId]);
 
-  const undoInline = useCallback(() => {
+  const undoInline = useCallback(async () => {
     const page = pageNum;
     const pageStrokes = strokesByPage[page] ?? [];
     if (pageStrokes.length === 0) return;
 
     const last = pageStrokes[pageStrokes.length - 1];
     if (last.id < 0) return; // in-flight optimistic stroke — skip
-    void strokesApi.delete(last.id);
 
     setStrokesByPage((prev) => ({ ...prev, [page]: pageStrokes.slice(0, -1) }));
     setRedoByPage((prev) => ({ ...prev, [page]: [...(prev[page] ?? []), last] }));
+
+    await strokesApi.delete(last.id);
 
     if (pageStrokes.length === 1) {
       window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
@@ -458,34 +462,32 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
     setRedoByPage((prev) => ({ ...prev, [page]: redoList.slice(0, -1) }));
   }, [documentId, pageNum, redoByPage]);
 
-  const handleEraseStroke = useCallback((page: number, id: number) => {
+  const handleEraseStroke = useCallback(async (page: number, id: number) => {
+    let wasLast = false;
     setStrokesByPage((prev) => {
       const current = prev[page] ?? [];
-      const stroke = current.find((s) => s.id === id);
-      if (!stroke) return prev;
-
-      void strokesApi.delete(id);
+      if (!current.find((s) => s.id === id)) return prev;
       const next = current.filter((s) => s.id !== id);
-      if (next.length === 0) {
-        window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
-          detail: { documentId, pageNumber: page },
-        }));
-      }
-
+      wasLast = next.length === 0;
       return { ...prev, [page]: next };
     });
+
+    await strokesApi.delete(id);
+
+    if (wasLast) {
+      window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
+        detail: { documentId, pageNumber: page },
+      }));
+    }
   }, [documentId]);
 
-  const handleSegmentErase = useCallback((page: number, deleted: number[], created: StrokeData[]) => {
+  const handleSegmentErase = useCallback(async (page: number, deleted: number[], created: StrokeData[]) => {
     const tempIds = created.map((_, i) => -(Date.now() + i));
+    let lastStrokeErased = false;
     setStrokesByPage(prev => {
       const current = prev[page] ?? [];
       const next = current.filter(s => !deleted.includes(s.id!));
-      if (next.length === 0 && current.length > 0 && created.length === 0) {
-        window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
-          detail: { documentId, pageNumber: page },
-        }));
-      }
+      lastStrokeErased = next.length === 0 && current.length > 0 && created.length === 0;
       const optimistic: Stroke[] = created.map((s, i) => ({
         id: tempIds[i], section_id: null, document_id: documentId,
         page_number: page, points: s.points, color: s.color, width: s.width,
@@ -493,17 +495,24 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
       }));
       return { ...prev, [page]: [...next, ...optimistic] };
     });
-    deleted.forEach(id => strokesApi.delete(id));
+
+    await Promise.all(deleted.map(id => strokesApi.delete(id)));
+
     if (created.length > 0) {
-      void strokesApi.createBatch(created.map(s => ({
+      const saved = await strokesApi.createBatch(created.map(s => ({
         section_id: null, document_id: documentId, page_number: page,
         points: s.points, color: s.color, width: s.width,
-      }))).then(saved => {
-        setStrokesByPage(prev => {
-          const without = (prev[page] ?? []).filter(s => !tempIds.includes(s.id));
-          return { ...prev, [page]: [...without, ...saved] };
-        });
+      })));
+      setStrokesByPage(prev => {
+        const without = (prev[page] ?? []).filter(s => !tempIds.includes(s.id));
+        return { ...prev, [page]: [...without, ...saved] };
       });
+    }
+
+    if (lastStrokeErased) {
+      window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
+        detail: { documentId, pageNumber: page },
+      }));
     }
   }, [documentId]);
 
