@@ -83,6 +83,7 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
   const sectionNoteCacheRef = useRef<Map<number, number>>(new Map());
   const suppressScrollSyncRef = useRef(false);
   const panStateRef = useRef<PanState | null>(null);
+  const prevViewportRef = useRef<ViewportSize | null>(null);
 
   const [numPages, setNumPages] = useState(0);
   const [pageNum, setPageNum] = useState(() => Math.max(1, initialPage ?? 1));
@@ -293,6 +294,18 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage 
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // re-center current page when container resizes (orientation change, sidebar toggle)
+  useEffect(() => {
+    const prev = prevViewportRef.current;
+    prevViewportRef.current = viewport;
+    if (!prev || (prev.width === viewport.width && prev.height === viewport.height)) return;
+    if (numPages === 0) return;
+    const currentPage = pageNum;
+    window.requestAnimationFrame(() => {
+      scrollToPage(currentPage, "auto");
+    });
+  }, [viewport, numPages, pageNum, scrollToPage]);
 
   // keep page input in sync
   useEffect(() => {
