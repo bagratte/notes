@@ -300,14 +300,17 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     }));
   };
 
-  const renderNote = (note: Note, indent: number, prefix?: string) => {
-    const active = location.pathname === `/notes/${note.id}`;
+  const renderNote = (note: Note, indent: number, prefix?: string, docLink?: { docId: number; page: number }) => {
+    const active = docLink
+      ? location.pathname === `/documents/${docLink.docId}` &&
+        new URLSearchParams(location.search).get("page") === String(docLink.page)
+      : location.pathname === `/notes/${note.id}`;
     return (
       <div
         key={note.id}
         className={`${css.leafRow}${active ? " " + css.active : ""}`}
         style={{ paddingLeft: `${indent}px` }}
-        onClick={() => navigate(`/notes/${note.id}`)}
+        onClick={() => navigate(docLink ? `/documents/${docLink.docId}?page=${docLink.page}` : `/notes/${note.id}`)}
       >
         <NoteIcon />
         <span className={css.rowLabel}>{prefix}{note.name}</span>
@@ -352,7 +355,12 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
           <>
             {linked.map((n) => {
               const pg = data.docNotePageNums[doc.id]?.[n.id];
-              return renderNote(n, indent + 28, pg !== undefined ? `Page ${pg} – ` : undefined);
+              return renderNote(
+                n,
+                indent + 28,
+                pg !== undefined ? `Page ${pg} – ` : undefined,
+                pg !== undefined ? { docId: doc.id, page: pg } : undefined,
+              );
             })}
             {pages.map((pageNum) => (
               <div

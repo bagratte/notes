@@ -388,8 +388,8 @@ export default function DocumentOverlay({
         regions.map((r) => (
           <div
             key={r.id}
-            onClick={mode === "view" ? () => onRegionClick?.(r) : undefined}
-            title={mode === "view" ? "Open linked note" : undefined}
+            onClick={() => onRegionClick?.(r)}
+            title="Open linked note"
             style={{
               position: "absolute",
               left: `${(r.x / naturalSize.width) * 100}%`,
@@ -400,8 +400,9 @@ export default function DocumentOverlay({
               border: "1.5px solid rgba(74, 108, 247, 0.55)",
               borderRadius: 2,
               boxSizing: "border-box",
-              cursor: mode === "view" ? "pointer" : "default",
-              pointerEvents: mode === "view" ? "auto" : "none",
+              cursor: "pointer",
+              pointerEvents: "auto",
+              zIndex: 1,
               transition: "background 0.15s, border 0.15s",
             }}
           />
