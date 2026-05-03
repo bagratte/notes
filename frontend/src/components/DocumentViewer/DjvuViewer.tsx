@@ -74,12 +74,14 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const loadingRastersRef = useRef<Set<number>>(new Set());
+  const renderGenRef = useRef<Map<number, number>>(new Map());
   const loadedStrokePagesRef = useRef<Set<number>>(new Set());
   const loadedRegionPagesRef = useRef<Set<number>>(new Set());
   const sectionNoteCacheRef = useRef<Map<number, number>>(new Map());
   const suppressScrollSyncRef = useRef(false);
   const panStateRef = useRef<PanState | null>(null);
   const prevViewportRef = useRef<ViewportSize | null>(null);
+  const prevZoomRef = useRef<{ fitMode: string; manualScale: number } | null>(null);
 
   const [numPages, setNumPages] = useState(0);
   const [pageNum, setPageNum] = useState(() => Math.max(1, initialPage ?? 1));
@@ -129,6 +131,10 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
     [fitMode, manualScale, viewport, getPageNaturalSize]
   );
 
+  // Always-current ref so in-flight renders pick up the latest zoom scale
+  const getPageDisplaySizeRef = useRef(getPageDisplaySize);
+  useEffect(() => { getPageDisplaySizeRef.current = getPageDisplaySize; });
+
   const updateWindowFromPage = useCallback(
     (activePage: number) => {
       if (numPages === 0) return;
@@ -172,36 +178,51 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
 
   const renderDjvuPage = useCallback(async (page: number) => {
     const doc = docRef.current;
-    const canvas = canvasRefs.current.get(page);
     const natural = naturalSizes[page];
-    if (!doc || !canvas || !natural || loadingRastersRef.current.has(page)) return;
+    if (!doc || !natural) return;
+
+    // Bump render generation so in-flight renders re-draw at the latest zoom scale
+    const version = (renderGenRef.current.get(page) ?? 0) + 1;
+    renderGenRef.current.set(page, version);
+
+    // If already decoding, the current render will pick up the new scale in its draw loop
+    if (loadingRastersRef.current.has(page)) return;
 
     loadingRastersRef.current.add(page);
     try {
       const djvuPage = await doc.getPage(page);
-      const { width, height } = getPageDisplaySize(page);
-
-      canvas.width = Math.round(width);
-      canvas.height = Math.round(height);
-
       const imageData = djvuPage.getImageData();
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
 
-      const offscreen = document.createElement("canvas");
-      offscreen.width = imageData.width;
-      offscreen.height = imageData.height;
-      const offscreenCtx = offscreen.getContext("2d");
-      if (!offscreenCtx) return;
-      offscreenCtx.putImageData(imageData, 0, 0);
+      // Draw loop: re-draw if zoom changed while decoding or drawing
+      let drawVersion: number;
+      do {
+        drawVersion = renderGenRef.current.get(page)!;
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
-      djvuPage.reset();
+        const canvas = canvasRefs.current.get(page);
+        if (!canvas) break;
+
+        // Use ref so we always get the latest scale even if this render was started at an older zoom
+        const { width, height } = getPageDisplaySizeRef.current(page);
+        canvas.width = Math.round(width);
+        canvas.height = Math.round(height);
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) break;
+
+        const offscreen = document.createElement("canvas");
+        offscreen.width = imageData.width;
+        offscreen.height = imageData.height;
+        const offscreenCtx = offscreen.getContext("2d");
+        if (!offscreenCtx) break;
+        offscreenCtx.putImageData(imageData, 0, 0);
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
+      } while (renderGenRef.current.get(page) !== drawVersion); // re-draw if scale changed during draw
     } finally {
       loadingRastersRef.current.delete(page);
     }
-  }, [getPageDisplaySize, naturalSizes]);
+  }, [naturalSizes]);
 
   const scrollToPage = useCallback((targetPage: number, behavior: ScrollBehavior = "smooth") => {
     const clamped = Math.max(1, Math.min(numPages, targetPage));
@@ -330,6 +351,18 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
       scrollToPage(currentPage, "auto");
     });
   }, [viewport, numPages, pageNum, scrollToPage]);
+
+  // re-center current page when zoom changes (manualScale or fitMode)
+  useEffect(() => {
+    if (numPages === 0) return;
+    const prev = prevZoomRef.current;
+    prevZoomRef.current = { fitMode, manualScale };
+    if (prev && prev.fitMode === fitMode && prev.manualScale === manualScale) return;
+    const currentPage = pageNum;
+    window.requestAnimationFrame(() => {
+      scrollToPage(currentPage, "auto");
+    });
+  }, [manualScale, fitMode, numPages, pageNum, scrollToPage]);
 
   useEffect(() => {
     setPageInput(String(pageNum));
