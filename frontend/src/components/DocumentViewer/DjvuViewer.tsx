@@ -269,9 +269,15 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
         const count = doc.getPagesQuantity();
         const sizes = doc.getPagesSizes();
 
+        // Normalize DjVu native scan pixels to PDF points (1 pt = 1/72 inch, ISO 32000)
+        // so that natural sizes are in the same unit system as PDF.js getViewport({scale:1}).
+        const PDF_POINTS_PER_INCH = 72;
         const byPage: Record<number, NaturalSize> = {};
         sizes.forEach((size, idx) => {
-          byPage[idx + 1] = { width: size.width, height: size.height };
+          byPage[idx + 1] = {
+            width: (size.width / size.dpi) * PDF_POINTS_PER_INCH,
+            height: (size.height / size.dpi) * PDF_POINTS_PER_INCH,
+          };
         });
 
         setNaturalSizes(byPage);
