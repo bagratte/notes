@@ -85,6 +85,7 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage,
   const suppressScrollSyncRef = useRef(false);
   const panStateRef = useRef<PanState | null>(null);
   const prevViewportRef = useRef<ViewportSize | null>(null);
+  const prevZoomRef = useRef<{ fitMode: string; manualScale: number } | null>(null);
 
   const [numPages, setNumPages] = useState(0);
   const [pageNum, setPageNum] = useState(() => Math.max(1, initialPage ?? 1));
@@ -311,6 +312,9 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage,
   // re-center current page when zoom changes (manualScale or fitMode)
   useEffect(() => {
     if (numPages === 0) return;
+    const prev = prevZoomRef.current;
+    prevZoomRef.current = { fitMode, manualScale };
+    if (prev && prev.fitMode === fitMode && prev.manualScale === manualScale) return;
     const currentPage = pageNum;
     window.requestAnimationFrame(() => {
       scrollToPage(currentPage, "auto");
