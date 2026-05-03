@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Region
-from app.schemas import RegionCreate, RegionOut
+from app.schemas import RegionCreate, RegionUpdate, RegionOut
 
 router = APIRouter(prefix="/regions", tags=["regions"])
 
@@ -38,6 +38,24 @@ def get_region(region_id: int, db: Session = Depends(get_db)):
     region = db.get(Region, region_id)
     if not region:
         raise HTTPException(404)
+    return region
+
+
+@router.patch("/{region_id}", response_model=RegionOut)
+def update_region(region_id: int, data: RegionUpdate, db: Session = Depends(get_db)):
+    region = db.get(Region, region_id)
+    if not region:
+        raise HTTPException(404)
+
+    updates = data.model_dump(exclude_unset=True)
+    if not updates:
+        return region
+
+    for field, value in updates.items():
+        setattr(region, field, value)
+
+    db.commit()
+    db.refresh(region)
     return region
 
 

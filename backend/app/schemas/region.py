@@ -12,6 +12,13 @@ class RegionCreate(BaseModel):
     height: float
 
 
+class RegionUpdate(BaseModel):
+    x: float | None = None
+    y: float | None = None
+    width: float | None = None
+    height: float | None = None
+
+
 class RegionOut(BaseModel):
     id: int
     document_id: int

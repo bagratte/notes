@@ -30,6 +30,7 @@ interface Props {
   regions: EnrichedRegion[];
   onRegionComplete?: (rect: DragRect) => void;
   onRegionClick?: (region: EnrichedRegion) => void;
+  onRegionUpdate?: (regionId: number, rect: DragRect) => void;
   onEraseStroke?: (id: number) => void;
   onSegmentErase?: (deleted: number[], created: StrokeData[]) => void;
   mode: ToolMode;
@@ -42,6 +43,74 @@ interface Props {
 
 const MIN_REGION_PX = 10;
 const PEN_CONTEXT_MENU_SUPPRESS_MS = 800;
+const REGION_LONG_PRESS_MS = 450;
+const REGION_PRESS_DEADZONE_PX = 8;
+const REGION_HANDLE_SIZE_PX = 20;
+
+type ResizeHandle = "nw" | "ne" | "sw" | "se";
+
+interface RegionResizeState {
+  pointerId: number;
+  regionId: number;
+  handle: ResizeHandle;
+  startClientX: number;
+  startClientY: number;
+  startRect: DragRect;
+}
+
+interface RegionPressState {
+  pointerId: number;
+  regionId: number;
+  startClientX: number;
+  startClientY: number;
+  timerId: number;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function resizeRegionRect(
+  rect: DragRect,
+  handle: ResizeHandle,
+  dx: number,
+  dy: number,
+  naturalSize: NaturalSize
+): DragRect {
+  let left = rect.x;
+  let top = rect.y;
+  let right = rect.x + rect.width;
+  let bottom = rect.y + rect.height;
+
+  if (handle.includes("w")) {
+    left = clamp(rect.x + dx, 0, right - MIN_REGION_PX);
+  }
+  if (handle.includes("e")) {
+    right = clamp(rect.x + rect.width + dx, left + MIN_REGION_PX, naturalSize.width);
+  }
+  if (handle.includes("n")) {
+    top = clamp(rect.y + dy, 0, bottom - MIN_REGION_PX);
+  }
+  if (handle.includes("s")) {
+    bottom = clamp(rect.y + rect.height + dy, top + MIN_REGION_PX, naturalSize.height);
+  }
+
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  };
+}
+
+function rectChanged(next: DragRect, prev: DragRect): boolean {
+  return (
+    Math.abs(next.x - prev.x) > 0.5 ||
+    Math.abs(next.y - prev.y) > 0.5 ||
+    Math.abs(next.width - prev.width) > 0.5 ||
+    Math.abs(next.height - prev.height) > 0.5
+  );
+}
 
 function getPenHwOverride(e: React.PointerEvent | PointerEvent): "segment-eraser" | "stroke-eraser" | null {
   if (e.pointerType !== "pen") return null;
@@ -64,6 +133,7 @@ export default function DocumentOverlay({
   regions,
   onRegionComplete,
   onRegionClick,
+  onRegionUpdate,
   onEraseStroke,
   onSegmentErase,
   mode,
@@ -73,11 +143,15 @@ export default function DocumentOverlay({
   penWidth = 3,
   className,
 }: Props) {
+  const overlayRef = useRef<HTMLDivElement>(null);
   const [dragStart, setDragStart] = useState<[number, number] | null>(null);
   const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
   const [activePointerType, setActivePointerType] = useState<string | null>(null);
   const [erasePreview, setErasePreview] = useState<Map<number, StrokeData[]>>(new Map());
   const [eraserPos, setEraserPos] = useState<[number, number] | null>(null);
+  const [hoveredRegionId, setHoveredRegionId] = useState<number | null>(null);
+  const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
+  const [regionDrafts, setRegionDrafts] = useState<Record<number, DragRect>>({});
   const { settings: ds } = useDrawingSettings();
   const drawing = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -87,6 +161,9 @@ export default function DocumentOverlay({
   const strokePathCache = useRef<Map<number | string, { points: StrokeData["points"]; d: string }>>(new Map());
   const effectiveModeRef = useRef<ToolMode | "stroke-eraser" | "segment-eraser">("annotate");
   const suppressContextMenuUntilRef = useRef(0);
+  const touchPressRef = useRef<RegionPressState | null>(null);
+  const resizeStateRef = useRef<RegionResizeState | null>(null);
+  const suppressRegionClickRef = useRef<number | null>(null);
 
   const colorRef = useRef(color);
   const penWidthRef = useRef(penWidth);
@@ -112,6 +189,55 @@ export default function DocumentOverlay({
   useEffect(() => { palmThresholdRef.current = ds.palmThreshold; }, [ds.palmThreshold]);
   useEffect(() => { fingerScrollsRef.current = ds.fingerScrolls; }, [ds.fingerScrolls]);
   useEffect(() => { strokePathCache.current.clear(); }, [ds.streamline, ds.thinning, ds.smoothing, ds.simulatePressure]);
+
+  const clearTouchPress = useCallback(() => {
+    const press = touchPressRef.current;
+    if (!press) return;
+    window.clearTimeout(press.timerId);
+    touchPressRef.current = null;
+  }, []);
+
+  const updateRegionDraft = useCallback((regionId: number, rect: DragRect | null) => {
+    setRegionDrafts((prev) => {
+      if (rect === null) {
+        if (!(regionId in prev)) return prev;
+        const next = { ...prev };
+        delete next[regionId];
+        return next;
+      }
+      return { ...prev, [regionId]: rect };
+    });
+  }, []);
+
+  const finishRegionResize = useCallback((pointerId: number, commit: boolean) => {
+    const resize = resizeStateRef.current;
+    if (!resize || resize.pointerId !== pointerId) return;
+
+    resizeStateRef.current = null;
+    const nextRect = regionDrafts[resize.regionId] ?? resize.startRect;
+    updateRegionDraft(resize.regionId, null);
+    setEditingRegionId((current) => (current === resize.regionId ? null : current));
+
+    if (commit && rectChanged(nextRect, resize.startRect)) {
+      suppressRegionClickRef.current = resize.regionId;
+      onRegionUpdate?.(resize.regionId, nextRect);
+    }
+  }, [onRegionUpdate, regionDrafts, updateRegionDraft]);
+
+  useEffect(() => () => {
+    clearTouchPress();
+    resizeStateRef.current = null;
+  }, [clearTouchPress]);
+
+  useEffect(() => {
+    if (mode === "view") return;
+    clearTouchPress();
+    resizeStateRef.current = null;
+    setHoveredRegionId(null);
+    setEditingRegionId(null);
+    setRegionDrafts({});
+    suppressRegionClickRef.current = null;
+  }, [clearTouchPress, mode]);
 
 
   // Returns a converter that captures SVG geometry once per event batch,
@@ -243,6 +369,133 @@ export default function DocumentOverlay({
       e.preventDefault();
     }
   }, []);
+
+  const handleOverlayPointerDownCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (mode !== "view" || editingRegionId === null) return;
+    if (e.target === e.currentTarget) {
+      setEditingRegionId(null);
+    }
+  }, [editingRegionId, mode]);
+
+  const handleRegionPointerDown = useCallback((region: EnrichedRegion, e: React.PointerEvent<HTMLDivElement>) => {
+    if (mode !== "view" || onRegionUpdate === undefined || e.pointerType !== "touch") return;
+    clearTouchPress();
+    const timerId = window.setTimeout(() => {
+      touchPressRef.current = null;
+      suppressRegionClickRef.current = region.id;
+      setEditingRegionId(region.id);
+    }, REGION_LONG_PRESS_MS);
+
+    touchPressRef.current = {
+      pointerId: e.pointerId,
+      regionId: region.id,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      timerId,
+    };
+  }, [clearTouchPress, mode, onRegionUpdate]);
+
+  const handleRegionPointerMove = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
+    const press = touchPressRef.current;
+    if (!press || press.regionId !== regionId || press.pointerId !== e.pointerId) return;
+
+    if (Math.hypot(e.clientX - press.startClientX, e.clientY - press.startClientY) >= REGION_PRESS_DEADZONE_PX) {
+      clearTouchPress();
+    }
+  }, [clearTouchPress]);
+
+  const handleRegionPointerUp = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
+    const press = touchPressRef.current;
+    if (press && press.regionId === regionId && press.pointerId === e.pointerId) {
+      clearTouchPress();
+    }
+  }, [clearTouchPress]);
+
+  const handleRegionClick = useCallback((region: EnrichedRegion, e: React.MouseEvent<HTMLDivElement>) => {
+    if (suppressRegionClickRef.current === region.id) {
+      suppressRegionClickRef.current = null;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    if (editingRegionId === region.id) {
+      setEditingRegionId(null);
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    onRegionClick?.(region);
+  }, [editingRegionId, onRegionClick]);
+
+  const handleRegionPointerEnter = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
+    if (mode !== "view" || onRegionUpdate === undefined || e.pointerType === "touch") return;
+    setHoveredRegionId(regionId);
+  }, [mode, onRegionUpdate]);
+
+  const handleRegionPointerLeave = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
+    if (mode !== "view" || onRegionUpdate === undefined || e.pointerType === "touch") return;
+    setHoveredRegionId((current) => (current === regionId ? null : current));
+  }, [mode, onRegionUpdate]);
+
+  const handleResizePointerDown = useCallback(
+    (region: EnrichedRegion, handle: ResizeHandle, e: React.PointerEvent<HTMLDivElement>) => {
+      if (mode !== "view" || naturalSize === undefined || onRegionUpdate === undefined) return;
+      e.preventDefault();
+      e.stopPropagation();
+      clearTouchPress();
+      suppressRegionClickRef.current = region.id;
+      setEditingRegionId(region.id);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      resizeStateRef.current = {
+        pointerId: e.pointerId,
+        regionId: region.id,
+        handle,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startRect: regionDrafts[region.id] ?? {
+          x: region.x,
+          y: region.y,
+          width: region.width,
+          height: region.height,
+        },
+      };
+    },
+    [clearTouchPress, mode, naturalSize, onRegionUpdate, regionDrafts]
+  );
+
+  const handleResizePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const resize = resizeStateRef.current;
+    const overlay = overlayRef.current;
+    if (!resize || resize.pointerId !== e.pointerId || naturalSize === undefined || !overlay) return;
+
+    e.preventDefault();
+    const rect = overlay.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    const dx = (e.clientX - resize.startClientX) * (naturalSize.width / rect.width);
+    const dy = (e.clientY - resize.startClientY) * (naturalSize.height / rect.height);
+    updateRegionDraft(
+      resize.regionId,
+      resizeRegionRect(resize.startRect, resize.handle, dx, dy, naturalSize)
+    );
+  }, [naturalSize, updateRegionDraft]);
+
+  const handleResizePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const resize = resizeStateRef.current;
+    if (!resize || resize.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    finishRegionResize(e.pointerId, true);
+  }, [finishRegionResize]);
+
+  const handleResizePointerCancel = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const resize = resizeStateRef.current;
+    if (!resize || resize.pointerId !== e.pointerId) return;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    finishRegionResize(e.pointerId, false);
+  }, [finishRegionResize]);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
@@ -380,33 +633,85 @@ export default function DocumentOverlay({
   const active = mode !== "view";
   return (
     <div
+      ref={overlayRef}
       className={className}
       style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+      onPointerDownCapture={handleOverlayPointerDownCapture}
     >
       {/* Region boxes — clickable divs so they work independently of SVG pointer-events */}
       {naturalSize &&
-        regions.map((r) => (
-          <div
-            key={r.id}
-            onClick={() => onRegionClick?.(r)}
-            title="Open linked note"
-            style={{
-              position: "absolute",
-              left: `${(r.x / naturalSize.width) * 100}%`,
-              top: `${(r.y / naturalSize.height) * 100}%`,
-              width: `${(r.width / naturalSize.width) * 100}%`,
-              height: `${(r.height / naturalSize.height) * 100}%`,
-              background: "rgba(74, 108, 247, 0.1)",
-              border: "1.5px solid rgba(74, 108, 247, 0.55)",
-              borderRadius: 2,
-              boxSizing: "border-box",
-              cursor: "pointer",
-              pointerEvents: "auto",
-              zIndex: 1,
-              transition: "background 0.15s, border 0.15s",
-            }}
-          />
-        ))}
+        regions.map((r) => {
+          const rect = regionDrafts[r.id] ?? {
+            x: r.x,
+            y: r.y,
+            width: r.width,
+            height: r.height,
+          };
+          const showHandles = mode === "view" && onRegionUpdate !== undefined && (editingRegionId === r.id || hoveredRegionId === r.id);
+          const isEditing = editingRegionId === r.id;
+          const handleDescriptors: Array<{ key: ResizeHandle; left: string; top: string; cursor: string }> = [
+            { key: "nw", left: "0%", top: "0%", cursor: "nwse-resize" },
+            { key: "ne", left: "100%", top: "0%", cursor: "nesw-resize" },
+            { key: "sw", left: "0%", top: "100%", cursor: "nesw-resize" },
+            { key: "se", left: "100%", top: "100%", cursor: "nwse-resize" },
+          ];
+
+          return (
+            <div
+              key={r.id}
+              onClick={(e) => handleRegionClick(r, e)}
+              onPointerDown={(e) => handleRegionPointerDown(r, e)}
+              onPointerMove={(e) => handleRegionPointerMove(r.id, e)}
+              onPointerUp={(e) => handleRegionPointerUp(r.id, e)}
+              onPointerCancel={(e) => handleRegionPointerUp(r.id, e)}
+              onPointerEnter={(e) => handleRegionPointerEnter(r.id, e)}
+              onPointerLeave={(e) => handleRegionPointerLeave(r.id, e)}
+              title={showHandles ? "Drag a corner handle to resize" : "Open linked note"}
+              style={{
+                position: "absolute",
+                left: `${(rect.x / naturalSize.width) * 100}%`,
+                top: `${(rect.y / naturalSize.height) * 100}%`,
+                width: `${(rect.width / naturalSize.width) * 100}%`,
+                height: `${(rect.height / naturalSize.height) * 100}%`,
+                background: isEditing ? "rgba(74, 108, 247, 0.16)" : "rgba(74, 108, 247, 0.1)",
+                border: isEditing ? "2px solid rgba(74, 108, 247, 0.9)" : "1.5px solid rgba(74, 108, 247, 0.55)",
+                borderRadius: 2,
+                boxSizing: "border-box",
+                cursor: mode === "view" ? "pointer" : "default",
+                pointerEvents: mode === "view" ? "auto" : "none",
+                zIndex: isEditing ? 3 : 1,
+                transition: "background 0.15s, border 0.15s, box-shadow 0.15s",
+                boxShadow: isEditing ? "0 0 0 2px rgba(255, 255, 255, 0.9) inset" : undefined,
+                touchAction: isEditing ? "none" : "auto",
+              }}
+            >
+              {showHandles && handleDescriptors.map((handleDesc) => (
+                <div
+                  key={handleDesc.key}
+                  onPointerDown={(e) => handleResizePointerDown(r, handleDesc.key, e)}
+                  onPointerMove={handleResizePointerMove}
+                  onPointerUp={handleResizePointerUp}
+                  onPointerCancel={handleResizePointerCancel}
+                  style={{
+                    position: "absolute",
+                    left: handleDesc.left,
+                    top: handleDesc.top,
+                    width: REGION_HANDLE_SIZE_PX,
+                    height: REGION_HANDLE_SIZE_PX,
+                    transform: "translate(-50%, -50%)",
+                    borderRadius: "50%",
+                    background: "#ffffff",
+                    border: "2px solid rgba(74, 108, 247, 0.9)",
+                    boxSizing: "border-box",
+                    cursor: handleDesc.cursor,
+                    touchAction: "none",
+                    boxShadow: "0 1px 4px rgba(0, 0, 0, 0.18)",
+                  }}
+                />
+              ))}
+            </div>
+          );
+        })}
 
       {/* Drawing SVG — completed strokes + region drag rectangle */}
       <svg

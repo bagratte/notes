@@ -83,6 +83,8 @@ export const regions = {
       page_number: data.pageNumber,
       x: data.x, y: data.y, width: data.width, height: data.height,
     }),
+  update: (id: number, data: { x?: number; y?: number; width?: number; height?: number }) =>
+    api.patch<Region>(`/regions/${id}`, data),
   delete: (id: number) => api.delete(`/regions/${id}`),
 };
 

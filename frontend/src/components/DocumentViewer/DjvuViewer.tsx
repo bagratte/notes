@@ -557,6 +557,49 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
     navigate(`/notes/${note.id}`);
   }, [documentId, folderId, navigate]);
 
+  const handleRegionUpdate = useCallback(async (page: number, regionId: number, rect: PendingRegion) => {
+    let previousRegion: EnrichedRegion | null = null;
+
+    setRegionsByPage((prev) => {
+      const existing = prev[page] ?? [];
+      previousRegion = existing.find((region) => region.id === regionId) ?? null;
+      if (previousRegion === null) return prev;
+
+      return {
+        ...prev,
+        [page]: existing.map((region) => (
+          region.id === regionId ? { ...region, ...rect } : region
+        )),
+      };
+    });
+
+    if (previousRegion === null) return;
+
+    try {
+      const saved = await regionsApi.update(regionId, rect);
+      setRegionsByPage((prev) => {
+        const existing = prev[page] ?? [];
+        return {
+          ...prev,
+          [page]: existing.map((region) => (
+            region.id === regionId ? { ...region, ...saved } : region
+          )),
+        };
+      });
+    } catch {
+      const rollback = previousRegion;
+      setRegionsByPage((prev) => {
+        const existing = prev[page] ?? [];
+        return {
+          ...prev,
+          [page]: existing.map((region) => (
+            region.id === regionId ? rollback : region
+          )),
+        };
+      });
+    }
+  }, []);
+
   const prevPage = useCallback(() => scrollToPage(pageNum - 1), [pageNum, scrollToPage]);
   const nextPage = useCallback(() => scrollToPage(pageNum + 1), [pageNum, scrollToPage]);
 
@@ -810,6 +853,7 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
                         onSegmentErase={(del, cr) => handleSegmentErase(page, del, cr)}
                         regions={regions}
                         onRegionComplete={(rect) => handleRegionComplete(page, rect)}
+                        onRegionUpdate={(regionId, rect) => handleRegionUpdate(page, regionId, rect)}
                         onRegionClick={(region) => navigate(`/notes/${region.note_id}`)}
                         mode={toolMode}
                         viewBox={viewBox}
