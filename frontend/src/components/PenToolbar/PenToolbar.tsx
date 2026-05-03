@@ -6,7 +6,7 @@ export interface PenSettings {
   width: number;
 }
 
-export type PenToolbarMode = "hand" | "annotate" | "stroke-eraser" | "segment-eraser" | "region";
+export type PenToolbarMode = "hand" | "annotate" | "stroke-eraser" | "segment-eraser";
 
 export const DEFAULT_PEN: PenSettings = { color: "#2255cc", width: 4 };
 
