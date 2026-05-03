@@ -98,7 +98,10 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
   const [isPanning, setIsPanning] = useState(false);
 
-  const [windowRange, setWindowRange] = useState(() => ({ start: 1, end: Math.max(1, initialPage ?? 1) }));
+  const [windowRange, setWindowRange] = useState(() => {
+    const target = Math.max(1, initialPage ?? 1);
+    return { start: Math.max(1, target - WINDOW_BUFFER), end: target + WINDOW_BUFFER };
+  });
 
   useEffect(() => {
     localStorage.setItem(`doc:${documentId}:page`, String(pageNum));
@@ -253,7 +256,8 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
     setStrokesByPage({});
     setRedoByPage({});
     setRegionsByPage({});
-    setWindowRange({ start: 1, end: Math.max(1, initialPage ?? 1) });
+    const resetTarget = Math.max(1, initialPage ?? 1);
+    setWindowRange({ start: Math.max(1, resetTarget - WINDOW_BUFFER), end: resetTarget + WINDOW_BUFFER });
 
     loadedStrokePagesRef.current.clear();
     loadedRegionPagesRef.current.clear();
