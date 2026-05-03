@@ -201,7 +201,10 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage,
     if (!el || !container) return;
 
     suppressScrollSyncRef.current = true;
-    el.scrollIntoView({ behavior, block: "center" });
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const top = container.scrollTop + (elRect.top - containerRect.top) - PAGE_GUTTER / 2;
+    container.scrollTo({ top, behavior });
     window.setTimeout(() => {
       suppressScrollSyncRef.current = false;
     }, behavior === "smooth" ? 240 : 0);
