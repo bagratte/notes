@@ -28,6 +28,7 @@ export default function DocumentPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const pageFromUrl = searchParams.get("page") ? Number(searchParams.get("page")) : undefined;
+  const overlayEnabled = searchParams.get("canvas") !== "false";
   const initialPage = pageFromUrl ?? (documentId ? Number(localStorage.getItem(`doc:${documentId}:page`)) || undefined : undefined);
   const [doc, setDoc] = useState<Document | null>(null);
   const [missing, setMissing] = useState(false);
@@ -81,9 +82,9 @@ export default function DocumentPage() {
       </div>
       <div style={styles.viewerWrap}>
         {doc.type === "pdf" ? (
-          <DocumentViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} initialPage={initialPage} />
+          <DocumentViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} initialPage={initialPage} overlayEnabled={overlayEnabled} />
         ) : (
-          <DjvuViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} initialPage={initialPage} />
+          <DjvuViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} initialPage={initialPage} overlayEnabled={overlayEnabled} />
         )}
       </div>
     </div>

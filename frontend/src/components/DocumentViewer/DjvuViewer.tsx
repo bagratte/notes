@@ -15,6 +15,7 @@ interface Props {
   documentId: number;
   folderId?: number;
   initialPage?: number;
+  overlayEnabled?: boolean;
 }
 
 interface NaturalSize {
@@ -65,7 +66,7 @@ function getDisplayScale(
   return manualScale;
 }
 
-export default function DjvuViewer({ url, documentId, folderId, initialPage }: Props) {
+export default function DjvuViewer({ url, documentId, folderId, initialPage, overlayEnabled = true }: Props) {
   const navigate = useNavigate();
   const { settings: ds, update: updateDs } = useDrawingSettings();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -846,22 +847,24 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage }: P
                         }}
                         className={css.canvas}
                       />
-                      <DocumentOverlay
-                        strokes={strokes.map(toStrokeData)}
-                        onStrokeComplete={(stroke) => handleInlineStroke(page, stroke)}
-                        onEraseStroke={(id) => handleEraseStroke(page, id)}
-                        onSegmentErase={(del, cr) => handleSegmentErase(page, del, cr)}
-                        regions={regions}
-                        onRegionComplete={(rect) => handleRegionComplete(page, rect)}
-                        onRegionUpdate={(regionId, rect) => handleRegionUpdate(page, regionId, rect)}
-                        onRegionClick={(region) => navigate(`/notes/${region.note_id}`)}
-                        mode={toolMode}
-                        viewBox={viewBox}
-                        naturalSize={natural}
-                        color={pen.color}
-                        penWidth={pen.width}
-                        className={css.overlay}
-                      />
+                      {overlayEnabled && (
+                        <DocumentOverlay
+                          strokes={strokes.map(toStrokeData)}
+                          onStrokeComplete={(stroke) => handleInlineStroke(page, stroke)}
+                          onEraseStroke={(id) => handleEraseStroke(page, id)}
+                          onSegmentErase={(del, cr) => handleSegmentErase(page, del, cr)}
+                          regions={regions}
+                          onRegionComplete={(rect) => handleRegionComplete(page, rect)}
+                          onRegionUpdate={(regionId, rect) => handleRegionUpdate(page, regionId, rect)}
+                          onRegionClick={(region) => navigate(`/notes/${region.note_id}`)}
+                          mode={toolMode}
+                          viewBox={viewBox}
+                          naturalSize={natural}
+                          color={pen.color}
+                          penWidth={pen.width}
+                          className={css.overlay}
+                        />
+                      )}
                     </>
                   ) : (
                     <div className={css.pagePlaceholder}>Page {page}</div>
