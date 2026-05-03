@@ -86,6 +86,19 @@ The backend `Region` type has `section_id` but not `note_id`. The document viewe
 
 When `RegionLinkModal` confirms a link it first calls `sectionsApi.create` to add a new section to the target note, then `regionsApi.create` linking that section to the drawn rectangle. Navigating to the note after linking is intentional — the new section needs to be visible immediately.
 
+### Document viewer architecture
+
+`DocumentViewer/` is split into four layers:
+
+| File | Role |
+|------|------|
+| `viewerTypes.ts` | Shared interfaces (`ViewerProps`, `NaturalSize`, `PendingRegion`, `ViewportSize`, `PanState`), constants (`ZOOM_STEPS`, `WINDOW_BUFFER`, `PAGE_GUTTER`, `PAN_DEADZONE_PX`, `PAGE_FALLBACK_WIDTH/HEIGHT`), and pure helpers (`toStrokeData`, `getDisplayScale`) |
+| `useDocumentViewer.ts` | Custom hook `useDocumentViewer` — owns all shared state, refs, and handlers (zoom, pan, undo/redo, strokes, regions, page navigation, scroll sync). Exposes `setNumPages`, `setNaturalSizes`, `setPageLabels`, `setLoading`, `setError` so format-specific loading effects can feed data in. |
+| `ViewerShell.tsx` | Shared UI: toolbar, page list, `DocumentOverlay` per page. Accepts the full `UseDocumentViewerResult` spread as props plus a render-page callback. |
+| `PdfViewer.tsx` / `DjvuViewer.tsx` | Thin wrappers. Each calls `useDocumentViewer`, adds format-specific loading/rendering effects (pdf.js or DjVu.js), and renders `<ViewerShell>` with a format-specific `renderPage` callback. |
+
+The key design constraint: PDF preloads natural sizes asynchronously before setting `numPages`, while DjVu sets both synchronously. The hook therefore accepts `numPages`/`naturalSizes` as settable state rather than computing them itself.
+
 ### Tool modes in document viewers
 
 `ToolMode = "view" | "annotate" | "region"`. In `"view"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s are clickable. In `"annotate"` and `"region"` modes the SVG captures all pointer events and region divs get `pointerEvents: none`. This separation is necessary because CSS `pointer-events: none` on an SVG parent prevents children from receiving events.
@@ -117,8 +130,8 @@ Two `window` custom events keep the sidebar and document viewers in sync without
 
 | Event | `detail` | Fired by | Listened by |
 |-------|----------|----------|-------------|
-| `sidebar:refresh` | — | DocumentViewer/DjvuViewer (region created), MergeModal (note merged) | Sidebar — full reload |
-| `document:page-strokes-changed` | `{ documentId, pageNumber }` | DocumentViewer/DjvuViewer (first/last stroke on page), Sidebar (page strokes deleted) | Sidebar — re-fetches `annotatedPages` for that doc; DocumentViewer/DjvuViewer — reloads strokes if currently on that page |
+| `sidebar:refresh` | — | PdfViewer/DjvuViewer (region created), MergeModal (note merged) | Sidebar — full reload |
+| `document:page-strokes-changed` | `{ documentId, pageNumber }` | PdfViewer/DjvuViewer (first/last stroke on page), Sidebar (page strokes deleted) | Sidebar — re-fetches `annotatedPages` for that doc; PdfViewer/DjvuViewer — reloads strokes if currently on that page |
 
 Fire `sidebar:refresh` for mutations that change the note/document/folder tree. Fire `document:page-strokes-changed` for mutations that change whether a document page has inline strokes. The `document:page-strokes-changed` event is only dispatched when a page crosses the zero-stroke boundary (empty → first stroke, or last stroke → empty).
 
