@@ -308,6 +308,15 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage,
     });
   }, [viewport, numPages, pageNum, scrollToPage]);
 
+  // re-center current page when zoom changes (manualScale or fitMode)
+  useEffect(() => {
+    if (numPages === 0) return;
+    const currentPage = pageNum;
+    window.requestAnimationFrame(() => {
+      scrollToPage(currentPage, "auto");
+    });
+  }, [manualScale, fitMode, numPages, pageNum, scrollToPage]);
+
   // keep page input in sync
   useEffect(() => {
     setPageInput(pageLabels ? pageLabels[pageNum - 1] ?? String(pageNum) : String(pageNum));
