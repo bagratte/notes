@@ -69,7 +69,7 @@ function getDisplayScale(
   return manualScale;
 }
 
-export default function DocumentViewer({ url, documentId, folderId, initialPage, overlayEnabled = true }: Props) {
+export default function PdfViewer({ url, documentId, folderId, initialPage, overlayEnabled = true }: Props) {
   const navigate = useNavigate();
   const { settings: ds, update: updateDs } = useDrawingSettings();
   const containerRef = useRef<HTMLDivElement>(null);

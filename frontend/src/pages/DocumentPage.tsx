@@ -20,7 +20,7 @@ function DeleteIcon() {
     </svg>
   );
 }
-import { DocumentViewer, DjvuViewer } from "@/components/DocumentViewer";
+import { PdfViewer, DjvuViewer } from "@/components/DocumentViewer";
 import type { Document } from "@/types";
 
 export default function DocumentPage() {
@@ -82,7 +82,7 @@ export default function DocumentPage() {
       </div>
       <div style={styles.viewerWrap}>
         {doc.type === "pdf" ? (
-          <DocumentViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} initialPage={initialPage} overlayEnabled={overlayEnabled} />
+          <PdfViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} initialPage={initialPage} overlayEnabled={overlayEnabled} />
         ) : (
           <DjvuViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} initialPage={initialPage} overlayEnabled={overlayEnabled} />
         )}
