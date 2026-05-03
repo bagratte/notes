@@ -1,21 +1,20 @@
 import { useState, useEffect } from "react";
 import { sections as sectionsApi } from "@/api";
-import type { Section } from "@/types";
+import type { Section, ToolMode } from "@/types";
 import SectionCanvas from "./SectionCanvas";
-import { PenToolbar, DEFAULT_PEN } from "@/components/PenToolbar";
-import type { PenSettings, PenToolbarMode } from "@/components/PenToolbar";
-import { useDrawingSettings } from "@/context/DrawingSettings";
+import { Toolbar, DEFAULT_PEN } from "@/components/Toolbar";
+import type { PenSettings } from "@/components/Toolbar";
 
 interface Props {
   noteId: number;
 }
 
 export default function NoteEditor({ noteId }: Props) {
-  const { settings: ds, update: updateDs } = useDrawingSettings();
   const [sectionList, setSectionList] = useState<Section[]>([]);
   const [adding, setAdding] = useState(false);
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
-  const [mode, setMode] = useState<PenToolbarMode>("annotate");
+  const [tool, setTool] = useState<ToolMode>("auto");
+  const [hwOverride, setHwOverride] = useState<"stroke-eraser" | "segment-eraser" | null>(null);
 
   useEffect(() => {
     sectionsApi.list(noteId).then(setSectionList);
@@ -35,13 +34,13 @@ export default function NoteEditor({ noteId }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-      <PenToolbar
+      <Toolbar
         settings={pen}
         onChange={setPen}
-        mode={mode}
-        onModeChange={setMode}
-        fingerScrolls={ds.fingerScrolls}
-        onFingerScrollsChange={(v) => updateDs({ fingerScrolls: v })}
+        tool={tool}
+        onToolChange={setTool}
+        availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser"]}
+        activeOverride={hwOverride}
       />
 
       {sectionList.length === 0 && (
@@ -68,9 +67,10 @@ export default function NoteEditor({ noteId }: Props) {
           sectionId={section.id}
           initialHeight={section.height}
           pen={pen}
-          inputEnabled={mode !== "hand"}
-          eraserMode={mode === "stroke-eraser"}
-          segmentEraserMode={mode === "segment-eraser"}
+          inputEnabled={tool !== "hand"}
+          eraserMode={tool === "stroke-eraser"}
+          segmentEraserMode={tool === "segment-eraser"}
+          onHwOverrideChange={setHwOverride}
           onDelete={() => deleteSection(section.id)}
         />
       ))}

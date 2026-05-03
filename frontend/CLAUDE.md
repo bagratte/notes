@@ -99,18 +99,28 @@ When `RegionLinkModal` confirms a link it first calls `sectionsApi.create` to ad
 
 The key design constraint: PDF preloads natural sizes asynchronously before setting `numPages`, while DjVu sets both synchronously. The hook therefore accepts `numPages`/`naturalSizes` as settable state rather than computing them itself.
 
-### Tool modes in document viewers
+### Tool modes
 
-`ToolMode = "view" | "annotate" | "region"`. In `"view"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s are clickable. In `"annotate"` and `"region"` modes the SVG captures all pointer events and region divs get `pointerEvents: none`. This separation is necessary because CSS `pointer-events: none` on an SVG parent prevents children from receiving events.
+`ToolMode = "auto" | "hand" | "pen" | "stroke-eraser" | "segment-eraser" | "select-region"` (defined in `src/types/index.ts`).
+
+The unified `Toolbar` component (`src/components/Toolbar/`) renders tool buttons, colour swatches, and stroke-width buttons. `availableTools: ToolMode[]` controls which tools appear — notes omit `select-region`, document viewers include all six. `UndoRedoBar` (`src/components/UndoRedoBar/`) is a separate component rendered alongside `Toolbar` in both contexts.
+
+In `"hand"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s become clickable. In all drawing/erasing modes the SVG captures pointer events and region divs get `pointerEvents: none`. In `"select-region"` mode dragging produces a pending selection rectangle; a contextual menu then lets the user create a linked note. `"auto"` mode treats stylus input as `"pen"` and finger/touch as pan, detected at pointer-down time.
+
+Hardware barrel-button overrides (`getPenHwOverride`) fire `onHwOverrideChange` callbacks up to `Toolbar` so the overriding tool is highlighted in amber (`activeOverride` prop) without changing the selected `ToolMode`.
 
 ### Keyboard shortcuts
 
 | Key | Scope | Action |
 |-----|-------|--------|
-| `A` | Document viewers | Toggle annotate mode |
-| `R` | Document viewers | Toggle region mode |
-| `Escape` | Document viewers | Return to view mode |
-| `←` / `→` | Document viewers (view mode only) | Previous / next page |
+| `A` | Toolbar | Auto tool |
+| `H` | Toolbar | Hand / pan tool |
+| `P` | Toolbar | Pen tool |
+| `E` | Toolbar | Stroke eraser |
+| `Shift+E` | Toolbar | Precision (segment) eraser |
+| `S` | Toolbar | Select-region tool |
+| `Escape` | Document viewers | Dismiss pending region selection |
+| `←` / `→` | Document viewers (`auto` mode only) | Previous / next page |
 | `Ctrl+Z` | Document viewers, note sections (hovered) | Undo last stroke |
 | `Ctrl+Shift+Z` / `Ctrl+Y` | Document viewers, note sections (hovered) | Redo |
 

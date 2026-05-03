@@ -107,7 +107,8 @@ notes/
         │   ├── DocumentViewer/  # PdfViewer, DjvuViewer, overlay, region modal
         │   ├── Layout/          # App shell with sidebar
         │   ├── NoteEditor/      # Section list + per-section canvas
-        │   ├── PenToolbar/      # Color/width picker, undo/redo
+        │   ├── Toolbar/         # Unified tool/color/width picker
+        │   ├── UndoRedoBar/     # Undo/redo buttons
         │   └── Sidebar/         # Folder/note/document tree with CRUD
         ├── pages/           # NotePage, DocumentPage, FolderPage
         └── types/           # Shared TypeScript types
@@ -119,15 +120,15 @@ notes/
 
 1. Create a note in the sidebar (optionally inside a folder to group notes).
 2. Open the note — add sections with **+ Add section**.
-3. Draw with a stylus or mouse. Use the pen toolbar to change color and width.
+3. Draw with a stylus or mouse. Use the toolbar to change color and width.
 4. Hover a section and press `Ctrl+Z` / `Ctrl+Shift+Z` to undo/redo.
 
 ### Annotating documents
 
 1. Upload a PDF or DjVu file via the sidebar.
-2. Open the document and click **✎ Annotate** (or press `A`).
-3. Draw directly on the page. Use the pen toolbar for color, width, and undo/redo.
-4. Press `Escape` to return to view mode.
+2. Open the document and switch to **Pen** mode (or press `P`).
+3. Draw directly on the page. Use the toolbar for color, width, and undo/redo.
+4. Press `H` or `A` to return to hand/auto mode.
 
 ### Linking a document region to a note
 

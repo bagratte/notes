@@ -3,7 +3,7 @@ import { DrawingCanvas } from "@/components/Canvas";
 import type { StrokeData } from "@/components/Canvas";
 import { strokes as strokesApi, sections as sectionsApi } from "@/api";
 import type { Stroke } from "@/types";
-import type { PenSettings } from "@/components/PenToolbar";
+import type { PenSettings } from "@/components/Toolbar";
 import RegionPreview from "./RegionPreview";
 
 const MIN_H = 80;
@@ -16,6 +16,7 @@ interface Props {
   inputEnabled?: boolean;
   eraserMode?: boolean;
   segmentEraserMode?: boolean;
+  onHwOverrideChange?: (o: "stroke-eraser" | "segment-eraser" | null) => void;
   onDelete: () => void;
 }
 
@@ -30,6 +31,7 @@ export default function SectionCanvas({
   inputEnabled = true,
   eraserMode = false,
   segmentEraserMode = false,
+  onHwOverrideChange,
   onDelete,
 }: Props) {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -198,6 +200,7 @@ export default function SectionCanvas({
               inputEnabled={inputEnabled}
               eraserMode={eraserMode}
               segmentEraserMode={segmentEraserMode}
+              onHwOverrideChange={onHwOverrideChange}
               color={pen.color}
               penWidth={pen.width}
               height={height}

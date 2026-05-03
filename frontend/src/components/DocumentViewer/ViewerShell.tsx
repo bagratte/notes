@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import DocumentOverlay from "./DocumentOverlay";
-import { PenToolbar } from "@/components/PenToolbar";
+import { Toolbar } from "@/components/Toolbar";
+import { UndoRedoBar } from "@/components/UndoRedoBar";
 import type { UseDocumentViewerResult } from "./useDocumentViewer";
 import { toStrokeData, PAGE_GUTTER } from "./viewerTypes";
 import css from "./DocumentViewer.module.css";
@@ -62,9 +63,9 @@ export default function ViewerShell({
   undoInline,
   redoInline,
   // drawing settings
-  ds,
-  updateDs,
+  updateDs: _updateDs,
 }: Props) {
+  const [hwOverride, setHwOverride] = useState<"stroke-eraser" | "segment-eraser" | null>(null);
   const pages = useMemo(() => {
     const values: number[] = [];
     for (let p = 1; p <= numPages; p += 1) values.push(p);
@@ -127,30 +128,18 @@ export default function ViewerShell({
 
         <div className={css.toolbarSep} />
 
-        <div className={css.toolbarGroup}>
-          <button
-            className={`${css.zoomBtn}${toolMode === "region" ? ` ${css.active}` : ""}`}
-            onClick={() => setToolMode((m) => (m === "region" ? "annotate" : "region"))}
-            title="Region (R)"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M1 5V2a1 1 0 0 1 1-1h3M9 1h3a1 1 0 0 1 1 1v3M13 9v3a1 1 0 0 1-1 1H9M5 13H2a1 1 0 0 1-1-1V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </button>
-        </div>
+        <Toolbar
+          settings={pen}
+          onChange={setPen}
+          tool={toolMode}
+          onToolChange={setToolMode}
+          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser", "select-region"]}
+          activeOverride={hwOverride}
+        />
 
         <div className={css.toolbarSep} />
 
-        <PenToolbar
-          settings={pen}
-          mode={toolMode === "view" ? "hand" : toolMode}
-          onChange={(settings) => {
-            setPen(settings);
-            if (toolMode === "view") setToolMode("annotate");
-          }}
-          onModeChange={(mode) => setToolMode(mode === "hand" ? "view" : mode)}
-          fingerScrolls={ds.fingerScrolls}
-          onFingerScrollsChange={(v) => updateDs({ fingerScrolls: v })}
+        <UndoRedoBar
           canUndo={activeStrokes.length > 0}
           canRedo={activeRedo.length > 0}
           onUndo={undoInline}
@@ -162,7 +151,7 @@ export default function ViewerShell({
         ref={containerRef}
         className={css.scroll}
         style={
-          toolMode === "view"
+          toolMode === "hand"
             ? { cursor: isPanning ? "grabbing" : "grab", userSelect: isPanning ? "none" : undefined }
             : undefined
         }
@@ -213,6 +202,7 @@ export default function ViewerShell({
                           onRegionComplete={(rect) => handleRegionComplete(page, rect)}
                           onRegionUpdate={(regionId, rect) => handleRegionUpdate(page, regionId, rect)}
                           onRegionClick={handleRegionClick}
+                          onHwOverrideChange={setHwOverride}
                           mode={toolMode}
                           viewBox={viewBox}
                           naturalSize={natural}

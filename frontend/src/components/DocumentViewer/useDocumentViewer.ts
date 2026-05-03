@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import type { EnrichedRegion, ToolMode } from "./DocumentOverlay";
+import type { EnrichedRegion } from "./DocumentOverlay";
+import type { ToolMode } from "@/types";
 import type { StrokeData } from "@/components/Canvas";
-import { DEFAULT_PEN } from "@/components/PenToolbar";
-import type { PenSettings } from "@/components/PenToolbar";
+import { DEFAULT_PEN } from "@/components/Toolbar";
+import type { PenSettings } from "@/components/Toolbar";
 import { strokes as strokesApi, regions as regionsApi, sections as sectionsApi, notes as notesApi } from "@/api";
 import type { Stroke } from "@/types";
 import { useDrawingSettings } from "@/context/DrawingSettings";
@@ -98,7 +99,7 @@ export interface UseDocumentViewerResult {
   ds: ReturnType<typeof useDrawingSettings>["settings"];
   updateDs: ReturnType<typeof useDrawingSettings>["update"];
 
-  // pen setter (used by ViewerShell's PenToolbar)
+  // pen setter (used by ViewerShell's Toolbar)
   setPen: React.Dispatch<React.SetStateAction<PenSettings>>;
 
   // convenience batch reset for loader effects
@@ -142,7 +143,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
   const [regionsByPage, setRegionsByPage] = useState<Record<number, EnrichedRegion[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toolMode, setToolMode] = useState<ToolMode>("annotate");
+  const [toolMode, setToolMode] = useState<ToolMode>("auto");
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
   const [isPanning, setIsPanning] = useState(false);
   const [windowRange, setWindowRange] = useState(() => {
@@ -455,7 +456,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
 
     sectionNoteCacheRef.current.set(section.id, note.id);
     loadedRegionPagesRef.current.add(page);
-    setToolMode("view");
+    setToolMode("hand");
     window.dispatchEvent(new CustomEvent("sidebar:refresh"));
     navigate(`/notes/${note.id}`);
   }, [documentId, folderId, navigate]);
@@ -498,7 +499,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
   }, []);
 
   const handleScrollPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (toolMode !== "view") return;
+    if (toolMode !== "hand") return;
     if (e.pointerType === "touch") return;
     if (e.button !== 0) return;
     panStateRef.current = {
@@ -625,9 +626,9 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
         if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undoInline(); return; }
         if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redoInline(); return; }
       }
-      if (e.key === "r" || e.key === "R") { setToolMode((m) => (m === "region" ? "annotate" : "region")); return; }
-      if (e.key === "Escape") { setToolMode("annotate"); return; }
-      if (toolMode !== "annotate") return;
+      if (e.key === "r" || e.key === "R") { setToolMode((m) => (m === "select-region" ? "auto" : "select-region")); return; }
+      if (e.key === "Escape") { setToolMode("auto"); return; }
+      if (toolMode !== "auto") return;
       if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); prevPage(); }
       if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); nextPage(); }
     };

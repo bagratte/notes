@@ -10,6 +10,7 @@ interface Props {
   onStrokeComplete?: (stroke: StrokeData) => void;
   onEraseStroke?: (id: number) => void;
   onSegmentErase?: (deleted: number[], created: StrokeData[]) => void;
+  onHwOverrideChange?: (o: "stroke-eraser" | "segment-eraser" | null) => void;
   eraserMode?: boolean;
   segmentEraserMode?: boolean;
   color?: string;
@@ -45,6 +46,7 @@ export default function DrawingCanvas({
   onStrokeComplete,
   onEraseStroke,
   onSegmentErase,
+  onHwOverrideChange,
   eraserMode = false,
   segmentEraserMode = false,
   color = "#000000",
@@ -73,6 +75,16 @@ export default function DrawingCanvas({
   const canvasScaleRef = useRef(1);
   const suppressContextMenuUntilRef = useRef(0);
   const effectiveModeRef = useRef<"annotate" | "stroke-eraser" | "segment-eraser">("annotate");
+
+  const lastHwOverrideRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
+  const onHwOverrideChangeRef = useRef(onHwOverrideChange);
+  useEffect(() => { onHwOverrideChangeRef.current = onHwOverrideChange; }, [onHwOverrideChange]);
+
+  const reportHwOverride = useCallback((override: "stroke-eraser" | "segment-eraser" | null) => {
+    if (override === lastHwOverrideRef.current) return;
+    lastHwOverrideRef.current = override;
+    onHwOverrideChangeRef.current?.(override);
+  }, []);
 
   const colorRef = useRef(color);
   const penWidthRef = useRef(penWidth);
@@ -246,6 +258,7 @@ export default function DrawingCanvas({
       e.currentTarget.setPointerCapture(e.pointerId);
       drawing.current = true;
       const hwOverride = getPenHwOverride(e);
+      reportHwOverride(hwOverride);
       const effectiveMode = hwOverride ?? (segmentEraserMode ? "segment-eraser" : eraserMode ? "stroke-eraser" : "annotate");
       effectiveModeRef.current = effectiveMode;
       if (effectiveMode === "segment-eraser") {
@@ -261,13 +274,14 @@ export default function DrawingCanvas({
         updateLivePath(livePointsRef.current);
       }
     },
-    [readonly, inputEnabled, segmentEraserMode, eraserMode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep, markPenContextMenuSuppressed]
+    [readonly, inputEnabled, segmentEraserMode, eraserMode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep, markPenContextMenuSuppressed, reportHwOverride]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       markPenContextMenuSuppressed(e.pointerType);
       const hwOverride = getPenHwOverride(e);
+      reportHwOverride(hwOverride);
       const baseMode = segmentEraserMode ? "segment-eraser" : eraserMode ? "stroke-eraser" : "annotate";
       const effectiveMode = drawing.current ? effectiveModeRef.current : hwOverride ?? baseMode;
       effectiveModeRef.current = effectiveMode;
@@ -302,7 +316,7 @@ export default function DrawingCanvas({
         updateLivePath(drawPts);
       }
     },
-    [segmentEraserMode, eraserMode, eraseAtPoint, applyEraserStep, getSvgTransform, updateLivePath, activePointerType, markPenContextMenuSuppressed, eraserPos]
+    [segmentEraserMode, eraserMode, eraseAtPoint, applyEraserStep, getSvgTransform, updateLivePath, activePointerType, markPenContextMenuSuppressed, eraserPos, reportHwOverride]
   );
 
   const finishStroke = useCallback(() => {
@@ -317,9 +331,10 @@ export default function DrawingCanvas({
       }
       setErasePreview(new Map());
       setEraserPos(null);
+      reportHwOverride(null);
       return;
     }
-    if (effectiveMode === "stroke-eraser") return;
+    if (effectiveMode === "stroke-eraser") { reportHwOverride(null); return; }
     const pts = livePointsRef.current;
     if (pts.length > 0) {
       onStrokeCompleteRef.current?.({
@@ -334,7 +349,7 @@ export default function DrawingCanvas({
       const ctx = canvas.getContext("2d");
       ctx?.clearRect(0, 0, canvas.width, canvas.height);
     }
-  }, [onSegmentErase, erasePreview]);
+  }, [onSegmentErase, erasePreview, reportHwOverride]);
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
@@ -347,9 +362,10 @@ export default function DrawingCanvas({
   const handlePointerLeave = useCallback(
     () => {
       setActivePointerType(null);
+      reportHwOverride(null);
       finishStroke();
     },
-    [finishStroke]
+    [finishStroke, reportHwOverride]
   );
 
   return (

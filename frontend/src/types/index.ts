@@ -1,3 +1,5 @@
+export type ToolMode = "auto" | "hand" | "pen" | "stroke-eraser" | "segment-eraser" | "select-region";
+
 export interface Folder {
   id: number;
   parent_folder_id: number | null;
