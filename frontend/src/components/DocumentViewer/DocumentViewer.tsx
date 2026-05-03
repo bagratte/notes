@@ -259,6 +259,32 @@ export default function DocumentViewer({ url, documentId, folderId, initialPage,
           return;
         }
         pdfDocRef.current = doc;
+
+        // Pre-load natural sizes for the pages around the initial target page
+        // before revealing the document.  This mirrors DjVu's behaviour (all
+        // sizes available before numPages is set) and prevents the layout
+        // shift that would otherwise occur after the first scrollToPage call,
+        // which used to cause a feedback loop and still caused position jumps.
+        const targetPage = Math.max(1, Math.min(doc.numPages, initialPage ?? 1));
+        const preloadStart = Math.max(1, targetPage - WINDOW_BUFFER);
+        const preloadEnd = Math.min(doc.numPages, targetPage + WINDOW_BUFFER);
+        const initialSizes: Record<number, NaturalSize> = {};
+        await Promise.all(
+          Array.from({ length: preloadEnd - preloadStart + 1 }, (_, i) => preloadStart + i).map(
+            async (p) => {
+              try {
+                const pdfPage = await doc.getPage(p);
+                const vp = pdfPage.getViewport({ scale: 1 });
+                initialSizes[p] = { width: vp.width, height: vp.height };
+              } catch {
+                // ignore — page will fall back to placeholder dimensions
+              }
+            }
+          )
+        );
+
+        if (destroyed) return;
+        setNaturalSizes(initialSizes);
         setNumPages(doc.numPages);
         setLoading(false);
         const labels = await doc.getPageLabels().catch(() => null);
