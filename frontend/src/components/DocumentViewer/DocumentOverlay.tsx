@@ -185,7 +185,6 @@ export default function DocumentOverlay({
   const simulatePressureRef = useRef(ds.simulatePressure);
   const palmRejectionRef = useRef(ds.palmRejection);
   const palmThresholdRef = useRef(ds.palmThreshold);
-  const fingerScrollsRef = useRef(ds.fingerScrolls);
 
   useEffect(() => { colorRef.current = color; }, [color]);
   useEffect(() => { penWidthRef.current = penWidth; }, [penWidth]);
@@ -197,7 +196,6 @@ export default function DocumentOverlay({
   useEffect(() => { simulatePressureRef.current = ds.simulatePressure; }, [ds.simulatePressure]);
   useEffect(() => { palmRejectionRef.current = ds.palmRejection; }, [ds.palmRejection]);
   useEffect(() => { palmThresholdRef.current = ds.palmThreshold; }, [ds.palmThreshold]);
-  useEffect(() => { fingerScrollsRef.current = ds.fingerScrolls; }, [ds.fingerScrolls]);
   useEffect(() => { strokePathCache.current.clear(); }, [ds.streamline, ds.thinning, ds.smoothing, ds.simulatePressure]);
 
   const clearTouchPress = useCallback(() => {
@@ -523,7 +521,6 @@ export default function DocumentOverlay({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       setActivePointerType(e.pointerType);
-      if (fingerScrollsRef.current && e.pointerType === "touch") return;
       if (palmRejectionRef.current && e.pointerType === "touch" &&
           (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
       e.preventDefault();
@@ -569,7 +566,6 @@ export default function DocumentOverlay({
         setEraserPos([pt[0], pt[1]]);
       }
       if (!drawing.current) return;
-      if (fingerScrollsRef.current && e.pointerType === "touch") return;
       e.preventDefault();
       if (effectiveMode === "pen") {
         const coalescedEvents =
@@ -815,7 +811,7 @@ export default function DocumentOverlay({
           width: "100%",
           height: "100%",
           display: "block",
-          touchAction: !ds.fingerScrolls ? "none" : "auto",
+          touchAction: "none",
           pointerEvents: pendingSelection === null ? "all" : "none",
           cursor:
             effectiveModeRef.current === "pen" ? (activePointerType === "pen" ? "none" : "default") : effectiveModeRef.current === "select-region" ? "crosshair" : effectiveModeRef.current === "stroke-eraser" ? "cell" : effectiveModeRef.current === "segment-eraser" ? "none" : "default",

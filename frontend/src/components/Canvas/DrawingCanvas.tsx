@@ -96,7 +96,6 @@ export default function DrawingCanvas({
   const simulatePressureRef = useRef(ds.simulatePressure);
   const palmRejectionRef = useRef(ds.palmRejection);
   const palmThresholdRef = useRef(ds.palmThreshold);
-  const fingerScrollsRef = useRef(ds.fingerScrolls);
 
   useEffect(() => { colorRef.current = color; }, [color]);
   useEffect(() => { penWidthRef.current = penWidth; }, [penWidth]);
@@ -108,7 +107,6 @@ export default function DrawingCanvas({
   useEffect(() => { simulatePressureRef.current = ds.simulatePressure; }, [ds.simulatePressure]);
   useEffect(() => { palmRejectionRef.current = ds.palmRejection; }, [ds.palmRejection]);
   useEffect(() => { palmThresholdRef.current = ds.palmThreshold; }, [ds.palmThreshold]);
-  useEffect(() => { fingerScrollsRef.current = ds.fingerScrolls; }, [ds.fingerScrolls]);
   useEffect(() => { strokePathCache.current.clear(); }, [ds.streamline, ds.thinning, ds.smoothing, ds.simulatePressure]);
 
   // Match canvas resolution to the SVG coordinate space so strokes align pixel-perfectly.
@@ -250,7 +248,6 @@ export default function DrawingCanvas({
     (e: React.PointerEvent<SVGSVGElement>) => {
       setActivePointerType(e.pointerType);
       if (readonly || !inputEnabled) return;
-      if (fingerScrollsRef.current && e.pointerType === "touch") return;
       if (palmRejectionRef.current && e.pointerType === "touch" &&
           (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
       e.preventDefault();
@@ -293,7 +290,6 @@ export default function DrawingCanvas({
         setEraserPos(null);
       }
       if (!drawing.current) return;
-      if (fingerScrollsRef.current && e.pointerType === "touch") return;
       e.preventDefault();
       if (effectiveMode === "segment-eraser") {
         applyEraserStep(e.clientX, e.clientY);
@@ -379,7 +375,7 @@ export default function DrawingCanvas({
         height="100%"
         viewBox={viewBox}
         style={{
-          touchAction: inputEnabled && !ds.fingerScrolls ? "none" : "auto",
+          touchAction: inputEnabled ? "none" : "auto",
           pointerEvents: inputEnabled ? "all" : "none",
           cursor: !inputEnabled ? "grab" : effectiveModeRef.current === "stroke-eraser" ? "cell" : effectiveModeRef.current === "segment-eraser" ? "none" : activePointerType === "pen" ? "none" : "default",
           display: "block",
