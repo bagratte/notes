@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { sections as sectionsApi } from "@/api";
 import type { Section, ToolMode } from "@/types";
 import SectionCanvas from "./SectionCanvas";
-import { Toolbar, DEFAULT_PEN } from "@/components/Toolbar";
-import type { PenSettings } from "@/components/Toolbar";
+import { CanvasToolbar, DEFAULT_PEN } from "@/components/CanvasToolbar";
+import type { PenSettings } from "@/components/CanvasToolbar";
 
 interface Props {
   noteId: number;
@@ -34,12 +34,11 @@ export default function NoteEditor({ noteId }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-      <Toolbar
+      <CanvasToolbar
         settings={pen}
         onChange={setPen}
         tool={tool}
         onToolChange={setTool}
-        availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser"]}
         activeOverride={hwOverride}
       />
 

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import type { ToolMode } from "@/types";
 import css from "./Toolbar.module.css";
 
@@ -26,24 +25,14 @@ const COLORS = [
   { value: "#1a1a1a", label: "Black" },
 ];
 
-// Maps each tool to the keyboard key that activates it.
-// Shift+E produces key "E" (uppercase); plain e produces "e" (lowercase).
-const TOOL_KEYS: Partial<Record<ToolMode, string>> = {
-  auto: "a",
-  hand: "h",
-  pen: "p",
-  "stroke-eraser": "e",
-  "segment-eraser": "E",
-  "select-region": "s",
-};
+const CANVAS_TOOLS: ToolMode[] = ["auto", "hand", "pen", "stroke-eraser", "segment-eraser"];
 
-const TOOL_TITLES: Record<ToolMode, string> = {
-  auto: "Auto (A) — stylus draws, finger scrolls",
-  hand: "Hand / Pan (H)",
-  pen: "Pen (P)",
-  "stroke-eraser": "Stroke eraser (E)",
-  "segment-eraser": "Precision eraser (Shift+E)",
-  "select-region": "Select region (S)",
+const TOOL_TITLES: Record<string, string> = {
+  auto: "Auto — stylus draws, finger scrolls",
+  hand: "Hand / Pan",
+  pen: "Pen",
+  "stroke-eraser": "Stroke eraser",
+  "segment-eraser": "Precision eraser",
 };
 
 function AutoIcon() {
@@ -90,19 +79,12 @@ function SegmentEraserIcon() {
   );
 }
 
-function SelectRegionIcon() {
-  return (
-    <path d="M1 5V2a1 1 0 0 1 1-1h3M9 1h3a1 1 0 0 1 1 1v3M13 9v3a1 1 0 0 1-1 1H9M5 13H2a1 1 0 0 1-1-1V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-  );
-}
-
-const TOOL_ICONS: Record<ToolMode, () => React.ReactElement> = {
+const TOOL_ICONS: Record<string, () => JSX.Element> = {
   auto: AutoIcon,
   hand: HandIcon,
   pen: PenIcon,
   "stroke-eraser": StrokeEraserIcon,
   "segment-eraser": SegmentEraserIcon,
-  "select-region": SelectRegionIcon,
 };
 
 interface Props {
@@ -110,39 +92,19 @@ interface Props {
   onChange: (s: PenSettings) => void;
   tool: ToolMode;
   onToolChange: (t: ToolMode) => void;
-  availableTools: ToolMode[];
   activeOverride?: "stroke-eraser" | "segment-eraser" | null;
 }
 
-export default function Toolbar({
+export default function CanvasToolbar({
   settings,
   onChange,
   tool,
   onToolChange,
-  availableTools,
   activeOverride = null,
 }: Props) {
-  const showPenSettings = availableTools.includes("pen");
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      for (const t of availableTools) {
-        if (TOOL_KEYS[t] === e.key) {
-          onToolChange(t);
-          e.preventDefault();
-          break;
-        }
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [availableTools, onToolChange]);
-
   return (
     <div className={css.toolbar}>
-      {availableTools.map((t) => {
+      {CANVAS_TOOLS.map((t) => {
         const Icon = TOOL_ICONS[t];
         const isOverride = activeOverride === t;
         const isActive = tool === t && !activeOverride;
@@ -160,33 +122,29 @@ export default function Toolbar({
         );
       })}
 
-      {showPenSettings && (
-        <>
-          <div className={css.sep} />
-          {COLORS.map(({ value, label }) => (
-            <button
-              key={value}
-              className={`${css.colorBtn}${settings.color === value ? " " + css.active : ""}`}
-              style={{ background: value }}
-              title={label}
-              onClick={() => onChange({ ...settings, color: value })}
-            />
-          ))}
-          <div className={css.sep} />
-          {WIDTHS.map(({ value, label }) => (
-            <button
-              key={value}
-              className={`${css.toolBtn}${settings.width === value ? " " + css.active : ""}`}
-              title={label}
-              onClick={() => onChange({ ...settings, width: value })}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14">
-                <circle cx="7" cy="7" r={value} fill="currentColor"/>
-              </svg>
-            </button>
-          ))}
-        </>
-      )}
+      <div className={css.sep} />
+      {COLORS.map(({ value, label }) => (
+        <button
+          key={value}
+          className={`${css.colorBtn}${settings.color === value ? " " + css.active : ""}`}
+          style={{ background: value }}
+          title={label}
+          onClick={() => onChange({ ...settings, color: value })}
+        />
+      ))}
+      <div className={css.sep} />
+      {WIDTHS.map(({ value, label }) => (
+        <button
+          key={value}
+          className={`${css.toolBtn}${settings.width === value ? " " + css.active : ""}`}
+          title={label}
+          onClick={() => onChange({ ...settings, width: value })}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14">
+            <circle cx="7" cy="7" r={value} fill="currentColor"/>
+          </svg>
+        </button>
+      ))}
     </div>
   );
 }

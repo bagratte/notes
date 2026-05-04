@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import DocumentOverlay from "./DocumentOverlay";
-import { Toolbar } from "@/components/Toolbar";
+import { CanvasToolbar } from "@/components/CanvasToolbar";
+import { DocumentToolbar } from "@/components/DocumentToolbar";
 import { UndoRedoBar } from "@/components/UndoRedoBar";
 import type { UseDocumentViewerResult } from "./useDocumentViewer";
 import { toStrokeData, PAGE_GUTTER } from "./viewerTypes";
@@ -128,13 +129,19 @@ export default function ViewerShell({
 
         <div className={css.toolbarSep} />
 
-        <Toolbar
+        <CanvasToolbar
           settings={pen}
           onChange={setPen}
           tool={toolMode}
           onToolChange={setToolMode}
-          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser", "select-region"]}
           activeOverride={hwOverride}
+        />
+
+        <div className={css.toolbarSep} />
+
+        <DocumentToolbar
+          tool={toolMode}
+          onToolChange={setToolMode}
         />
 
         <div className={css.toolbarSep} />

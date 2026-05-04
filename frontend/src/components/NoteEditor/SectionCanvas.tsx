@@ -3,7 +3,7 @@ import { DrawingCanvas } from "@/components/Canvas";
 import type { StrokeData } from "@/components/Canvas";
 import { strokes as strokesApi, sections as sectionsApi } from "@/api";
 import type { Stroke } from "@/types";
-import type { PenSettings } from "@/components/Toolbar";
+import type { PenSettings } from "@/components/CanvasToolbar";
 import RegionPreview from "./RegionPreview";
 
 const MIN_H = 80;

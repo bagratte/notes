@@ -103,22 +103,21 @@ The key design constraint: PDF preloads natural sizes asynchronously before sett
 
 `ToolMode = "auto" | "hand" | "pen" | "stroke-eraser" | "segment-eraser" | "select-region"` (defined in `src/types/index.ts`).
 
-The unified `Toolbar` component (`src/components/Toolbar/`) renders tool buttons, colour swatches, and stroke-width buttons. `availableTools: ToolMode[]` controls which tools appear — notes omit `select-region`, document viewers include all six. `UndoRedoBar` (`src/components/UndoRedoBar/`) is a separate component rendered alongside `Toolbar` in both contexts.
+Tools are split across two toolbar components:
+
+- **`CanvasToolbar`** (`src/components/CanvasToolbar/`) — canvas-level tools: `auto`, `hand`, `pen`, `stroke-eraser`, `segment-eraser`, plus colour swatches and stroke-width buttons. Used in both the note editor and document viewer.
+- **`DocumentToolbar`** (`src/components/DocumentToolbar/`) — document-level tools: `select-region`. Used only in document viewers (`ViewerShell`).
+
+`UndoRedoBar` (`src/components/UndoRedoBar/`) is rendered alongside both toolbars in the document viewer; the note editor has no undo/redo bar.
 
 In `"hand"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s become clickable. In all drawing/erasing modes the SVG captures pointer events and region divs get `pointerEvents: none`. In `"select-region"` mode dragging produces a pending selection rectangle; a contextual menu then lets the user create a linked note. `"auto"` mode treats stylus input as `"pen"` and finger/touch as pan, detected at pointer-down time.
 
-Hardware barrel-button overrides (`getPenHwOverride`) fire `onHwOverrideChange` callbacks up to `Toolbar` so the overriding tool is highlighted in amber (`activeOverride` prop) without changing the selected `ToolMode`.
+Hardware barrel-button overrides (`getPenHwOverride`) fire `onHwOverrideChange` callbacks up to `CanvasToolbar` so the overriding tool is highlighted in amber (`activeOverride` prop) without changing the selected `ToolMode`.
 
 ### Keyboard shortcuts
 
 | Key | Scope | Action |
 |-----|-------|--------|
-| `A` | Toolbar | Auto tool |
-| `H` | Toolbar | Hand / pan tool |
-| `P` | Toolbar | Pen tool |
-| `E` | Toolbar | Stroke eraser |
-| `Shift+E` | Toolbar | Precision (segment) eraser |
-| `S` | Toolbar | Select-region tool |
 | `Escape` | Document viewers | Dismiss pending region selection |
 | `←` / `→` | Document viewers (`auto` mode only) | Previous / next page |
 | `Ctrl+Z` | Document viewers, note sections (hovered) | Undo last stroke |
