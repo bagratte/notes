@@ -25,31 +25,13 @@ const COLORS = [
   { value: "#1a1a1a", label: "Black" },
 ];
 
-const CANVAS_TOOLS: ToolMode[] = ["auto", "hand", "pen", "stroke-eraser", "segment-eraser"];
+const CANVAS_TOOLS: ToolMode[] = ["pen", "stroke-eraser", "segment-eraser"];
 
 const TOOL_TITLES: Record<string, string> = {
-  auto: "Auto — stylus draws, finger scrolls",
-  hand: "Hand / Pan",
   pen: "Pen",
   "stroke-eraser": "Stroke eraser",
   "segment-eraser": "Precision eraser",
 };
-
-function AutoIcon() {
-  return (
-    <text x="7" y="11" textAnchor="middle" fontSize="11" fontWeight="600" fill="currentColor" fontFamily="system-ui,-apple-system,sans-serif">A</text>
-  );
-}
-
-function HandIcon() {
-  return (
-    <>
-      <path d="M5.2 6.2V3.7a1 1 0 0 1 2 0v1.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-      <path d="M7.2 5.2V3a1 1 0 1 1 2 0v2.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-      <path d="M9.2 5.8V3.8a1 1 0 1 1 2 0v4.1c0 2.3-1.7 4.1-3.9 4.1H6.7c-1.8 0-3.2-1.4-3.2-3.2V6.7a1 1 0 1 1 2 0v1.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-    </>
-  );
-}
 
 function PenIcon() {
   return (
@@ -80,8 +62,6 @@ function SegmentEraserIcon() {
 }
 
 const TOOL_ICONS: Record<string, () => JSX.Element> = {
-  auto: AutoIcon,
-  hand: HandIcon,
   pen: PenIcon,
   "stroke-eraser": StrokeEraserIcon,
   "segment-eraser": SegmentEraserIcon,

@@ -26,7 +26,6 @@ export default function ViewerShell({
   error,
   toolMode,
   pen,
-  isPanning,
   windowRange,
   activeStrokes,
   activeRedo,
@@ -54,11 +53,6 @@ export default function ViewerShell({
   handleRegionComplete,
   handleRegionUpdate,
   handleRegionClick,
-  stopPointerPan,
-  handleScrollPointerDown,
-  handleScrollPointerMove,
-  handleScrollPointerUp,
-  handleScrollPointerCancel,
   zoomIn,
   zoomOut,
   undoInline,
@@ -157,16 +151,6 @@ export default function ViewerShell({
       <div
         ref={containerRef}
         className={css.scroll}
-        style={
-          toolMode === "hand"
-            ? { cursor: isPanning ? "grabbing" : "grab", userSelect: isPanning ? "none" : undefined }
-            : undefined
-        }
-        onPointerDown={handleScrollPointerDown}
-        onPointerMove={handleScrollPointerMove}
-        onPointerUp={handleScrollPointerUp}
-        onPointerCancel={handleScrollPointerCancel}
-        onLostPointerCapture={stopPointerPan}
       >
         {loading ? (
           <div className={css.state}>Loading...</div>

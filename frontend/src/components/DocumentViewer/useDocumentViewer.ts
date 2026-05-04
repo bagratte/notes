@@ -12,11 +12,9 @@ import {
   NaturalSize,
   PendingRegion,
   ViewportSize,
-  PanState,
   ZOOM_STEPS,
   WINDOW_BUFFER,
   PAGE_GUTTER,
-  PAN_DEADZONE_PX,
   PAGE_FALLBACK_WIDTH,
   PAGE_FALLBACK_HEIGHT,
   getDisplayScale,
@@ -48,7 +46,6 @@ export interface UseDocumentViewerResult {
   error: string | null;
   toolMode: ToolMode;
   pen: PenSettings;
-  isPanning: boolean;
   windowRange: { start: number; end: number };
   activeStrokes: Stroke[];
   activeRedo: Stroke[];
@@ -85,11 +82,6 @@ export interface UseDocumentViewerResult {
   handleRegionComplete: (page: number, rect: PendingRegion) => Promise<void>;
   handleRegionUpdate: (page: number, regionId: number, rect: PendingRegion) => Promise<void>;
   handleRegionClick: (region: EnrichedRegion) => void;
-  stopPointerPan: () => void;
-  handleScrollPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
-  handleScrollPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
-  handleScrollPointerUp: (e: React.PointerEvent<HTMLDivElement>) => void;
-  handleScrollPointerCancel: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
   prevPage: () => void;
@@ -124,7 +116,6 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
   const loadedRegionPagesRef = useRef<Set<number>>(new Set());
   const sectionNoteCacheRef = useRef<Map<number, number>>(new Map());
   const suppressScrollSyncRef = useRef(false);
-  const panStateRef = useRef<PanState | null>(null);
   const prevViewportRef = useRef<ViewportSize | null>(null);
   const prevZoomRef = useRef<{ fitMode: string; manualScale: number } | null>(null);
 
@@ -143,9 +134,8 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
   const [regionsByPage, setRegionsByPage] = useState<Record<number, EnrichedRegion[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toolMode, setToolMode] = useState<ToolMode>("auto");
+  const [toolMode, setToolMode] = useState<ToolMode>("pen");
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
-  const [isPanning, setIsPanning] = useState(false);
   const [windowRange, setWindowRange] = useState(() => {
     const target = Math.max(1, initialPage ?? 1);
     return { start: Math.max(1, target - WINDOW_BUFFER), end: target + WINDOW_BUFFER };
@@ -456,7 +446,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
 
     sectionNoteCacheRef.current.set(section.id, note.id);
     loadedRegionPagesRef.current.add(page);
-    setToolMode("hand");
+    setToolMode("select-region");
     window.dispatchEvent(new CustomEvent("sidebar:refresh"));
     navigate(`/notes/${note.id}`);
   }, [documentId, folderId, navigate]);
@@ -491,50 +481,6 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
   const handleRegionClick = useCallback((region: EnrichedRegion) => {
     navigate(`/notes/${region.note_id}`);
   }, [navigate]);
-
-  // ---------- pan ----------
-
-  const stopPointerPan = useCallback(() => {
-    if (panStateRef.current) { panStateRef.current = null; setIsPanning(false); }
-  }, []);
-
-  const handleScrollPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (toolMode !== "hand") return;
-    if (e.pointerType === "touch") return;
-    if (e.button !== 0) return;
-    panStateRef.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      startScrollLeft: e.currentTarget.scrollLeft,
-      startScrollTop: e.currentTarget.scrollTop,
-      isActive: false,
-    };
-  }, [toolMode]);
-
-  const handleScrollPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const pan = panStateRef.current;
-    if (!pan || pan.pointerId !== e.pointerId) return;
-    const dx = e.clientX - pan.startX;
-    const dy = e.clientY - pan.startY;
-    if (!pan.isActive) {
-      if (Math.hypot(dx, dy) < PAN_DEADZONE_PX) return;
-      pan.isActive = true;
-      e.currentTarget.setPointerCapture(e.pointerId);
-      setIsPanning(true);
-    }
-    e.currentTarget.scrollLeft = pan.startScrollLeft - dx;
-    e.currentTarget.scrollTop = pan.startScrollTop - dy;
-    e.preventDefault();
-  }, []);
-
-  const handleScrollPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const pan = panStateRef.current;
-    if (!pan || pan.pointerId !== e.pointerId) return;
-    stopPointerPan();
-  }, [stopPointerPan]);
-
-  const handleScrollPointerCancel = useCallback(() => { stopPointerPan(); }, [stopPointerPan]);
 
   // ---------- zoom ----------
 
@@ -626,9 +572,9 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
         if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undoInline(); return; }
         if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redoInline(); return; }
       }
-      if (e.key === "r" || e.key === "R") { setToolMode((m) => (m === "select-region" ? "auto" : "select-region")); return; }
-      if (e.key === "Escape") { setToolMode("auto"); return; }
-      if (toolMode !== "auto") return;
+      if (e.key === "r" || e.key === "R") { setToolMode((m) => (m === "select-region" ? "pen" : "select-region")); return; }
+      if (e.key === "Escape") { setToolMode("pen"); return; }
+      if (toolMode === "select-region") return;
       if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); prevPage(); }
       if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); nextPage(); }
     };
@@ -659,7 +605,6 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     error,
     toolMode,
     pen,
-    isPanning,
     windowRange,
     activeStrokes,
     activeRedo,
@@ -692,11 +637,6 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     handleRegionComplete,
     handleRegionUpdate,
     handleRegionClick,
-    stopPointerPan,
-    handleScrollPointerDown,
-    handleScrollPointerMove,
-    handleScrollPointerUp,
-    handleScrollPointerCancel,
     zoomIn,
     zoomOut,
     prevPage,

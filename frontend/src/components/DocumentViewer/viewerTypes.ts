@@ -26,19 +26,9 @@ export interface ViewportSize {
   height: number;
 }
 
-export interface PanState {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  startScrollLeft: number;
-  startScrollTop: number;
-  isActive: boolean;
-}
-
 export const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0];
 export const WINDOW_BUFFER = 2;
 export const PAGE_GUTTER = 16;
-export const PAN_DEADZONE_PX = 8;
 export const PAGE_FALLBACK_WIDTH = 900;
 export const PAGE_FALLBACK_HEIGHT = 1200;
 

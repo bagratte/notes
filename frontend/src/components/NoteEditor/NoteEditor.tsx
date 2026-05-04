@@ -13,7 +13,7 @@ export default function NoteEditor({ noteId }: Props) {
   const [sectionList, setSectionList] = useState<Section[]>([]);
   const [adding, setAdding] = useState(false);
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
-  const [tool, setTool] = useState<ToolMode>("auto");
+  const [tool, setTool] = useState<ToolMode>("pen");
   const [hwOverride, setHwOverride] = useState<"stroke-eraser" | "segment-eraser" | null>(null);
 
   useEffect(() => {
@@ -66,7 +66,6 @@ export default function NoteEditor({ noteId }: Props) {
           sectionId={section.id}
           initialHeight={section.height}
           pen={pen}
-          inputEnabled={tool !== "hand"}
           eraserMode={tool === "stroke-eraser"}
           segmentEraserMode={tool === "segment-eraser"}
           onHwOverrideChange={setHwOverride}

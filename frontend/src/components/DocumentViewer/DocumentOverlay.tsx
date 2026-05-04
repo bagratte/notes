@@ -249,7 +249,7 @@ export default function DocumentOverlay({
   }, [clearTouchPress]);
 
   useEffect(() => {
-    if (mode === "hand") return;
+    if (mode === "select-region") return;
     clearTouchPress();
     resizeStateRef.current = null;
     setHoveredRegionId(null);
@@ -394,14 +394,14 @@ export default function DocumentOverlay({
       setPendingSelection(null);
       return;
     }
-    if (mode !== "hand" || editingRegionId === null) return;
+    if (mode !== "select-region" || editingRegionId === null) return;
     if (e.target === e.currentTarget) {
       setEditingRegionId(null);
     }
   }, [editingRegionId, mode, pendingSelection]);
 
   const handleRegionPointerDown = useCallback((region: EnrichedRegion, e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode !== "hand" || onRegionUpdate === undefined || e.pointerType !== "touch") return;
+    if (mode !== "select-region" || onRegionUpdate === undefined || e.pointerType !== "touch") return;
     clearTouchPress();
     const timerId = window.setTimeout(() => {
       touchPressRef.current = null;
@@ -453,18 +453,18 @@ export default function DocumentOverlay({
   }, [editingRegionId, onRegionClick]);
 
   const handleRegionPointerEnter = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode !== "hand" || onRegionUpdate === undefined || e.pointerType === "touch") return;
+    if (mode !== "select-region" || onRegionUpdate === undefined || e.pointerType === "touch") return;
     setHoveredRegionId(regionId);
   }, [mode, onRegionUpdate]);
 
   const handleRegionPointerLeave = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode !== "hand" || onRegionUpdate === undefined || e.pointerType === "touch") return;
+    if (mode !== "select-region" || onRegionUpdate === undefined || e.pointerType === "touch") return;
     setHoveredRegionId((current) => (current === regionId ? null : current));
   }, [mode, onRegionUpdate]);
 
   const handleResizePointerDown = useCallback(
     (region: EnrichedRegion, handle: ResizeHandle, e: React.PointerEvent<HTMLDivElement>) => {
-      if (mode !== "hand" || naturalSize === undefined || onRegionUpdate === undefined) return;
+      if (mode !== "select-region" || naturalSize === undefined || onRegionUpdate === undefined) return;
       e.preventDefault();
       e.stopPropagation();
       clearTouchPress();
@@ -523,7 +523,6 @@ export default function DocumentOverlay({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       setActivePointerType(e.pointerType);
-      if (mode === "hand") return;
       if (fingerScrollsRef.current && e.pointerType === "touch") return;
       if (palmRejectionRef.current && e.pointerType === "touch" &&
           (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
@@ -537,7 +536,7 @@ export default function DocumentOverlay({
       reportHwOverride(hwOverride);
       const effectiveMode = hwOverride ?? mode;
       effectiveModeRef.current = effectiveMode;
-      if (effectiveMode === "pen" || effectiveMode === "auto") {
+      if (effectiveMode === "pen") {
         livePointsRef.current = [pt];
         updateLivePath(livePointsRef.current);
       } else if (effectiveMode === "stroke-eraser") {
@@ -572,7 +571,7 @@ export default function DocumentOverlay({
       if (!drawing.current) return;
       if (fingerScrollsRef.current && e.pointerType === "touch") return;
       e.preventDefault();
-      if (effectiveMode === "pen" || effectiveMode === "auto") {
+      if (effectiveMode === "pen") {
         const coalescedEvents =
           (e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? [e.nativeEvent as PointerEvent];
         const toSvgCoords = getSvgTransform();
@@ -605,7 +604,7 @@ export default function DocumentOverlay({
     drawing.current = false;
 
     const effectiveMode = effectiveModeRef.current;
-    if (effectiveMode === "pen" || effectiveMode === "auto") {
+    if (effectiveMode === "pen") {
       const pts = livePointsRef.current;
       if (pts.length > 0) {
         onStrokeCompleteRef.current?.({ points: [...pts], color: colorRef.current, width: penWidthRef.current });
@@ -657,7 +656,6 @@ export default function DocumentOverlay({
         }
       : null;
 
-  const active = mode !== "hand";
   return (
     <div
       ref={overlayRef}
@@ -674,7 +672,7 @@ export default function DocumentOverlay({
             width: r.width,
             height: r.height,
           };
-          const showHandles = mode === "hand" && onRegionUpdate !== undefined && (editingRegionId === r.id || hoveredRegionId === r.id);
+          const showHandles = mode === "select-region" && onRegionUpdate !== undefined && (editingRegionId === r.id || hoveredRegionId === r.id);
           const isEditing = editingRegionId === r.id;
           const handleDescriptors: Array<{ key: ResizeHandle; left: string; top: string; cursor: string }> = [
             { key: "nw", left: "0%", top: "0%", cursor: "nwse-resize" },
@@ -704,8 +702,8 @@ export default function DocumentOverlay({
                 border: isEditing ? "2px solid rgba(74, 108, 247, 0.9)" : "1.5px solid rgba(74, 108, 247, 0.55)",
                 borderRadius: 2,
                 boxSizing: "border-box",
-                cursor: mode === "hand" ? "pointer" : "default",
-                pointerEvents: mode === "hand" ? "auto" : "none",
+                cursor: mode === "select-region" ? "pointer" : "default",
+                pointerEvents: mode === "select-region" ? "auto" : "none",
                 zIndex: isEditing ? 3 : 1,
                 transition: "background 0.15s, border 0.15s, box-shadow 0.15s",
                 boxShadow: isEditing ? "0 0 0 2px rgba(255, 255, 255, 0.9) inset" : undefined,
@@ -817,10 +815,10 @@ export default function DocumentOverlay({
           width: "100%",
           height: "100%",
           display: "block",
-          touchAction: active && !ds.fingerScrolls ? "none" : "auto",
-          pointerEvents: (pendingSelection === null && active) ? "all" : "none",
+          touchAction: !ds.fingerScrolls ? "none" : "auto",
+          pointerEvents: pendingSelection === null ? "all" : "none",
           cursor:
-            (effectiveModeRef.current === "pen" || effectiveModeRef.current === "auto") ? (activePointerType === "pen" ? "none" : "default") : effectiveModeRef.current === "select-region" ? "crosshair" : effectiveModeRef.current === "stroke-eraser" ? "cell" : effectiveModeRef.current === "segment-eraser" ? "none" : "default",
+            effectiveModeRef.current === "pen" ? (activePointerType === "pen" ? "none" : "default") : effectiveModeRef.current === "select-region" ? "crosshair" : effectiveModeRef.current === "stroke-eraser" ? "cell" : effectiveModeRef.current === "segment-eraser" ? "none" : "default",
         }}
         onPointerEnter={(e) => setActivePointerType(e.pointerType)}
         onPointerDown={handlePointerDown}
