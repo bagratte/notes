@@ -155,6 +155,7 @@ export default function DocumentOverlay({
   const [hoveredRegionId, setHoveredRegionId] = useState<number | null>(null);
   const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
   const [regionDrafts, setRegionDrafts] = useState<Record<number, DragRect>>({});
+  const [regionMenu, setRegionMenu] = useState<{ region: EnrichedRegion; x: number; y: number } | null>(null);
   const { settings: ds } = useDrawingSettings();
   const drawing = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -255,6 +256,7 @@ export default function DocumentOverlay({
     setHoveredRegionId(null);
     setEditingRegionId(null);
     setRegionDrafts({});
+    setRegionMenu(null);
     suppressRegionClickRef.current = null;
   }, [clearTouchPress, mode]);
 
@@ -402,7 +404,7 @@ export default function DocumentOverlay({
     const timerId = window.setTimeout(() => {
       touchPressRef.current = null;
       suppressRegionClickRef.current = region.id;
-      setEditingRegionId(region.id);
+      setRegionMenu({ region, x: e.clientX, y: e.clientY });
     }, REGION_LONG_PRESS_MS);
 
     touchPressRef.current = {
@@ -679,6 +681,7 @@ export default function DocumentOverlay({
             <div
               key={r.id}
               onClick={(e) => handleRegionClick(r, e)}
+              onContextMenu={(e) => { e.preventDefault(); if (mode === "select-region") setRegionMenu({ region: r, x: e.clientX, y: e.clientY }); }}
               onPointerDown={(e) => handleRegionPointerDown(r, e)}
               onPointerMove={(e) => handleRegionPointerMove(r.id, e)}
               onPointerUp={(e) => handleRegionPointerUp(r.id, e)}
@@ -795,6 +798,59 @@ export default function DocumentOverlay({
             >
               Create Note
             </button>
+          </div>
+        </>
+      )}
+
+      {/* Region contextual menu — long press (touch) or right-click (mouse) */}
+      {regionMenu && (
+        <>
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 1000 }}
+            onPointerDown={() => setRegionMenu(null)}
+          />
+          <div
+            style={{
+              position: "fixed",
+              left: regionMenu.x,
+              top: regionMenu.y,
+              zIndex: 1001,
+              background: "#fff",
+              border: "1px solid #e0dbd3",
+              borderRadius: 8,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              overflow: "hidden",
+              minWidth: 140,
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {(["Open Note", "Resize Region"] as const).map((label) => (
+              <button
+                key={label}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "10px 16px",
+                  background: "none",
+                  border: "none",
+                  textAlign: "left",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  color: "#2a2a2a",
+                  whiteSpace: "nowrap",
+                }}
+                onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+                onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                onClick={() => {
+                  const { region } = regionMenu;
+                  setRegionMenu(null);
+                  if (label === "Open Note") onRegionClick?.(region);
+                  else setEditingRegionId(region.id);
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </>
       )}
