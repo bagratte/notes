@@ -255,10 +255,12 @@ export default function DrawingCanvas({
         markPenContextMenuSuppressed(e.pointerType);
       // Fix 1: barrel-button press during hover fires pointerdown but tip is not in contact.
       // Skip starting a stroke for any non-tip button; still update toolbar override.
-      if (e.pointerType === "pen" && e.button !== 0) {
-        const hw = getPenHwOverride(e);
-        if (hw) barrelHeldRef.current = hw;
-        reportHwOverride(hw);
+      if (e.button !== 0) {
+        if (e.pointerType === "pen") {
+          const hw = getPenHwOverride(e);
+          if (hw) barrelHeldRef.current = hw;
+          reportHwOverride(hw);
+        }
         return;
       }
       e.currentTarget.setPointerCapture(e.pointerId);
