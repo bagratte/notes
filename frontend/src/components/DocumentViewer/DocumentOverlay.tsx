@@ -390,15 +390,11 @@ export default function DocumentOverlay({
   }, []);
 
   const handleOverlayPointerDownCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (pendingSelection) {
-      setPendingSelection(null);
-      return;
-    }
     if (mode !== "select-region" || editingRegionId === null) return;
     if (e.target === e.currentTarget) {
       setEditingRegionId(null);
     }
-  }, [editingRegionId, mode, pendingSelection]);
+  }, [editingRegionId, mode]);
 
   const handleRegionPointerDown = useCallback((region: EnrichedRegion, e: React.PointerEvent<HTMLDivElement>) => {
     if (mode !== "select-region" || onRegionUpdate === undefined || e.pointerType !== "touch") return;
