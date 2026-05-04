@@ -152,7 +152,6 @@ export default function DocumentOverlay({
   const [activePointerType, setActivePointerType] = useState<string | null>(null);
   const [erasePreview, setErasePreview] = useState<Map<number, StrokeData[]>>(new Map());
   const [eraserPos, setEraserPos] = useState<[number, number] | null>(null);
-  const [hoveredRegionId, setHoveredRegionId] = useState<number | null>(null);
   const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
   const [regionDrafts, setRegionDrafts] = useState<Record<number, DragRect>>({});
   const [regionMenu, setRegionMenu] = useState<{ region: EnrichedRegion; x: number; y: number } | null>(null);
@@ -253,7 +252,6 @@ export default function DocumentOverlay({
     if (mode === "select-region") return;
     clearTouchPress();
     resizeStateRef.current = null;
-    setHoveredRegionId(null);
     setEditingRegionId(null);
     setRegionDrafts({});
     setRegionMenu(null);
@@ -449,16 +447,6 @@ export default function DocumentOverlay({
 
     onRegionClick?.(region);
   }, [editingRegionId, onRegionClick]);
-
-  const handleRegionPointerEnter = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode !== "select-region" || onRegionUpdate === undefined || e.pointerType === "touch") return;
-    setHoveredRegionId(regionId);
-  }, [mode, onRegionUpdate]);
-
-  const handleRegionPointerLeave = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode !== "select-region" || onRegionUpdate === undefined || e.pointerType === "touch") return;
-    setHoveredRegionId((current) => (current === regionId ? null : current));
-  }, [mode, onRegionUpdate]);
 
   const handleResizePointerDown = useCallback(
     (region: EnrichedRegion, handle: ResizeHandle, e: React.PointerEvent<HTMLDivElement>) => {
@@ -668,7 +656,7 @@ export default function DocumentOverlay({
             width: r.width,
             height: r.height,
           };
-          const showHandles = mode === "select-region" && onRegionUpdate !== undefined && (editingRegionId === r.id || hoveredRegionId === r.id);
+          const showHandles = mode === "select-region" && onRegionUpdate !== undefined && editingRegionId === r.id;
           const isEditing = editingRegionId === r.id;
           const handleDescriptors: Array<{ key: ResizeHandle; left: string; top: string; cursor: string }> = [
             { key: "nw", left: "0%", top: "0%", cursor: "nwse-resize" },
@@ -686,8 +674,6 @@ export default function DocumentOverlay({
               onPointerMove={(e) => handleRegionPointerMove(r.id, e)}
               onPointerUp={(e) => handleRegionPointerUp(r.id, e)}
               onPointerCancel={(e) => handleRegionPointerUp(r.id, e)}
-              onPointerEnter={(e) => handleRegionPointerEnter(r.id, e)}
-              onPointerLeave={(e) => handleRegionPointerLeave(r.id, e)}
               title={showHandles ? "Drag a corner handle to resize" : "Open linked note"}
               style={{
                 position: "absolute",
