@@ -74,7 +74,7 @@ export default function DrawingCanvas({
   const strokePathCache = useRef<Map<number | StrokeData, { points: StrokeData["points"]; d: string }>>(new Map());
   const canvasScaleRef = useRef(1);
   const suppressContextMenuUntilRef = useRef(0);
-  const effectiveModeRef = useRef<"annotate" | "stroke-eraser" | "segment-eraser">("annotate");
+  const effectiveModeRef = useRef<"pen" | "stroke-eraser" | "segment-eraser">("pen");
 
   const lastHwOverrideRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
   const onHwOverrideChangeRef = useRef(onHwOverrideChange);
@@ -259,7 +259,7 @@ export default function DrawingCanvas({
       drawing.current = true;
       const hwOverride = getPenHwOverride(e);
       reportHwOverride(hwOverride);
-      const effectiveMode = hwOverride ?? (segmentEraserMode ? "segment-eraser" : eraserMode ? "stroke-eraser" : "annotate");
+      const effectiveMode = hwOverride ?? (segmentEraserMode ? "segment-eraser" : eraserMode ? "stroke-eraser" : "pen");
       effectiveModeRef.current = effectiveMode;
       if (effectiveMode === "segment-eraser") {
         setErasePreview(new Map());
@@ -282,7 +282,7 @@ export default function DrawingCanvas({
       markPenContextMenuSuppressed(e.pointerType);
       const hwOverride = getPenHwOverride(e);
       reportHwOverride(hwOverride);
-      const baseMode = segmentEraserMode ? "segment-eraser" : eraserMode ? "stroke-eraser" : "annotate";
+      const baseMode = segmentEraserMode ? "segment-eraser" : eraserMode ? "stroke-eraser" : "pen";
       const effectiveMode = drawing.current ? effectiveModeRef.current : hwOverride ?? baseMode;
       effectiveModeRef.current = effectiveMode;
       if (effectiveMode === "segment-eraser") {
