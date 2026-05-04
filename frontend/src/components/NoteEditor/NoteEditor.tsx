@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { sections as sectionsApi } from "@/api";
-import type { Section, ToolMode } from "@/types";
+import type { Section, ToolMode, ActiveLayer } from "@/types";
 import SectionCanvas from "./SectionCanvas";
 import { CanvasToolbar, DEFAULT_PEN } from "@/components/CanvasToolbar";
 import type { PenSettings } from "@/components/CanvasToolbar";
@@ -15,6 +15,7 @@ export default function NoteEditor({ noteId }: Props) {
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
   const [tool, setTool] = useState<ToolMode>("pen");
   const [hwOverride, setHwOverride] = useState<"stroke-eraser" | "segment-eraser" | null>(null);
+  const [activeLayer, setActiveLayer] = useState<ActiveLayer>(null);
 
   useEffect(() => {
     sectionsApi.list(noteId).then(setSectionList);
@@ -40,6 +41,8 @@ export default function NoteEditor({ noteId }: Props) {
         tool={tool}
         onToolChange={setTool}
         activeOverride={hwOverride}
+        activeLayer={activeLayer}
+        onActiveLayerChange={setActiveLayer}
       />
 
       {sectionList.length === 0 && (
@@ -66,6 +69,7 @@ export default function NoteEditor({ noteId }: Props) {
           sectionId={section.id}
           initialHeight={section.height}
           pen={pen}
+          inputEnabled={activeLayer === "canvas"}
           eraserMode={tool === "stroke-eraser"}
           segmentEraserMode={tool === "segment-eraser"}
           onHwOverrideChange={setHwOverride}

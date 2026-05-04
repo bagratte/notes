@@ -3,7 +3,7 @@ import { getStroke } from "perfect-freehand";
 import { svgPathFromStroke } from "@/components/Canvas/utils";
 import { eraseFromStroke } from "@/components/Canvas/eraserUtils";
 import type { StrokeData } from "@/components/Canvas";
-import type { Region, ToolMode } from "@/types";
+import type { Region, ToolMode, ActiveLayer } from "@/types";
 import { useDrawingSettings } from "@/context/DrawingSettings";
 
 export interface EnrichedRegion extends Region {
@@ -33,6 +33,7 @@ interface Props {
   onSegmentErase?: (deleted: number[], created: StrokeData[]) => void;
   onHwOverrideChange?: (o: "stroke-eraser" | "segment-eraser" | null) => void;
   mode: ToolMode;
+  activeLayer: ActiveLayer;
   viewBox?: string;
   naturalSize?: NaturalSize;
   color?: string;
@@ -137,6 +138,7 @@ export default function DocumentOverlay({
   onSegmentErase,
   onHwOverrideChange,
   mode,
+  activeLayer,
   viewBox,
   naturalSize,
   color = "#000000",
@@ -698,8 +700,8 @@ export default function DocumentOverlay({
                 border: isEditing ? "2px solid rgba(74, 108, 247, 0.9)" : "1.5px solid rgba(74, 108, 247, 0.55)",
                 borderRadius: 2,
                 boxSizing: "border-box",
-                cursor: mode === "select-region" ? "pointer" : "default",
-                pointerEvents: mode === "select-region" ? "auto" : "none",
+                cursor: activeLayer === "document" && mode === "select-region" ? "pointer" : "default",
+                pointerEvents: activeLayer === "document" && mode === "select-region" ? "auto" : "none",
                 zIndex: isEditing ? 3 : 1,
                 transition: "background 0.15s, border 0.15s, box-shadow 0.15s",
                 boxShadow: isEditing ? "0 0 0 2px rgba(255, 255, 255, 0.9) inset" : undefined,
@@ -811,8 +813,8 @@ export default function DocumentOverlay({
           width: "100%",
           height: "100%",
           display: "block",
-          touchAction: "none",
-          pointerEvents: pendingSelection === null ? "all" : "none",
+          touchAction: activeLayer === "canvas" || (activeLayer === "document" && mode === "select-region") ? "none" : "auto",
+          pointerEvents: (activeLayer === "canvas" || (activeLayer === "document" && mode === "select-region")) && pendingSelection === null ? "all" : "none",
           cursor:
             effectiveModeRef.current === "pen" ? (activePointerType === "pen" ? "none" : "default") : effectiveModeRef.current === "select-region" ? "crosshair" : effectiveModeRef.current === "stroke-eraser" ? "cell" : effectiveModeRef.current === "segment-eraser" ? "none" : "default",
         }}

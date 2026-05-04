@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import type { EnrichedRegion } from "./DocumentOverlay";
-import type { ToolMode } from "@/types";
+import type { ToolMode, ActiveLayer } from "@/types";
 import type { StrokeData } from "@/components/Canvas";
 import { DEFAULT_PEN } from "@/components/CanvasToolbar";
 import type { PenSettings } from "@/components/CanvasToolbar";
@@ -44,8 +44,10 @@ export interface UseDocumentViewerResult {
   regionsByPage: Record<number, EnrichedRegion[]>;
   loading: boolean;
   error: string | null;
-  toolMode: ToolMode;
+  canvasTool: ToolMode;
+  documentTool: ToolMode;
   pen: PenSettings;
+  activeLayer: ActiveLayer;
   windowRange: { start: number; end: number };
   activeStrokes: Stroke[];
   activeRedo: Stroke[];
@@ -63,7 +65,9 @@ export interface UseDocumentViewerResult {
   setFitMode: React.Dispatch<React.SetStateAction<"width" | "page" | "manual">>;
   setFitPopoverOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setManualScale: React.Dispatch<React.SetStateAction<number>>;
-  setToolMode: React.Dispatch<React.SetStateAction<ToolMode>>;
+  setCanvasTool: React.Dispatch<React.SetStateAction<ToolMode>>;
+  setDocumentTool: React.Dispatch<React.SetStateAction<ToolMode>>;
+  setActiveLayer: React.Dispatch<React.SetStateAction<ActiveLayer>>;
   setPageInput: React.Dispatch<React.SetStateAction<string>>;
 
   // computed / callbacks
@@ -134,8 +138,10 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
   const [regionsByPage, setRegionsByPage] = useState<Record<number, EnrichedRegion[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toolMode, setToolMode] = useState<ToolMode>("pen");
+  const [canvasTool, setCanvasTool] = useState<ToolMode>("pen");
+  const [documentTool, setDocumentTool] = useState<ToolMode>("select-region");
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
+  const [activeLayer, setActiveLayer] = useState<ActiveLayer>(null);
   const [windowRange, setWindowRange] = useState(() => {
     const target = Math.max(1, initialPage ?? 1);
     return { start: Math.max(1, target - WINDOW_BUFFER), end: target + WINDOW_BUFFER };
@@ -446,7 +452,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
 
     sectionNoteCacheRef.current.set(section.id, note.id);
     loadedRegionPagesRef.current.add(page);
-    setToolMode("select-region");
+    setDocumentTool("select-region");
     window.dispatchEvent(new CustomEvent("sidebar:refresh"));
     navigate(`/notes/${note.id}`);
   }, [documentId, folderId, navigate]);
@@ -564,23 +570,6 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     window.requestAnimationFrame(() => { scrollToPage(target, "auto"); });
   }, [numPages, initialPage, scrollToPage]);
 
-  // keyboard shortcuts
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      if (mod) {
-        if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undoInline(); return; }
-        if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redoInline(); return; }
-      }
-      if (e.key === "r" || e.key === "R") { setToolMode((m) => (m === "select-region" ? "pen" : "select-region")); return; }
-      if (e.key === "Escape") { setToolMode("pen"); return; }
-      if (toolMode === "select-region") return;
-      if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); prevPage(); }
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); nextPage(); }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [toolMode, undoInline, redoInline, prevPage, nextPage]);
 
   return {
     containerRef,
@@ -603,8 +592,10 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     regionsByPage,
     loading,
     error,
-    toolMode,
+    canvasTool,
+    documentTool,
     pen,
+    activeLayer,
     windowRange,
     activeStrokes,
     activeRedo,
@@ -620,7 +611,9 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     setFitMode,
     setFitPopoverOpen,
     setManualScale,
-    setToolMode,
+    setCanvasTool,
+    setDocumentTool,
+    setActiveLayer,
     setPageInput,
     getPageNaturalSize,
     getPageDisplaySize,

@@ -24,8 +24,10 @@ export default function ViewerShell({
   manualScale,
   loading,
   error,
-  toolMode,
+  canvasTool,
+  documentTool,
   pen,
+  activeLayer,
   windowRange,
   activeStrokes,
   activeRedo,
@@ -36,7 +38,9 @@ export default function ViewerShell({
   setFitMode,
   setFitPopoverOpen,
   setManualScale,
-  setToolMode,
+  setCanvasTool,
+  setDocumentTool,
+  setActiveLayer,
   setPen,
   // refs
   containerRef,
@@ -126,16 +130,20 @@ export default function ViewerShell({
         <CanvasToolbar
           settings={pen}
           onChange={setPen}
-          tool={toolMode}
-          onToolChange={setToolMode}
+          tool={canvasTool}
+          onToolChange={setCanvasTool}
           activeOverride={hwOverride}
+          activeLayer={activeLayer}
+          onActiveLayerChange={setActiveLayer}
         />
 
         <div className={css.toolbarSep} />
 
         <DocumentToolbar
-          tool={toolMode}
-          onToolChange={setToolMode}
+          tool={documentTool}
+          onToolChange={setDocumentTool}
+          activeLayer={activeLayer}
+          onActiveLayerChange={setActiveLayer}
         />
 
         <div className={css.toolbarSep} />
@@ -194,7 +202,8 @@ export default function ViewerShell({
                           onRegionUpdate={(regionId, rect) => handleRegionUpdate(page, regionId, rect)}
                           onRegionClick={handleRegionClick}
                           onHwOverrideChange={setHwOverride}
-                          mode={toolMode}
+                          activeLayer={activeLayer}
+                          mode={activeLayer === "document" ? documentTool : canvasTool}
                           viewBox={viewBox}
                           naturalSize={natural}
                           color={pen.color}

@@ -44,3 +44,8 @@
 .toolBtn:hover { border-color: #aaa; }
 .toolBtn.active { border-color: #4a6cf7; background: #f0f2ff; color: #4a6cf7; }
 .toolBtn.override { border-color: #e08000; background: #fff8ec; color: #e08000; }
+
+.toolbar.inactive > *:not(:first-child) {
+  opacity: 0.35;
+  pointer-events: none;
+}

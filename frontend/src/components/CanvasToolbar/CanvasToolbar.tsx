@@ -1,4 +1,4 @@
-import type { ToolMode } from "@/types";
+import type { ToolMode, ActiveLayer } from "@/types";
 import css from "./Toolbar.module.css";
 
 export interface PenSettings {
@@ -67,12 +67,15 @@ const TOOL_ICONS: Record<string, () => JSX.Element> = {
   "segment-eraser": SegmentEraserIcon,
 };
 
+
 interface Props {
   settings: PenSettings;
   onChange: (s: PenSettings) => void;
   tool: ToolMode;
   onToolChange: (t: ToolMode) => void;
   activeOverride?: "stroke-eraser" | "segment-eraser" | null;
+  activeLayer: ActiveLayer;
+  onActiveLayerChange: (l: ActiveLayer) => void;
 }
 
 export default function CanvasToolbar({
@@ -81,9 +84,21 @@ export default function CanvasToolbar({
   tool,
   onToolChange,
   activeOverride = null,
+  activeLayer,
+  onActiveLayerChange,
 }: Props) {
   return (
-    <div className={css.toolbar}>
+    <div className={`${css.toolbar}${activeLayer !== "canvas" ? " " + css.inactive : ""}`}>
+      <button
+        className={`${css.toolBtn}${activeLayer === "canvas" ? " " + css.active : ""}`}
+        title="Capture input"
+        onClick={() => onActiveLayerChange(activeLayer === "canvas" ? null : "canvas")}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5"/>
+          {activeLayer === "canvas" && <circle cx="7" cy="7" r="2.5" fill="currentColor"/>}
+        </svg>
+      </button>
       {CANVAS_TOOLS.map((t) => {
         const Icon = TOOL_ICONS[t];
         const isOverride = activeOverride === t;

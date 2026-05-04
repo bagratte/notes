@@ -1,4 +1,5 @@
 export type ToolMode = "pen" | "stroke-eraser" | "segment-eraser" | "select-region";
+export type ActiveLayer = "canvas" | "document" | null;
 
 export interface Folder {
   id: number;
