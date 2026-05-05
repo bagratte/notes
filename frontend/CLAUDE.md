@@ -24,7 +24,7 @@ The app targets **touch-only devices** (tablets, iPads) as the primary platform:
 
 ### Routing
 
-Three routes, all nested under `AppLayout` (sidebar + `<Outlet />`):
+Four routes, all nested under `AppLayout` (sidebar + `<Outlet />`):
 
 | Route | Page | Purpose |
 |-------|------|---------|
@@ -74,7 +74,9 @@ Both drawing components read these via refs (same pattern as `colorRef`/`penWidt
 
 ### Undo / redo
 
-`SectionCanvas` and both document viewers maintain a local `Stroke[]` array with IDs (returned by `strokes.create`). Undo calls `strokesApi.delete(last.id)` and pushes to a `redoStack`; redo re-calls `strokesApi.create` and stores the new ID. A new stroke clears the redo stack. The `_redoStack` variable uses the `_` prefix because it is only read via the functional form of `setRedoStack`; TypeScript's `noUnusedLocals` would otherwise reject it.
+Document viewers maintain a per-page `Stroke[]` array with IDs (returned by `strokes.create`). Undo calls `strokesApi.delete(last.id)` and pushes to a `redoStack`; redo re-calls `strokesApi.create` and stores the new ID. A new stroke clears the redo stack.
+
+Note editors use a **global cross-section stack** in `NoteEditor`: `undoStack` and `redoStack` hold `{ sectionId, stroke }` entries. `NoteEditor` passes `undoPending`/`redoPending` props down to the relevant `SectionCanvas`, which performs the actual API calls and reports the result back via `onUndoComplete`/`onRedoComplete` callbacks. This mirrors the per-page pattern in document viewers but lifted one level up so the toolbar undo/redo buttons span all sections.
 
 ### DjVu global
 
@@ -85,6 +87,10 @@ Both drawing components read these via refs (same pattern as `colorRef`/`penWidt
 The backend `Region` type has `section_id` but not `note_id`. The document viewers enrich regions at load time by fetching each section (`sectionsApi.get(r.section_id)`) to obtain its `note_id`, producing the frontend-only `EnrichedRegion` type (`DocumentOverlay.tsx`). This is a parallel `Promise.all` fetch, not a backend join.
 
 When `RegionLinkModal` confirms a link it first calls `sectionsApi.create` to add a new section to the target note, then `regionsApi.create` linking that section to the drawn rectangle. Navigating to the note after linking is intentional — the new section needs to be visible immediately.
+
+### Region context menu
+
+Clicking a region navigates to its linked note. Long-pressing on touch or right-clicking opens a fixed-position context menu with **Open Note** and **Resize Region** options. Resize handles only appear after the user explicitly enters edit mode via this menu — there are no hover-activated handles. `suppressRegionClickRef` prevents a click event from firing after a long-press that opened the menu.
 
 ### Document viewer architecture
 
@@ -105,7 +111,9 @@ The key design constraint: PDF preloads natural sizes asynchronously before sett
 
 The unified `Toolbar` component (`src/components/Toolbar/`) renders tool buttons, colour swatches, and stroke-width buttons. `availableTools: ToolMode[]` controls which tools appear — notes omit `select-region`, document viewers include all six. `UndoRedoBar` (`src/components/UndoRedoBar/`) is a separate component rendered alongside `Toolbar` in both contexts.
 
-In `"hand"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s become clickable. In all drawing/erasing modes the SVG captures pointer events and region divs get `pointerEvents: none`. In `"select-region"` mode dragging produces a pending selection rectangle; a contextual menu then lets the user create a linked note. `"auto"` mode treats stylus input as `"pen"` and finger/touch as pan, detected at pointer-down time.
+In `"hand"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s become clickable. In all drawing/erasing modes the SVG captures pointer events and region divs get `pointerEvents: none`. In `"select-region"` mode dragging produces a pending selection rectangle; a contextual menu then lets the user create a linked note.
+
+`"auto"` mode routes input by pointer type at the SVG level: the SVG handler returns early for any non-pen input, leaving finger/mouse events to fall through to region divs (which have `pointerEvents: auto` in auto mode). When a stylus hits a region div, `handleRegionPointerDown` transfers pointer capture to the SVG and starts a stroke directly — this avoids the race condition of updating React state before `pointermove` fires.
 
 Hardware barrel-button overrides (`getPenHwOverride`) fire `onHwOverrideChange` callbacks up to `Toolbar` so the overriding tool is highlighted in amber (`activeOverride` prop) without changing the selected `ToolMode`.
 

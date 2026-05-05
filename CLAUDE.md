@@ -19,9 +19,11 @@ See `frontend/CLAUDE.md` for frontend-specific guidance.
 python -m venv .venv          # first time only
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env          # then set DATABASE_URL
+cp .env.example .env          # then set DATABASE_URL and DOCUMENT_ROOT
 uvicorn app.main:app --reload --port 8000
 ```
+
+Both env vars have defaults if unset: `DATABASE_URL` falls back to `backend/notes.db`; `DOCUMENT_ROOT` falls back to `backend/uploads/`.
 
 **Frontend** — from `frontend/`:
 ```sh
@@ -111,7 +113,15 @@ The strokes router has two delete endpoints that are easy to confuse:
 | POST | `/strokes/batch` | bulk create |
 | DELETE | `/strokes/{id}` | per-stroke delete |
 | DELETE | `/strokes/` | bulk delete by section or page |
+| GET | `/sections/` | requires `note_id`; ordered by `order` |
+| POST | `/sections/` | create section (`note_id`, `order`) |
+| GET/PATCH/DELETE | `/sections/{id}` | PATCH updates `height` only |
+| POST | `/sections/reorder` | body: `{ section_ids: number[] }` — sets order by array index |
 | GET/POST | `/regions/` | filter by `document_id`, `page_number`, `section_id` |
+| PATCH | `/regions/{id}` | partial update of geometry fields |
+| DELETE | `/regions/{id}` | delete a region |
+| GET | `/notes/` | optional filters: `folder_id`, `document_id` (returns notes linked via regions) |
+| POST | `/notes/{id}/merge` | body: `{ target_note_id }` — moves all sections, deletes source note |
 | POST | `/documents/` | multipart: optional `folder_id` + `name` + `file` |
 | GET | `/documents/{id}/file` | serves the raw file from disk |
 
@@ -131,4 +141,4 @@ The app targets **touch-only devices** (tablets, iPads) as the primary platform.
 - Drawing is SVG-based using `perfect-freehand`; strokes stored in natural page coordinates
 - DjVu.js loaded as a pre-built IIFE global (`public/djvu.js`) — not importable as a module
 
-See `frontend/CLAUDE.md` for the coordinate system, undo/redo design, tool modes, and keyboard shortcuts.
+See `frontend/CLAUDE.md` for the coordinate system, undo/redo design, tool modes, and region interaction.
