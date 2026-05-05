@@ -77,6 +77,7 @@ export default function DrawingCanvas({
   const effectiveModeRef = useRef<"pen" | "stroke-eraser" | "segment-eraser">("pen");
 
   const lastHwOverrideRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
+  const barrelHeldRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
   const onHwOverrideChangeRef = useRef(onHwOverrideChange);
   useEffect(() => { onHwOverrideChangeRef.current = onHwOverrideChange; }, [onHwOverrideChange]);
 
@@ -253,11 +254,22 @@ export default function DrawingCanvas({
       if (fingerScrollsRef.current && e.pointerType === "touch") return;
       if (palmRejectionRef.current && e.pointerType === "touch" &&
           (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
+      if (e.button !== 0 && e.pointerType !== "pen") return;
       e.preventDefault();
         markPenContextMenuSuppressed(e.pointerType);
+      // Barrel press during hover fires pointerdown but tip is not contacting.
+      // Update toolbar override without starting a stroke.
+      if (e.pointerType === "pen" && e.button !== 0) {
+        const hw = getPenHwOverride(e);
+        if (hw) barrelHeldRef.current = hw;
+        reportHwOverride(hw);
+        return;
+      }
       e.currentTarget.setPointerCapture(e.pointerId);
       drawing.current = true;
-      const hwOverride = getPenHwOverride(e);
+      // When tip contacts while barrel is already held, e.buttons may drop the
+      // barrel bit — fall back to the barrel state tracked via pointermove.
+      const hwOverride = getPenHwOverride(e) ?? barrelHeldRef.current;
       reportHwOverride(hwOverride);
       const effectiveMode = hwOverride ?? (segmentEraserMode ? "segment-eraser" : eraserMode ? "stroke-eraser" : "pen");
       effectiveModeRef.current = effectiveMode;
@@ -281,6 +293,7 @@ export default function DrawingCanvas({
     (e: React.PointerEvent<SVGSVGElement>) => {
       markPenContextMenuSuppressed(e.pointerType);
       const hwOverride = getPenHwOverride(e);
+      if (hwOverride) barrelHeldRef.current = hwOverride;
       reportHwOverride(hwOverride);
       const baseMode = segmentEraserMode ? "segment-eraser" : eraserMode ? "stroke-eraser" : "pen";
       const effectiveMode = drawing.current ? effectiveModeRef.current : hwOverride ?? baseMode;
@@ -354,14 +367,17 @@ export default function DrawingCanvas({
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       setActivePointerType(e.pointerType);
+      barrelHeldRef.current = null;
+      reportHwOverride(getPenHwOverride(e));
       finishStroke();
     },
-    [finishStroke]
+    [finishStroke, reportHwOverride]
   );
 
   const handlePointerLeave = useCallback(
     () => {
       setActivePointerType(null);
+      barrelHeldRef.current = null;
       reportHwOverride(null);
       finishStroke();
     },
