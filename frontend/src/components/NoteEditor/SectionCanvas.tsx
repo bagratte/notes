@@ -18,6 +18,11 @@ interface Props {
   segmentEraserMode?: boolean;
   onHwOverrideChange?: (o: "stroke-eraser" | "segment-eraser" | null) => void;
   onDelete: () => void;
+  onStrokeCommitted?: (stroke: Stroke) => void;
+  undoPending?: number | null;
+  onUndoConsumed?: () => void;
+  redoPending?: Stroke | null;
+  onRedoConsumed?: (newStroke: Stroke) => void;
 }
 
 function toDisplay(s: Stroke): StrokeData {
@@ -33,6 +38,11 @@ export default function SectionCanvas({
   segmentEraserMode = false,
   onHwOverrideChange,
   onDelete,
+  onStrokeCommitted,
+  undoPending,
+  onUndoConsumed,
+  redoPending,
+  onRedoConsumed,
 }: Props) {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,8 +83,9 @@ export default function SectionCanvas({
         width: stroke.width,
       });
       setStrokes((prev) => prev.map((s) => (s.id === tempId ? saved : s)));
+      onStrokeCommitted?.(saved);
     },
-    [sectionId]
+    [sectionId, onStrokeCommitted]
   );
 
   const handleEraseStroke = useCallback((id: number) => {
@@ -109,6 +120,28 @@ export default function SectionCanvas({
       });
     }
   }, [sectionId]);
+
+  useEffect(() => {
+    if (undoPending == null) return;
+    setStrokes((prev) => prev.filter((s) => s.id !== undoPending));
+    void strokesApi.delete(undoPending);
+    onUndoConsumed?.();
+  }, [undoPending, onUndoConsumed]);
+
+  useEffect(() => {
+    if (redoPending == null) return;
+    void strokesApi.create({
+      section_id: sectionId,
+      document_id: null,
+      page_number: null,
+      points: redoPending.points,
+      color: redoPending.color,
+      width: redoPending.width,
+    }).then((saved) => {
+      setStrokes((prev) => [...prev, saved]);
+      onRedoConsumed?.(saved);
+    });
+  }, [redoPending, sectionId, onRedoConsumed]);
 
   const onResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
