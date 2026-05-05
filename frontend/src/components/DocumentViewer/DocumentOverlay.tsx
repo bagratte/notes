@@ -519,6 +519,7 @@ export default function DocumentOverlay({
       if (fingerScrollsRef.current && e.pointerType === "touch") return;
       if (palmRejectionRef.current && e.pointerType === "touch" &&
           (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
+      if (e.button !== 0 && e.pointerType !== "pen") return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
       const toSvgCoords = getSvgTransform();
