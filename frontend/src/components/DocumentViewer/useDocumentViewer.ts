@@ -618,24 +618,6 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     window.requestAnimationFrame(() => { scrollToPage(target, "auto"); });
   }, [numPages, initialPage, scrollToPage]);
 
-  // keyboard shortcuts
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      if (mod) {
-        if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undoInline(); return; }
-        if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redoInline(); return; }
-      }
-      if (e.key === "r" || e.key === "R") { setToolMode((m) => (m === "select-region" ? "auto" : "select-region")); return; }
-      if (e.key === "Escape") { setToolMode("auto"); return; }
-      if (toolMode !== "auto") return;
-      if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); prevPage(); }
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); nextPage(); }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [toolMode, undoInline, redoInline, prevPage, nextPage]);
-
   return {
     containerRef,
     pageRefs,

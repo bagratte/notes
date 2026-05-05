@@ -35,7 +35,6 @@ export default function SectionCanvas({
   onDelete,
 }: Props) {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [_redoStack, setRedoStack] = useState<Stroke[]>([]);
   const [loading, setLoading] = useState(true);
   const [hovered, setHovered] = useState(false);
   const [hasRegion, setHasRegion] = useState<boolean | null>(null);
@@ -64,7 +63,6 @@ export default function SectionCanvas({
         created_at: new Date().toISOString(),
       };
       setStrokes((prev) => [...prev, optimistic]);
-      setRedoStack([]);
 
       const saved = await strokesApi.create({
         section_id: sectionId,
@@ -112,35 +110,6 @@ export default function SectionCanvas({
     }
   }, [sectionId]);
 
-  const undo = useCallback(() => {
-    setStrokes((prev) => {
-      if (prev.length === 0) return prev;
-      const last = prev[prev.length - 1];
-      if (last.id < 0) return prev; // in-flight optimistic stroke — skip
-      setRedoStack((r) => [...r, last]);
-      strokesApi.delete(last.id);
-      return prev.slice(0, -1);
-    });
-  }, []);
-
-  const redo = useCallback(() => {
-    setRedoStack((prev) => {
-      if (prev.length === 0) return prev;
-      const last = prev[prev.length - 1];
-      strokesApi
-        .create({
-          section_id: sectionId,
-          document_id: null,
-          page_number: null,
-          points: last.points,
-          color: last.color,
-          width: last.width,
-        })
-        .then((saved) => setStrokes((s) => [...s, saved]));
-      return prev.slice(0, -1);
-    });
-  }, [sectionId]);
-
   const onResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -158,19 +127,6 @@ export default function SectionCanvas({
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }, [sectionId, height]);
-
-  // Keyboard shortcuts when this section is hovered
-  useEffect(() => {
-    if (!hovered) return;
-    const handler = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      if (!mod) return;
-      if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
-      if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redo(); }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [hovered, undo, redo]);
 
   return (
     <div

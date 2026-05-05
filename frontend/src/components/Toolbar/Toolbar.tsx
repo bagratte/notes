@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import type { ReactElement } from "react";
 import type { ToolMode } from "@/types";
 import css from "./Toolbar.module.css";
 
@@ -26,24 +26,13 @@ const COLORS = [
   { value: "#1a1a1a", label: "Black" },
 ];
 
-// Maps each tool to the keyboard key that activates it.
-// Shift+E produces key "E" (uppercase); plain e produces "e" (lowercase).
-const TOOL_KEYS: Partial<Record<ToolMode, string>> = {
-  auto: "a",
-  hand: "h",
-  pen: "p",
-  "stroke-eraser": "e",
-  "segment-eraser": "E",
-  "select-region": "s",
-};
-
 const TOOL_TITLES: Record<ToolMode, string> = {
-  auto: "Auto (A) — stylus draws, finger scrolls",
-  hand: "Hand / Pan (H)",
-  pen: "Pen (P)",
-  "stroke-eraser": "Stroke eraser (E)",
-  "segment-eraser": "Precision eraser (Shift+E)",
-  "select-region": "Select region (S)",
+  auto: "Auto — stylus draws, finger scrolls",
+  hand: "Hand / Pan",
+  pen: "Pen",
+  "stroke-eraser": "Stroke eraser",
+  "segment-eraser": "Precision eraser",
+  "select-region": "Select region",
 };
 
 function AutoIcon() {
@@ -96,7 +85,7 @@ function SelectRegionIcon() {
   );
 }
 
-const TOOL_ICONS: Record<ToolMode, () => React.ReactElement> = {
+const TOOL_ICONS: Record<ToolMode, () => ReactElement> = {
   auto: AutoIcon,
   hand: HandIcon,
   pen: PenIcon,
@@ -123,22 +112,6 @@ export default function Toolbar({
   activeOverride = null,
 }: Props) {
   const showPenSettings = availableTools.includes("pen");
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      for (const t of availableTools) {
-        if (TOOL_KEYS[t] === e.key) {
-          onToolChange(t);
-          e.preventDefault();
-          break;
-        }
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [availableTools, onToolChange]);
 
   return (
     <div className={css.toolbar}>

@@ -109,23 +109,6 @@ In `"hand"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s beco
 
 Hardware barrel-button overrides (`getPenHwOverride`) fire `onHwOverrideChange` callbacks up to `Toolbar` so the overriding tool is highlighted in amber (`activeOverride` prop) without changing the selected `ToolMode`.
 
-### Keyboard shortcuts
-
-| Key | Scope | Action |
-|-----|-------|--------|
-| `A` | Toolbar | Auto tool |
-| `H` | Toolbar | Hand / pan tool |
-| `P` | Toolbar | Pen tool |
-| `E` | Toolbar | Stroke eraser |
-| `Shift+E` | Toolbar | Precision (segment) eraser |
-| `S` | Toolbar | Select-region tool |
-| `Escape` | Document viewers | Dismiss pending region selection |
-| `←` / `→` | Document viewers (`auto` mode only) | Previous / next page |
-| `Ctrl+Z` | Document viewers, note sections (hovered) | Undo last stroke |
-| `Ctrl+Shift+Z` / `Ctrl+Y` | Document viewers, note sections (hovered) | Redo |
-
-Note section shortcuts are active only while the cursor is over that section (`onMouseEnter`/`onMouseLeave` set a `hovered` flag; the `keydown` listener is added/removed accordingly).
-
 ### Touch mode
 
 `TouchModeProvider` (`src/context/TouchMode.tsx`) wraps the entire app and exposes `{ isTouch, toggle }` via `useTouchMode()`. The value is persisted to `localStorage` and the `has-touch` class is toggled on `<html>` so CSS can target it. The sidebar toggle button calls `toggle()`; CSS rules keyed on `.has-touch` adjust tap-target sizes, show/hide controls, and switch the sidebar to overlay mode.
