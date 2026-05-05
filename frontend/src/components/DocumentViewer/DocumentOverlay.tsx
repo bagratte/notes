@@ -150,8 +150,8 @@ export default function DocumentOverlay({
   const [activePointerType, setActivePointerType] = useState<string | null>(null);
   const [erasePreview, setErasePreview] = useState<Map<number, StrokeData[]>>(new Map());
   const [eraserPos, setEraserPos] = useState<[number, number] | null>(null);
-  const [hoveredRegionId, setHoveredRegionId] = useState<number | null>(null);
   const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
+  const [regionMenu, setRegionMenu] = useState<{ regionId: number; x: number; y: number } | null>(null);
   const [regionDrafts, setRegionDrafts] = useState<Record<number, DragRect>>({});
   const { settings: ds } = useDrawingSettings();
   const drawing = useRef(false);
@@ -252,8 +252,8 @@ export default function DocumentOverlay({
     if (mode === "hand") return;
     clearTouchPress();
     resizeStateRef.current = null;
-    setHoveredRegionId(null);
     setEditingRegionId(null);
+    setRegionMenu(null);
     setRegionDrafts({});
     suppressRegionClickRef.current = null;
   }, [clearTouchPress, mode]);
@@ -390,23 +390,20 @@ export default function DocumentOverlay({
   }, []);
 
   const handleOverlayPointerDownCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (pendingSelection) {
-      setPendingSelection(null);
-      return;
-    }
     if (mode !== "hand" || editingRegionId === null) return;
     if (e.target === e.currentTarget) {
       setEditingRegionId(null);
     }
-  }, [editingRegionId, mode, pendingSelection]);
+  }, [editingRegionId, mode]);
 
   const handleRegionPointerDown = useCallback((region: EnrichedRegion, e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode !== "hand" || onRegionUpdate === undefined || e.pointerType !== "touch") return;
+    if (mode !== "hand" || e.pointerType !== "touch") return;
     clearTouchPress();
     const timerId = window.setTimeout(() => {
+      const press = touchPressRef.current;
       touchPressRef.current = null;
       suppressRegionClickRef.current = region.id;
-      setEditingRegionId(region.id);
+      setRegionMenu({ regionId: region.id, x: press?.startClientX ?? 0, y: press?.startClientY ?? 0 });
     }, REGION_LONG_PRESS_MS);
 
     touchPressRef.current = {
@@ -452,15 +449,10 @@ export default function DocumentOverlay({
     onRegionClick?.(region);
   }, [editingRegionId, onRegionClick]);
 
-  const handleRegionPointerEnter = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode !== "hand" || onRegionUpdate === undefined || e.pointerType === "touch") return;
-    setHoveredRegionId(regionId);
-  }, [mode, onRegionUpdate]);
-
-  const handleRegionPointerLeave = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode !== "hand" || onRegionUpdate === undefined || e.pointerType === "touch") return;
-    setHoveredRegionId((current) => (current === regionId ? null : current));
-  }, [mode, onRegionUpdate]);
+  const handleRegionContextMenu = useCallback((region: EnrichedRegion, e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setRegionMenu({ regionId: region.id, x: e.clientX, y: e.clientY });
+  }, []);
 
   const handleResizePointerDown = useCallback(
     (region: EnrichedRegion, handle: ResizeHandle, e: React.PointerEvent<HTMLDivElement>) => {
@@ -674,7 +666,7 @@ export default function DocumentOverlay({
             width: r.width,
             height: r.height,
           };
-          const showHandles = mode === "hand" && onRegionUpdate !== undefined && (editingRegionId === r.id || hoveredRegionId === r.id);
+          const showHandles = mode === "hand" && onRegionUpdate !== undefined && editingRegionId === r.id;
           const isEditing = editingRegionId === r.id;
           const handleDescriptors: Array<{ key: ResizeHandle; left: string; top: string; cursor: string }> = [
             { key: "nw", left: "0%", top: "0%", cursor: "nwse-resize" },
@@ -691,8 +683,7 @@ export default function DocumentOverlay({
               onPointerMove={(e) => handleRegionPointerMove(r.id, e)}
               onPointerUp={(e) => handleRegionPointerUp(r.id, e)}
               onPointerCancel={(e) => handleRegionPointerUp(r.id, e)}
-              onPointerEnter={(e) => handleRegionPointerEnter(r.id, e)}
-              onPointerLeave={(e) => handleRegionPointerLeave(r.id, e)}
+              onContextMenu={(e) => handleRegionContextMenu(r, e)}
               title={showHandles ? "Drag a corner handle to resize" : "Open linked note"}
               style={{
                 position: "absolute",
@@ -803,6 +794,82 @@ export default function DocumentOverlay({
             >
               Create Note
             </button>
+          </div>
+        </>
+      )}
+
+      {/* Region context menu — long-press (touch) or right-click */}
+      {regionMenu && (
+        <>
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 200 }}
+            onPointerDown={() => setRegionMenu(null)}
+          />
+          <div
+            style={{
+              position: "fixed",
+              left: regionMenu.x,
+              top: regionMenu.y,
+              zIndex: 201,
+              background: "#fff",
+              border: "1px solid #e0dbd3",
+              borderRadius: 8,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              overflow: "hidden",
+              minWidth: 140,
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <button
+              style={{
+                display: "block",
+                width: "100%",
+                padding: "10px 16px",
+                background: "none",
+                border: "none",
+                textAlign: "left",
+                fontSize: 13,
+                cursor: "pointer",
+                color: "#2a2a2a",
+                whiteSpace: "nowrap",
+              }}
+              onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+              onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+              onClick={() => {
+                const menu = regionMenu;
+                setRegionMenu(null);
+                const region = regions.find(r => r.id === menu.regionId);
+                if (region) onRegionClick?.(region);
+              }}
+            >
+              Open Note
+            </button>
+            {onRegionUpdate && (
+              <button
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "10px 16px",
+                  background: "none",
+                  border: "none",
+                  textAlign: "left",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  color: "#2a2a2a",
+                  whiteSpace: "nowrap",
+                }}
+                onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+                onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                onClick={() => {
+                  const regionId = regionMenu.regionId;
+                  setRegionMenu(null);
+                  suppressRegionClickRef.current = regionId;
+                  setEditingRegionId(regionId);
+                }}
+              >
+                Resize Region
+              </button>
+            )}
           </div>
         </>
       )}
