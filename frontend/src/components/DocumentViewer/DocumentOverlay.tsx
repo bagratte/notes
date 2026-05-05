@@ -516,6 +516,7 @@ export default function DocumentOverlay({
     (e: React.PointerEvent<SVGSVGElement>) => {
       setActivePointerType(e.pointerType);
       if (mode === "hand") return;
+      if (mode === "auto" && e.pointerType === "mouse") return;
       if (fingerScrollsRef.current && e.pointerType === "touch") return;
       if (palmRejectionRef.current && e.pointerType === "touch" &&
           (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
