@@ -153,6 +153,7 @@ export default function DocumentOverlay({
   const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
   const [regionMenu, setRegionMenu] = useState<{ regionId: number; x: number; y: number } | null>(null);
   const [regionDrafts, setRegionDrafts] = useState<Record<number, DragRect>>({});
+  const [mouseActive, setMouseActive] = useState(false);
   const { settings: ds } = useDrawingSettings();
   const drawing = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -256,6 +257,7 @@ export default function DocumentOverlay({
     setRegionMenu(null);
     setRegionDrafts({});
     suppressRegionClickRef.current = null;
+    if (mode !== "auto") setMouseActive(false);
   }, [clearTouchPress, mode]);
 
 
@@ -396,6 +398,11 @@ export default function DocumentOverlay({
     }
   }, [editingRegionId, mode]);
 
+  const handleOverlayPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const isMouse = e.pointerType === "mouse";
+    setMouseActive(prev => prev === isMouse ? prev : isMouse);
+  }, []);
+
   const handleRegionPointerDown = useCallback((region: EnrichedRegion, e: React.PointerEvent<HTMLDivElement>) => {
     if (mode !== "hand" || e.pointerType !== "touch") return;
     clearTouchPress();
@@ -456,7 +463,7 @@ export default function DocumentOverlay({
 
   const handleResizePointerDown = useCallback(
     (region: EnrichedRegion, handle: ResizeHandle, e: React.PointerEvent<HTMLDivElement>) => {
-      if (mode !== "hand" || naturalSize === undefined || onRegionUpdate === undefined) return;
+      if ((mode !== "hand" && !(mode === "auto" && mouseActive)) || naturalSize === undefined || onRegionUpdate === undefined) return;
       e.preventDefault();
       e.stopPropagation();
       clearTouchPress();
@@ -477,7 +484,7 @@ export default function DocumentOverlay({
         },
       };
     },
-    [clearTouchPress, mode, naturalSize, onRegionUpdate, regionDrafts]
+    [clearTouchPress, mode, mouseActive, naturalSize, onRegionUpdate, regionDrafts]
   );
 
   const handleResizePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -658,6 +665,8 @@ export default function DocumentOverlay({
       className={className}
       style={{ position: "absolute", inset: 0, overflow: "hidden" }}
       onPointerDownCapture={handleOverlayPointerDownCapture}
+      onPointerMove={handleOverlayPointerMove}
+      onPointerLeave={(e) => { if (e.pointerType === "mouse") setMouseActive(false); }}
     >
       {/* Region boxes — clickable divs so they work independently of SVG pointer-events */}
       {naturalSize &&
@@ -668,7 +677,7 @@ export default function DocumentOverlay({
             width: r.width,
             height: r.height,
           };
-          const showHandles = mode === "hand" && onRegionUpdate !== undefined && editingRegionId === r.id;
+          const showHandles = (mode === "hand" || (mode === "auto" && mouseActive)) && onRegionUpdate !== undefined && editingRegionId === r.id;
           const isEditing = editingRegionId === r.id;
           const handleDescriptors: Array<{ key: ResizeHandle; left: string; top: string; cursor: string }> = [
             { key: "nw", left: "0%", top: "0%", cursor: "nwse-resize" },
@@ -697,8 +706,8 @@ export default function DocumentOverlay({
                 border: isEditing ? "2px solid rgba(74, 108, 247, 0.9)" : "1.5px solid rgba(74, 108, 247, 0.55)",
                 borderRadius: 2,
                 boxSizing: "border-box",
-                cursor: mode === "hand" ? "pointer" : "default",
-                pointerEvents: mode === "hand" ? "auto" : "none",
+                cursor: (mode === "hand" || (mode === "auto" && mouseActive)) ? "pointer" : "default",
+                pointerEvents: (mode === "hand" || (mode === "auto" && mouseActive)) ? "auto" : "none",
                 zIndex: isEditing ? 3 : 1,
                 transition: "background 0.15s, border 0.15s, box-shadow 0.15s",
                 boxShadow: isEditing ? "0 0 0 2px rgba(255, 255, 255, 0.9) inset" : undefined,
@@ -887,7 +896,7 @@ export default function DocumentOverlay({
           height: "100%",
           display: "block",
           touchAction: active && !ds.fingerScrolls ? "none" : "auto",
-          pointerEvents: (pendingSelection === null && active) ? "all" : "none",
+          pointerEvents: (pendingSelection === null && active && !(mode === "auto" && mouseActive)) ? "all" : "none",
           cursor:
             (effectiveModeRef.current === "pen" || effectiveModeRef.current === "auto") ? (activePointerType === "pen" ? "none" : "default") : effectiveModeRef.current === "select-region" ? "crosshair" : effectiveModeRef.current === "stroke-eraser" ? "cell" : effectiveModeRef.current === "segment-eraser" ? "none" : "default",
         }}
