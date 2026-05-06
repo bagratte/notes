@@ -559,7 +559,7 @@ export default function DocumentOverlay({
           width: "100%",
           height: "100%",
           display: "block",
-          touchAction: active && !ds.fingerScrolls && mode !== "auto" ? "none" : "auto",
+          touchAction: active && mode !== "auto" ? "none" : "auto",
           pointerEvents: (pendingSelection === null && active) ? "all" : "none",
           cursor:
             (effectiveModeRef.current === "pen" || effectiveModeRef.current === "auto")

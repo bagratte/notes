@@ -11,8 +11,7 @@ interface Props {
   onEraseStroke?: (id: number) => void;
   onSegmentErase?: (deleted: number[], created: StrokeData[]) => void;
   onHwOverrideChange?: (o: "stroke-eraser" | "segment-eraser" | null) => void;
-  eraserMode?: boolean;
-  segmentEraserMode?: boolean;
+  mode?: ToolMode;
   color?: string;
   penWidth?: number;
   readonly?: boolean;
@@ -30,8 +29,7 @@ export default function DrawingCanvas({
   onEraseStroke,
   onSegmentErase,
   onHwOverrideChange,
-  eraserMode = false,
-  segmentEraserMode = false,
+  mode = "pen",
   color = "#000000",
   penWidth = 3,
   readonly = false,
@@ -43,8 +41,6 @@ export default function DrawingCanvas({
   style,
 }: Props) {
   const { settings: ds } = useDrawingSettings();
-
-  const mode: ToolMode = segmentEraserMode ? "segment-eraser" : eraserMode ? "stroke-eraser" : "pen";
 
   const {
     svgRef,
@@ -80,7 +76,7 @@ export default function DrawingCanvas({
         height="100%"
         viewBox={viewBox}
         style={{
-          touchAction: inputEnabled && !ds.fingerScrolls ? "none" : "auto",
+          touchAction: inputEnabled && mode !== "auto" ? "none" : "auto",
           pointerEvents: inputEnabled ? "all" : "none",
           cursor: !inputEnabled
             ? "grab"

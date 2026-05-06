@@ -120,9 +120,7 @@ export default function NoteEditor({ noteId }: Props) {
           sectionId={section.id}
           initialHeight={section.height}
           pen={pen}
-          inputEnabled={tool !== "hand"}
-          eraserMode={tool === "stroke-eraser"}
-          segmentEraserMode={tool === "segment-eraser"}
+          mode={tool}
           onHwOverrideChange={setHwOverride}
           onDelete={() => deleteSection(section.id)}
           onStrokeCommitted={(stroke) => handleStrokeCommitted(section.id, stroke)}

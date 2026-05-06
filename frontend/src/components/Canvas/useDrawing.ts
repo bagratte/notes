@@ -100,7 +100,6 @@ export function useDrawing({
   const simulatePressureRef = useRef(ds.simulatePressure);
   const palmRejectionRef = useRef(ds.palmRejection);
   const palmThresholdRef = useRef(ds.palmThreshold);
-  const fingerScrollsRef = useRef(ds.fingerScrolls);
   const lastHwOverrideRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
   const barrelHeldRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
   const onHwOverrideChangeRef = useRef(onHwOverrideChange);
@@ -123,7 +122,6 @@ export function useDrawing({
   useEffect(() => { simulatePressureRef.current = ds.simulatePressure; }, [ds.simulatePressure]);
   useEffect(() => { palmRejectionRef.current = ds.palmRejection; }, [ds.palmRejection]);
   useEffect(() => { palmThresholdRef.current = ds.palmThreshold; }, [ds.palmThreshold]);
-  useEffect(() => { fingerScrollsRef.current = ds.fingerScrolls; }, [ds.fingerScrolls]);
   useEffect(() => { strokePathCache.current.clear(); }, [ds.streamline, ds.thinning, ds.smoothing, ds.simulatePressure]);
 
   const reportHwOverride = useCallback((override: "stroke-eraser" | "segment-eraser" | null) => {
@@ -314,7 +312,6 @@ export function useDrawing({
     if (readonly || !inputEnabled) return;
     if (mode === "hand") return;
     if (mode === "auto" && e.pointerType !== "pen") return;
-    if (fingerScrollsRef.current && e.pointerType === "touch") return;
     if (palmRejectionRef.current && e.pointerType === "touch" &&
         (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
     if (e.button !== 0 && e.pointerType !== "pen") return;
@@ -353,7 +350,6 @@ export function useDrawing({
     }
 
     if (!drawing.current) return;
-    if (fingerScrollsRef.current && e.pointerType === "touch") return;
     e.preventDefault();
 
     if (resolvedMode === "pen" || resolvedMode === "auto") {
