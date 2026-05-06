@@ -43,7 +43,7 @@ The `Sidebar` loads all folders, notes, and documents in a single `Promise.all` 
 
 ### Drawing
 
-`DrawingCanvas` is the generic drawing component; `DocumentOverlay` is a variant used inside document viewers that also handles the region drag-rectangle mode.
+`useDrawing` (`Canvas/useDrawing.ts`) is the custom hook that owns all pointer event handlers, stroke state, and the canvas/SVG render cycle. `DrawingCanvas` is a thin wrapper around it. `DocumentOverlay` is a separate variant that also calls `useDrawing` and adds the region drag-rectangle mode on top.
 
 **Hybrid Canvas2D + SVG rendering:** Completed strokes are rendered as SVG `<path>` elements (persistent, resolution-independent). The in-progress stroke (while the pen is down) renders to a `<canvas>` overlay positioned on top of the SVG — this avoids the per-frame SVG DOM mutation cost and keeps latency low. On pointer-up the canvas is cleared and the finalized stroke is added to the SVG.
 
@@ -111,7 +111,7 @@ The key design constraint: PDF preloads natural sizes asynchronously before sett
 
 The unified `Toolbar` component (`src/components/Toolbar/`) renders tool buttons, colour swatches, and stroke-width buttons. `availableTools: ToolMode[]` controls which tools appear — notes omit `select-region`, document viewers include all six. `UndoRedoBar` (`src/components/UndoRedoBar/`) is a separate component rendered alongside `Toolbar` in both contexts.
 
-In `"hand"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s become clickable. In all drawing/erasing modes the SVG captures pointer events and region divs get `pointerEvents: none`. In `"select-region"` mode dragging produces a pending selection rectangle; a contextual menu then lets the user create a linked note.
+In `"hand"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s become clickable. In all explicit tool modes (`"pen"`, `"stroke-eraser"`, `"segment-eraser"`, `"select-region"`), the SVG captures pointer events from **all** input types — pen, finger/touch, and mouse — and region divs get `pointerEvents: none`. In `"select-region"` mode dragging produces a pending selection rectangle; a contextual menu then lets the user create a linked note.
 
 `"auto"` mode routes input by pointer type at the SVG level: the SVG handler returns early for any non-pen input, leaving finger/mouse events to fall through to region divs (which have `pointerEvents: auto` in auto mode). When a stylus hits a region div, `handleRegionPointerDown` transfers pointer capture to the SVG and starts a stroke directly — this avoids the race condition of updating React state before `pointermove` fires.
 
