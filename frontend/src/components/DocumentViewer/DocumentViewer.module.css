@@ -7,8 +7,8 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: 6px;
+  padding: 6px 12px;
   background: #f8f6f2;
   border-bottom: 1px solid #e0ddd8;
   flex-shrink: 0;
@@ -147,8 +147,8 @@
 
 @media (max-width: 960px) {
   .toolbar {
-    gap: 7px;
-    padding: 8px 12px;
+    gap: 4px;
+    padding: 6px 8px;
   }
 
   .toolbarGroup {
@@ -156,7 +156,7 @@
   }
 
   .toolbarSep {
-    margin: 0 3px;
+    margin: 0 2px;
   }
 
   .pageInput {
