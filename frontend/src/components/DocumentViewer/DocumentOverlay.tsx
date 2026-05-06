@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getStroke } from "perfect-freehand";
 import { svgPathFromStroke } from "@/components/Canvas/utils";
-import { eraseFromStroke } from "@/components/Canvas/eraserUtils";
+import { useDrawing, getPenHwOverride } from "@/components/Canvas/useDrawing";
 import type { StrokeData } from "@/components/Canvas";
 import type { Region, ToolMode } from "@/types";
 import { useDrawingSettings } from "@/context/DrawingSettings";
@@ -41,7 +41,6 @@ interface Props {
 }
 
 const MIN_REGION_PX = 10;
-const PEN_CONTEXT_MENU_SUPPRESS_MS = 800;
 const REGION_LONG_PRESS_MS = 450;
 const REGION_PRESS_DEADZONE_PX = 8;
 const REGION_HANDLE_SIZE_PX = 20;
@@ -81,25 +80,12 @@ function resizeRegionRect(
   let right = rect.x + rect.width;
   let bottom = rect.y + rect.height;
 
-  if (handle.includes("w")) {
-    left = clamp(rect.x + dx, 0, right - MIN_REGION_PX);
-  }
-  if (handle.includes("e")) {
-    right = clamp(rect.x + rect.width + dx, left + MIN_REGION_PX, naturalSize.width);
-  }
-  if (handle.includes("n")) {
-    top = clamp(rect.y + dy, 0, bottom - MIN_REGION_PX);
-  }
-  if (handle.includes("s")) {
-    bottom = clamp(rect.y + rect.height + dy, top + MIN_REGION_PX, naturalSize.height);
-  }
+  if (handle.includes("w")) left = clamp(rect.x + dx, 0, right - MIN_REGION_PX);
+  if (handle.includes("e")) right = clamp(rect.x + rect.width + dx, left + MIN_REGION_PX, naturalSize.width);
+  if (handle.includes("n")) top = clamp(rect.y + dy, 0, bottom - MIN_REGION_PX);
+  if (handle.includes("s")) bottom = clamp(rect.y + rect.height + dy, top + MIN_REGION_PX, naturalSize.height);
 
-  return {
-    x: left,
-    y: top,
-    width: right - left,
-    height: bottom - top,
-  };
+  return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
 function rectChanged(next: DragRect, prev: DragRect): boolean {
@@ -109,21 +95,6 @@ function rectChanged(next: DragRect, prev: DragRect): boolean {
     Math.abs(next.width - prev.width) > 0.5 ||
     Math.abs(next.height - prev.height) > 0.5
   );
-}
-
-function getPenHwOverride(e: React.PointerEvent | PointerEvent): "segment-eraser" | "stroke-eraser" | null {
-  if (e.pointerType !== "pen") return null;
-  if (e.buttons & 32) return "segment-eraser";
-  if (e.buttons & 2)  return "stroke-eraser";
-  return null;
-}
-
-function normalizePressure(pressure: number, pointerType: string): number {
-  if (pointerType === "pen") {
-    if (pressure > 0) return Math.min(1, Math.max(0.12, pressure));
-    return 0.2;
-  }
-  return pressure > 0 ? pressure : 0.5;
 }
 
 export default function DocumentOverlay({
@@ -147,59 +118,56 @@ export default function DocumentOverlay({
   const [dragStart, setDragStart] = useState<[number, number] | null>(null);
   const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
   const [pendingSelection, setPendingSelection] = useState<DragRect | null>(null);
-  const [activePointerType, setActivePointerType] = useState<string | null>(null);
-  const [erasePreview, setErasePreview] = useState<Map<number, StrokeData[]>>(new Map());
-  const [eraserPos, setEraserPos] = useState<[number, number] | null>(null);
   const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
   const [regionMenu, setRegionMenu] = useState<{ regionId: number; x: number; y: number } | null>(null);
   const [regionDrafts, setRegionDrafts] = useState<Record<number, DragRect>>({});
   const { settings: ds } = useDrawingSettings();
-  const drawing = useRef(false);
-  const svgRef = useRef<SVGSVGElement>(null);
-  const liveCanvasRef = useRef<HTMLCanvasElement>(null);
-  const livePointsRef = useRef<[number, number, number][]>([]);
-  const erasedIds = useRef(new Set<number>());
-  const strokePathCache = useRef<Map<number | string, { points: StrokeData["points"]; d: string }>>(new Map());
-  const effectiveModeRef = useRef<ToolMode>("pen");
-  const suppressContextMenuUntilRef = useRef(0);
+
   const touchPressRef = useRef<RegionPressState | null>(null);
   const resizeStateRef = useRef<RegionResizeState | null>(null);
   const suppressRegionClickRef = useRef<number | null>(null);
 
-  const colorRef = useRef(color);
-  const penWidthRef = useRef(penWidth);
-  const lastHwOverrideRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
-  const barrelHeldRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
-  const onHwOverrideChangeRef = useRef(onHwOverrideChange);
-  useEffect(() => { onHwOverrideChangeRef.current = onHwOverrideChange; }, [onHwOverrideChange]);
+  const onSelectRegionEnd = useCallback(() => {
+    if (dragStart && dragCurrent) {
+      const x = Math.min(dragStart[0], dragCurrent[0]);
+      const y = Math.min(dragStart[1], dragCurrent[1]);
+      const w = Math.abs(dragCurrent[0] - dragStart[0]);
+      const h = Math.abs(dragCurrent[1] - dragStart[1]);
+      if (w > MIN_REGION_PX && h > MIN_REGION_PX) {
+        setPendingSelection({ x, y, width: w, height: h });
+      }
+    }
+    setDragStart(null);
+    setDragCurrent(null);
+  }, [dragStart, dragCurrent]);
 
-  const reportHwOverride = useCallback((override: "stroke-eraser" | "segment-eraser" | null) => {
-    if (override === lastHwOverrideRef.current) return;
-    lastHwOverrideRef.current = override;
-    onHwOverrideChangeRef.current?.(override);
-  }, []);
-  const onStrokeCompleteRef = useRef(onStrokeComplete);
-  const streamlineRef = useRef(ds.streamline);
-  const predictiveRef = useRef(ds.predictive);
-  const thinningRef = useRef(ds.thinning);
-  const smoothingRef = useRef(ds.smoothing);
-  const simulatePressureRef = useRef(ds.simulatePressure);
-  const palmRejectionRef = useRef(ds.palmRejection);
-  const palmThresholdRef = useRef(ds.palmThreshold);
-  const fingerScrollsRef = useRef(ds.fingerScrolls);
-
-  useEffect(() => { colorRef.current = color; }, [color]);
-  useEffect(() => { penWidthRef.current = penWidth; }, [penWidth]);
-  useEffect(() => { onStrokeCompleteRef.current = onStrokeComplete; }, [onStrokeComplete]);
-  useEffect(() => { streamlineRef.current = ds.streamline; }, [ds.streamline]);
-  useEffect(() => { predictiveRef.current = ds.predictive; }, [ds.predictive]);
-  useEffect(() => { thinningRef.current = ds.thinning; }, [ds.thinning]);
-  useEffect(() => { smoothingRef.current = ds.smoothing; }, [ds.smoothing]);
-  useEffect(() => { simulatePressureRef.current = ds.simulatePressure; }, [ds.simulatePressure]);
-  useEffect(() => { palmRejectionRef.current = ds.palmRejection; }, [ds.palmRejection]);
-  useEffect(() => { palmThresholdRef.current = ds.palmThreshold; }, [ds.palmThreshold]);
-  useEffect(() => { fingerScrollsRef.current = ds.fingerScrolls; }, [ds.fingerScrolls]);
-  useEffect(() => { strokePathCache.current.clear(); }, [ds.streamline, ds.thinning, ds.smoothing, ds.simulatePressure]);
+  const {
+    svgRef,
+    liveCanvasRef,
+    activePointerType,
+    erasePreview,
+    eraserPos,
+    effectiveModeRef,
+    strokePathCache,
+    svgHandlers,
+    transferPointerToSvg,
+    reportHwOverride,
+    barrelHeldRef,
+    markPenContextMenuSuppressed,
+  } = useDrawing({
+    strokes,
+    mode,
+    color,
+    penWidth,
+    viewBox,
+    onStrokeComplete,
+    onEraseStroke,
+    onSegmentErase,
+    onHwOverrideChange,
+    onSelectRegionStart: (pt) => { setDragStart(pt); setDragCurrent(pt); },
+    onSelectRegionMove: (pt) => setDragCurrent(pt),
+    onSelectRegionEnd,
+  });
 
   const clearTouchPress = useCallback(() => {
     const press = touchPressRef.current;
@@ -223,12 +191,10 @@ export default function DocumentOverlay({
   const finishRegionResize = useCallback((pointerId: number, commit: boolean) => {
     const resize = resizeStateRef.current;
     if (!resize || resize.pointerId !== pointerId) return;
-
     resizeStateRef.current = null;
     const nextRect = regionDrafts[resize.regionId] ?? resize.startRect;
     updateRegionDraft(resize.regionId, null);
     setEditingRegionId((current) => (current === resize.regionId ? null : current));
-
     if (commit && rectChanged(nextRect, resize.startRect)) {
       suppressRegionClickRef.current = resize.regionId;
       onRegionUpdate?.(resize.regionId, nextRect);
@@ -259,147 +225,13 @@ export default function DocumentOverlay({
     suppressRegionClickRef.current = null;
   }, [clearTouchPress, mode]);
 
-
-  // Returns a converter that captures SVG geometry once per event batch,
-  // avoiding repeated getBoundingClientRect calls across coalesced events.
-  const getSvgTransform = useCallback(
-    () => {
-      const svg = svgRef.current!;
-      const rect = svg.getBoundingClientRect();
-      const vb = svg.viewBox.baseVal;
-      const scaleX = vb.width > 0 ? vb.width / rect.width : 1;
-      const scaleY = vb.height > 0 ? vb.height / rect.height : 1;
-      return (clientX: number, clientY: number, pressure: number): [number, number, number] =>
-        [(clientX - rect.left) * scaleX, (clientY - rect.top) * scaleY, pressure];
-    },
-    []
-  );
-
-  const updateLivePath = useCallback((pts: [number, number, number][]) => {
-    const canvas = liveCanvasRef.current;
-    const svg = svgRef.current;
-    if (!canvas || !svg) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Size the canvas buffer to physical pixels so strokes are sharp on HiDPI displays.
-    const dpr = window.devicePixelRatio || 1;
-    const rect = svg.getBoundingClientRect();
-    const vb = svg.viewBox.baseVal;
-    const physW = Math.round(rect.width * dpr);
-    const physH = Math.round(rect.height * dpr);
-    if (canvas.width !== physW || canvas.height !== physH) {
-      canvas.width = physW;
-      canvas.height = physH;
-    }
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (pts.length === 0) return;
-    const outline = getStroke(pts, {
-      thinning: thinningRef.current,
-      smoothing: smoothingRef.current,
-      streamline: streamlineRef.current,
-      simulatePressure: simulatePressureRef.current,
-      size: penWidthRef.current,
-    });
-    if (outline.length < 2) return;
-    // Scale from viewBox coords to physical pixels.
-    const scaleX = vb.width > 0 ? physW / vb.width : dpr;
-    const scaleY = vb.height > 0 ? physH / vb.height : dpr;
-    ctx.save();
-    ctx.scale(scaleX, scaleY);
-    ctx.beginPath();
-    ctx.moveTo(outline[0][0], outline[0][1]);
-    for (let i = 0; i < outline.length; i++) {
-      const [x0, y0] = outline[i];
-      const [x1, y1] = outline[(i + 1) % outline.length];
-      ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
-    }
-    ctx.closePath();
-    ctx.fillStyle = colorRef.current;
-    ctx.fill();
-    ctx.restore();
-  }, []);
-
-  const applyEraserStep = useCallback((clientX: number, clientY: number) => {
-    const svg = svgRef.current!;
-    const rect = svg.getBoundingClientRect();
-    const vb = svg.viewBox.baseVal;
-    const scaleX = vb.width > 0 ? vb.width / rect.width : 1;
-    const scaleY = vb.height > 0 ? vb.height / rect.height : 1;
-    const nx = (clientX - rect.left) * scaleX;
-    const ny = (clientY - rect.top) * scaleY;
-    const nr = penWidthRef.current;
-
-    setErasePreview(prev => {
-      let changed = false;
-      const updated = new Map(prev);
-      for (const stroke of strokes) {
-        const id = stroke.id as number;
-        const current: StrokeData[] = updated.has(id)
-          ? updated.get(id)!
-          : [{ id: stroke.id, points: stroke.points, color: stroke.color, width: stroke.width }];
-        const newFrags: StrokeData[] = [];
-        let fragChanged = false;
-        for (const frag of current) {
-          const result = eraseFromStroke(frag.points, nx, ny, nr + frag.width / 2);
-          if (result === null) {
-            newFrags.push(frag);
-          } else {
-            fragChanged = true;
-            for (const pts of result) {
-              newFrags.push({ points: pts, color: frag.color, width: frag.width });
-            }
-          }
-        }
-        if (fragChanged) { updated.set(id, newFrags); changed = true; }
-      }
-      return changed ? updated : prev;
-    });
-  }, [strokes]);
-
-  const eraseAtPoint = useCallback(
-    (e: React.PointerEvent, firstOnly: boolean) => {
-      const samples: [number, number][] = firstOnly
-        ? [[e.clientX, e.clientY]]
-        : [[e.clientX, e.clientY], [e.clientX + 8, e.clientY], [e.clientX - 8, e.clientY], [e.clientX, e.clientY + 8], [e.clientX, e.clientY - 8]];
-
-      for (const [cx, cy] of samples) {
-        for (const el of document.elementsFromPoint(cx, cy)) {
-          if (!(el instanceof SVGPathElement)) continue;
-          const idStr = el.dataset.strokeId;
-          if (idStr === undefined) continue;
-          const id = parseInt(idStr);
-          if (erasedIds.current.has(id)) continue;
-          erasedIds.current.add(id);
-          onEraseStroke?.(id);
-          if (firstOnly) return;
-        }
-      }
-    },
-    [onEraseStroke]
-  );
-
-  const markPenContextMenuSuppressed = useCallback(() => {
-    suppressContextMenuUntilRef.current = Date.now() + PEN_CONTEXT_MENU_SUPPRESS_MS;
-  }, []);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (Date.now() <= suppressContextMenuUntilRef.current) {
-      e.preventDefault();
-    }
-  }, []);
-
   const handleOverlayPointerDownCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if ((mode !== "hand" && mode !== "auto") || editingRegionId === null) return;
-    if (e.target === e.currentTarget) {
-      setEditingRegionId(null);
-    }
+    if (e.target === e.currentTarget) setEditingRegionId(null);
   }, [editingRegionId, mode]);
 
   const handleRegionPointerDown = useCallback((region: EnrichedRegion, e: React.PointerEvent<HTMLDivElement>) => {
     if (mode === "auto" && e.pointerType === "pen") {
-      // Stylus on a region in auto mode: transfer drawing to the SVG layer.
       e.preventDefault();
       if (e.button !== 0) {
         markPenContextMenuSuppressed();
@@ -408,28 +240,7 @@ export default function DocumentOverlay({
         reportHwOverride(hw);
         return;
       }
-      const svg = svgRef.current;
-      if (!svg) return;
-      svg.setPointerCapture(e.pointerId);
-      setActivePointerType("pen");
-      drawing.current = true;
-      const hwOverride = getPenHwOverride(e) ?? barrelHeldRef.current;
-      if (hwOverride) markPenContextMenuSuppressed();
-      reportHwOverride(hwOverride);
-      const effectiveMode = hwOverride ?? "pen";
-      effectiveModeRef.current = effectiveMode;
-      if (effectiveMode === "segment-eraser") {
-        setErasePreview(new Map());
-        applyEraserStep(e.clientX, e.clientY);
-      } else if (effectiveMode === "stroke-eraser") {
-        erasedIds.current.clear();
-        eraseAtPoint(e, false);
-      } else {
-        const toSvgCoords = getSvgTransform();
-        const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
-        livePointsRef.current = [pt];
-        updateLivePath(livePointsRef.current);
-      }
+      transferPointerToSvg(e);
       return;
     }
     if (mode !== "hand" && mode !== "auto") return;
@@ -441,7 +252,6 @@ export default function DocumentOverlay({
       suppressRegionClickRef.current = region.id;
       setRegionMenu({ regionId: region.id, x: press?.startClientX ?? 0, y: press?.startClientY ?? 0 });
     }, REGION_LONG_PRESS_MS);
-
     touchPressRef.current = {
       pointerId: e.pointerId,
       regionId: region.id,
@@ -449,12 +259,11 @@ export default function DocumentOverlay({
       startClientY: e.clientY,
       timerId,
     };
-  }, [applyEraserStep, clearTouchPress, eraseAtPoint, getSvgTransform, markPenContextMenuSuppressed, mode, reportHwOverride, updateLivePath]);
+  }, [mode, transferPointerToSvg, reportHwOverride, barrelHeldRef, markPenContextMenuSuppressed, clearTouchPress]);
 
   const handleRegionPointerMove = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
     const press = touchPressRef.current;
     if (!press || press.regionId !== regionId || press.pointerId !== e.pointerId) return;
-
     if (Math.hypot(e.clientX - press.startClientX, e.clientY - press.startClientY) >= REGION_PRESS_DEADZONE_PX) {
       clearTouchPress();
     }
@@ -462,9 +271,7 @@ export default function DocumentOverlay({
 
   const handleRegionPointerUp = useCallback((regionId: number, e: React.PointerEvent<HTMLDivElement>) => {
     const press = touchPressRef.current;
-    if (press && press.regionId === regionId && press.pointerId === e.pointerId) {
-      clearTouchPress();
-    }
+    if (press && press.regionId === regionId && press.pointerId === e.pointerId) clearTouchPress();
   }, [clearTouchPress]);
 
   const handleRegionClick = useCallback((region: EnrichedRegion, e: React.MouseEvent<HTMLDivElement>) => {
@@ -474,14 +281,12 @@ export default function DocumentOverlay({
       e.stopPropagation();
       return;
     }
-
     if (editingRegionId === region.id) {
       setEditingRegionId(null);
       e.preventDefault();
       e.stopPropagation();
       return;
     }
-
     onRegionClick?.(region);
   }, [editingRegionId, onRegionClick]);
 
@@ -505,12 +310,7 @@ export default function DocumentOverlay({
         handle,
         startClientX: e.clientX,
         startClientY: e.clientY,
-        startRect: regionDrafts[region.id] ?? {
-          x: region.x,
-          y: region.y,
-          width: region.width,
-          height: region.height,
-        },
+        startRect: regionDrafts[region.id] ?? { x: region.x, y: region.y, width: region.width, height: region.height },
       };
     },
     [clearTouchPress, mode, naturalSize, onRegionUpdate, regionDrafts]
@@ -520,17 +320,12 @@ export default function DocumentOverlay({
     const resize = resizeStateRef.current;
     const overlay = overlayRef.current;
     if (!resize || resize.pointerId !== e.pointerId || naturalSize === undefined || !overlay) return;
-
     e.preventDefault();
     const rect = overlay.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-
     const dx = (e.clientX - resize.startClientX) * (naturalSize.width / rect.width);
     const dy = (e.clientY - resize.startClientY) * (naturalSize.height / rect.height);
-    updateRegionDraft(
-      resize.regionId,
-      resizeRegionRect(resize.startRect, resize.handle, dx, dy, naturalSize)
-    );
+    updateRegionDraft(resize.regionId, resizeRegionRect(resize.startRect, resize.handle, dx, dy, naturalSize));
   }, [naturalSize, updateRegionDraft]);
 
   const handleResizePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -547,144 +342,6 @@ export default function DocumentOverlay({
     e.currentTarget.releasePointerCapture(e.pointerId);
     finishRegionResize(e.pointerId, false);
   }, [finishRegionResize]);
-
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent<SVGSVGElement>) => {
-      setActivePointerType(e.pointerType);
-      if (mode === "hand") return;
-      if (mode === "auto" && e.pointerType !== "pen") return;
-      if (fingerScrollsRef.current && e.pointerType === "touch") return;
-      if (palmRejectionRef.current && e.pointerType === "touch" &&
-          (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
-      if (e.button !== 0 && e.pointerType !== "pen") return;
-      e.preventDefault();
-      if (e.pointerType === "pen" && e.button !== 0) {
-        markPenContextMenuSuppressed();
-        const hw = getPenHwOverride(e);
-        if (hw) barrelHeldRef.current = hw;
-        reportHwOverride(hw);
-        return;
-      }
-      e.currentTarget.setPointerCapture(e.pointerId);
-      const toSvgCoords = getSvgTransform();
-      const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
-      drawing.current = true;
-      const hwOverride = getPenHwOverride(e) ?? barrelHeldRef.current;
-      if (hwOverride) markPenContextMenuSuppressed();
-      reportHwOverride(hwOverride);
-      const effectiveMode = hwOverride ?? mode;
-      effectiveModeRef.current = effectiveMode;
-      if (effectiveMode === "pen" || effectiveMode === "auto") {
-        livePointsRef.current = [pt];
-        updateLivePath(livePointsRef.current);
-      } else if (effectiveMode === "stroke-eraser") {
-        erasedIds.current.clear();
-        eraseAtPoint(e, false);
-      } else if (effectiveMode === "segment-eraser") {
-        setErasePreview(new Map());
-        applyEraserStep(e.clientX, e.clientY);
-      } else if (effectiveMode === "select-region") {
-        setDragStart([pt[0], pt[1]]);
-        setDragCurrent([pt[0], pt[1]]);
-      }
-    },
-    [mode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep, markPenContextMenuSuppressed, reportHwOverride]
-  );
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (activePointerType !== e.pointerType) {
-        setActivePointerType(e.pointerType);
-      }
-      const hwOverride = getPenHwOverride(e);
-      if (hwOverride) barrelHeldRef.current = hwOverride;
-      if (hwOverride) markPenContextMenuSuppressed();
-      reportHwOverride(hwOverride);
-      const effectiveMode = hwOverride ?? mode;
-      effectiveModeRef.current = effectiveMode;
-      if (effectiveMode === "segment-eraser") {
-        const toNatural = getSvgTransform();
-        const pt = toNatural(e.clientX, e.clientY, 0);
-        setEraserPos([pt[0], pt[1]]);
-      }
-      if (!drawing.current) return;
-      if (fingerScrollsRef.current && e.pointerType === "touch") return;
-      e.preventDefault();
-      if (effectiveMode === "pen" || effectiveMode === "auto") {
-        const coalescedEvents =
-          (e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? [e.nativeEvent as PointerEvent];
-        const toSvgCoords = getSvgTransform();
-        const pts = livePointsRef.current;
-        for (const ce of coalescedEvents) {
-          pts.push(toSvgCoords(ce.clientX, ce.clientY, normalizePressure(ce.pressure, ce.pointerType)));
-        }
-        const predictedEvents = predictiveRef.current
-          ? (e.nativeEvent as PointerEvent).getPredictedEvents?.() ?? []
-          : [];
-        const drawPts: [number, number, number][] = predictedEvents.length > 0
-          ? [...pts, ...predictedEvents.map((pe) => toSvgCoords(pe.clientX, pe.clientY, normalizePressure(pe.pressure, pe.pointerType)))]
-          : pts;
-        updateLivePath(drawPts);
-      } else if (effectiveMode === "stroke-eraser") {
-        eraseAtPoint(e, false);
-      } else if (effectiveMode === "segment-eraser") {
-        applyEraserStep(e.clientX, e.clientY);
-      } else if (effectiveMode === "select-region") {
-        const pt = getSvgTransform()(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
-        setDragCurrent([pt[0], pt[1]]);
-      }
-    },
-    [mode, getSvgTransform, eraseAtPoint, updateLivePath, applyEraserStep, activePointerType, markPenContextMenuSuppressed, reportHwOverride]
-  );
-
-  const handlePointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
-    setActivePointerType(e.pointerType);
-    barrelHeldRef.current = null;
-    if (!drawing.current) return;
-    drawing.current = false;
-
-    const effectiveMode = effectiveModeRef.current;
-    if (effectiveMode === "pen" || effectiveMode === "auto") {
-      const pts = livePointsRef.current;
-      if (pts.length > 0) {
-        onStrokeCompleteRef.current?.({ points: [...pts], color: colorRef.current, width: penWidthRef.current });
-      }
-      livePointsRef.current = [];
-      const canvas = liveCanvasRef.current;
-      if (canvas) {
-        const ctx = canvas.getContext("2d");
-        ctx?.clearRect(0, 0, canvas.width, canvas.height);
-      }
-    } else if (effectiveMode === "segment-eraser") {
-      if (erasePreview.size > 0) {
-        const deleted = [...erasePreview.keys()];
-        const created = [...erasePreview.values()].flat();
-        onSegmentErase?.(deleted, created);
-        setErasePreview(new Map());
-      }
-    } else if (effectiveMode === "select-region") {
-      if (dragStart && dragCurrent) {
-        const x = Math.min(dragStart[0], dragCurrent[0]);
-        const y = Math.min(dragStart[1], dragCurrent[1]);
-        const w = Math.abs(dragCurrent[0] - dragStart[0]);
-        const h = Math.abs(dragCurrent[1] - dragStart[1]);
-        if (w > MIN_REGION_PX && h > MIN_REGION_PX) {
-          setPendingSelection({ x, y, width: w, height: h });
-        }
-      }
-      setDragStart(null);
-      setDragCurrent(null);
-    }
-    reportHwOverride(getPenHwOverride(e));
-  }, [onSegmentErase, erasePreview, dragStart, dragCurrent, reportHwOverride]);
-
-  const handlePointerLeave = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
-    handlePointerUp(e);
-    setActivePointerType(null);
-    setEraserPos(null);
-    reportHwOverride(null);
-    effectiveModeRef.current = "pen";
-  }, [handlePointerUp, reportHwOverride]);
 
   const dragRect: DragRect | null =
     dragStart && dragCurrent
@@ -707,18 +364,13 @@ export default function DocumentOverlay({
       {/* Region boxes — clickable divs so they work independently of SVG pointer-events */}
       {naturalSize &&
         regions.map((r) => {
-          const rect = regionDrafts[r.id] ?? {
-            x: r.x,
-            y: r.y,
-            width: r.width,
-            height: r.height,
-          };
+          const rect = regionDrafts[r.id] ?? { x: r.x, y: r.y, width: r.width, height: r.height };
           const showHandles = (mode === "hand" || mode === "auto") && onRegionUpdate !== undefined && editingRegionId === r.id;
           const isEditing = editingRegionId === r.id;
           const handleDescriptors: Array<{ key: ResizeHandle; left: string; top: string; cursor: string }> = [
-            { key: "nw", left: "0%", top: "0%", cursor: "nwse-resize" },
-            { key: "ne", left: "100%", top: "0%", cursor: "nesw-resize" },
-            { key: "sw", left: "0%", top: "100%", cursor: "nesw-resize" },
+            { key: "nw", left: "0%",   top: "0%",   cursor: "nwse-resize" },
+            { key: "ne", left: "100%", top: "0%",   cursor: "nesw-resize" },
+            { key: "sw", left: "0%",   top: "100%", cursor: "nesw-resize" },
             { key: "se", left: "100%", top: "100%", cursor: "nwse-resize" },
           ];
 
@@ -804,10 +456,7 @@ export default function DocumentOverlay({
             style={{
               position: "absolute",
               left: `${(pendingSelection.x / naturalSize.width) * 100}%`,
-              top: `${Math.min(
-                ((pendingSelection.y + pendingSelection.height) / naturalSize.height) * 100,
-                80
-              )}%`,
+              top: `${Math.min(((pendingSelection.y + pendingSelection.height) / naturalSize.height) * 100, 80)}%`,
               zIndex: 102,
               background: "#fff",
               border: "1px solid #e0dbd3",
@@ -820,16 +469,9 @@ export default function DocumentOverlay({
           >
             <button
               style={{
-                display: "block",
-                width: "100%",
-                padding: "10px 16px",
-                background: "none",
-                border: "none",
-                textAlign: "left",
-                fontSize: 13,
-                cursor: "pointer",
-                color: "#2a2a2a",
-                whiteSpace: "nowrap",
+                display: "block", width: "100%", padding: "10px 16px",
+                background: "none", border: "none", textAlign: "left",
+                fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
               }}
               onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
               onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
@@ -869,16 +511,9 @@ export default function DocumentOverlay({
           >
             <button
               style={{
-                display: "block",
-                width: "100%",
-                padding: "10px 16px",
-                background: "none",
-                border: "none",
-                textAlign: "left",
-                fontSize: 13,
-                cursor: "pointer",
-                color: "#2a2a2a",
-                whiteSpace: "nowrap",
+                display: "block", width: "100%", padding: "10px 16px",
+                background: "none", border: "none", textAlign: "left",
+                fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
               }}
               onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
               onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
@@ -894,16 +529,9 @@ export default function DocumentOverlay({
             {onRegionUpdate && (
               <button
                 style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "10px 16px",
-                  background: "none",
-                  border: "none",
-                  textAlign: "left",
-                  fontSize: 13,
-                  cursor: "pointer",
-                  color: "#2a2a2a",
-                  whiteSpace: "nowrap",
+                  display: "block", width: "100%", padding: "10px 16px",
+                  background: "none", border: "none", textAlign: "left",
+                  fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
                 }}
                 onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
                 onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
@@ -934,42 +562,45 @@ export default function DocumentOverlay({
           touchAction: active && !ds.fingerScrolls && mode !== "auto" ? "none" : "auto",
           pointerEvents: (pendingSelection === null && active) ? "all" : "none",
           cursor:
-            (effectiveModeRef.current === "pen" || effectiveModeRef.current === "auto") ? (activePointerType === "pen" ? "none" : "default") : effectiveModeRef.current === "select-region" ? "crosshair" : effectiveModeRef.current === "stroke-eraser" ? "cell" : effectiveModeRef.current === "segment-eraser" ? "none" : "default",
+            (effectiveModeRef.current === "pen" || effectiveModeRef.current === "auto")
+              ? (activePointerType === "pen" ? "none" : "default")
+              : effectiveModeRef.current === "select-region"
+              ? "crosshair"
+              : effectiveModeRef.current === "stroke-eraser"
+              ? "cell"
+              : effectiveModeRef.current === "segment-eraser"
+              ? "none"
+              : "default",
         }}
-        onPointerEnter={(e) => setActivePointerType(e.pointerType)}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerLeave}
-        onContextMenu={handleContextMenu}
+        {...svgHandlers}
       >
         {strokes
           .filter(s => !erasePreview.has(s.id as number))
           .map((s, i) => {
-            const cacheKey = s.id ?? i;
+            const cacheKey: number | StrokeData = s.id ?? s;
             const cached = strokePathCache.current.get(cacheKey);
             let d: string;
             if (cached && cached.points === s.points) {
               d = cached.d;
             } else {
               const outline = getStroke(s.points, {
-                thinning: thinningRef.current,
-                smoothing: smoothingRef.current,
-                streamline: streamlineRef.current,
-                simulatePressure: simulatePressureRef.current,
+                thinning: ds.thinning,
+                smoothing: ds.smoothing,
+                streamline: ds.streamline,
+                simulatePressure: ds.simulatePressure,
                 size: s.width,
               });
               d = svgPathFromStroke(outline);
               strokePathCache.current.set(cacheKey, { points: s.points, d });
             }
-            return <path key={cacheKey} d={d} fill={s.color} data-stroke-id={s.id} />;
+            return <path key={s.id ?? i} d={d} fill={s.color} data-stroke-id={s.id} />;
           })}
         {erasePreview.size > 0 && [...erasePreview.values()].flat().map((frag, i) => {
           const outline = getStroke(frag.points, {
-            thinning: thinningRef.current,
-            smoothing: smoothingRef.current,
-            streamline: streamlineRef.current,
-            simulatePressure: simulatePressureRef.current,
+            thinning: ds.thinning,
+            smoothing: ds.smoothing,
+            streamline: ds.streamline,
+            simulatePressure: ds.simulatePressure,
             size: frag.width,
           });
           return <path key={`ef-${i}`} d={svgPathFromStroke(outline)} fill={frag.color} />;
@@ -991,7 +622,7 @@ export default function DocumentOverlay({
           <circle
             cx={eraserPos[0]}
             cy={eraserPos[1]}
-            r={penWidthRef.current}
+            r={penWidth}
             fill="none"
             stroke="rgba(80,80,80,0.6)"
             strokeWidth={1}
