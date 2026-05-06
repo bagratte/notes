@@ -169,6 +169,7 @@ export default function DocumentOverlay({
   const colorRef = useRef(color);
   const penWidthRef = useRef(penWidth);
   const lastHwOverrideRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
+  const barrelHeldRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
   const onHwOverrideChangeRef = useRef(onHwOverrideChange);
   useEffect(() => { onHwOverrideChangeRef.current = onHwOverrideChange; }, [onHwOverrideChange]);
 
@@ -400,12 +401,19 @@ export default function DocumentOverlay({
     if (mode === "auto" && e.pointerType === "pen") {
       // Stylus on a region in auto mode: transfer drawing to the SVG layer.
       e.preventDefault();
+      if (e.button !== 0) {
+        markPenContextMenuSuppressed();
+        const hw = getPenHwOverride(e);
+        if (hw) barrelHeldRef.current = hw;
+        reportHwOverride(hw);
+        return;
+      }
       const svg = svgRef.current;
       if (!svg) return;
       svg.setPointerCapture(e.pointerId);
       setActivePointerType("pen");
       drawing.current = true;
-      const hwOverride = getPenHwOverride(e);
+      const hwOverride = getPenHwOverride(e) ?? barrelHeldRef.current;
       if (hwOverride) markPenContextMenuSuppressed();
       reportHwOverride(hwOverride);
       const effectiveMode = hwOverride ?? "pen";
@@ -550,11 +558,18 @@ export default function DocumentOverlay({
           (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
       if (e.button !== 0 && e.pointerType !== "pen") return;
       e.preventDefault();
+      if (e.pointerType === "pen" && e.button !== 0) {
+        markPenContextMenuSuppressed();
+        const hw = getPenHwOverride(e);
+        if (hw) barrelHeldRef.current = hw;
+        reportHwOverride(hw);
+        return;
+      }
       e.currentTarget.setPointerCapture(e.pointerId);
       const toSvgCoords = getSvgTransform();
       const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
       drawing.current = true;
-      const hwOverride = getPenHwOverride(e);
+      const hwOverride = getPenHwOverride(e) ?? barrelHeldRef.current;
       if (hwOverride) markPenContextMenuSuppressed();
       reportHwOverride(hwOverride);
       const effectiveMode = hwOverride ?? mode;
@@ -582,6 +597,7 @@ export default function DocumentOverlay({
         setActivePointerType(e.pointerType);
       }
       const hwOverride = getPenHwOverride(e);
+      if (hwOverride) barrelHeldRef.current = hwOverride;
       if (hwOverride) markPenContextMenuSuppressed();
       reportHwOverride(hwOverride);
       const effectiveMode = hwOverride ?? mode;
@@ -623,6 +639,7 @@ export default function DocumentOverlay({
 
   const handlePointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     setActivePointerType(e.pointerType);
+    barrelHeldRef.current = null;
     if (!drawing.current) return;
     drawing.current = false;
 
@@ -658,7 +675,7 @@ export default function DocumentOverlay({
       setDragStart(null);
       setDragCurrent(null);
     }
-    reportHwOverride(null);
+    reportHwOverride(getPenHwOverride(e));
   }, [onSegmentErase, erasePreview, dragStart, dragCurrent, reportHwOverride]);
 
   const handlePointerLeave = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
