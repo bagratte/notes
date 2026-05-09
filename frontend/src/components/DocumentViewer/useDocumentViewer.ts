@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { EnrichedRegion } from "./DocumentOverlay";
 import type { ToolMode } from "@/types";
 import type { StrokeData } from "@/components/Canvas";
-import { DEFAULT_PEN } from "@/components/Toolbar";
+import { DEFAULT_PEN_DOCUMENT as DEFAULT_PEN } from "@/components/Toolbar";
 import type { PenSettings } from "@/components/Toolbar";
 import { strokes as strokesApi, regions as regionsApi, sections as sectionsApi, notes as notesApi } from "@/api";
 import type { Stroke } from "@/types";

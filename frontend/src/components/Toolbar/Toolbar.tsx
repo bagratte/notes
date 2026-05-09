@@ -8,6 +8,7 @@ export interface PenSettings {
 }
 
 export const DEFAULT_PEN: PenSettings = { color: "#2255cc", width: 4 };
+export const DEFAULT_PEN_DOCUMENT: PenSettings = { color: "#2255cc", width: 2 };
 
 const WIDTHS = [
   { value: 2, label: "Thin" },
