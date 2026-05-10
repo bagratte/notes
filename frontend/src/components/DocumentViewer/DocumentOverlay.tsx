@@ -6,6 +6,7 @@ import type { StrokeData } from "@/components/Canvas";
 import type { Note, Region, ToolMode } from "@/types";
 import { notes as notesApi } from "@/api";
 import { useDrawingSettings } from "@/context/DrawingSettings";
+import NoteStrokePreview from "./NoteStrokePreview";
 
 export interface EnrichedRegion extends Region {
   note_id: number;
@@ -183,6 +184,9 @@ export default function DocumentOverlay({
   const [addToNoteOpen, setAddToNoteOpen] = useState(false);
   const [notesList, setNotesList] = useState<Note[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
+  const [hoveredNoteId, setHoveredNoteId] = useState<number | null>(null);
+  const [previewPos, setPreviewPos] = useState<{ x: number; y: number } | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
   const [regionMenu, setRegionMenu] = useState<{ regionId: number; x: number; y: number } | null>(null);
   const [regionDrafts, setRegionDrafts] = useState<Record<number, DragRect>>({});
@@ -274,6 +278,9 @@ export default function DocumentOverlay({
         setPendingSelection(null);
         setAddToNoteOpen(false);
         setNotesList([]);
+        setHoveredNoteId(null);
+        setPreviewPos(null);
+        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
       }
     };
     window.addEventListener("keydown", handler);
@@ -603,7 +610,11 @@ export default function DocumentOverlay({
           </div>
           <div
             style={{ position: "absolute", inset: 0, zIndex: 101 }}
-            onPointerDown={() => { setPendingSelection(null); setAddToNoteOpen(false); setNotesList([]); }}
+            onPointerDown={() => {
+              if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+              setPendingSelection(null); setAddToNoteOpen(false); setNotesList([]);
+              setHoveredNoteId(null); setPreviewPos(null);
+            }}
           />
           <div
             style={{
@@ -648,7 +659,12 @@ export default function DocumentOverlay({
               onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
               onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
               onClick={async () => {
-                if (addToNoteOpen) { setAddToNoteOpen(false); setNotesList([]); return; }
+                if (addToNoteOpen) {
+                  setAddToNoteOpen(false); setNotesList([]);
+                  setHoveredNoteId(null); setPreviewPos(null);
+                  if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                  return;
+                }
                 setAddToNoteOpen(true);
                 setNotesLoading(true);
                 try {
@@ -662,6 +678,9 @@ export default function DocumentOverlay({
             >
               Add to Note ›
             </button>
+            {hoveredNoteId !== null && previewPos && (
+              <NoteStrokePreview noteId={hoveredNoteId} x={previewPos.x} y={previewPos.y} />
+            )}
             {addToNoteOpen && (
               <div style={{ borderTop: "1px solid #f0ede8", maxHeight: 200, overflowY: "auto" }}>
                 {notesLoading ? (
@@ -677,9 +696,24 @@ export default function DocumentOverlay({
                       fontSize: 13, cursor: "pointer", color: "#2a2a2a",
                       whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                     }}
-                    onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
-                    onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                    onPointerEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef";
+                      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                      const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                      hoverTimerRef.current = setTimeout(() => {
+                        setHoveredNoteId(note.id);
+                        setPreviewPos({ x: rect.right + 8, y: rect.top });
+                      }, 150);
+                    }}
+                    onPointerLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background = "none";
+                      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                      setHoveredNoteId(null);
+                      setPreviewPos(null);
+                    }}
                     onClick={() => {
+                      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                      setHoveredNoteId(null); setPreviewPos(null);
                       const sel = pendingSelection;
                       setPendingSelection(null);
                       setAddToNoteOpen(false);
