@@ -44,9 +44,8 @@ interface Props {
 const MIN_REGION_PX = 10;
 const REGION_LONG_PRESS_MS = 450;
 const REGION_PRESS_DEADZONE_PX = 8;
-const REGION_HANDLE_SIZE_PX = 20;
 
-type ResizeHandle = "nw" | "ne" | "sw" | "se";
+type ResizeHandle = "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
 
 interface RegionResizeState {
   pointerId: number;
@@ -369,11 +368,16 @@ export default function DocumentOverlay({
           const rect = regionDrafts[r.id] ?? { x: r.x, y: r.y, width: r.width, height: r.height };
           const showHandles = (mode === "hand" || mode === "auto") && onRegionUpdate !== undefined && editingRegionId === r.id;
           const isEditing = editingRegionId === r.id;
-          const handleDescriptors: Array<{ key: ResizeHandle; left: string; top: string; cursor: string }> = [
-            { key: "nw", left: "0%",   top: "0%",   cursor: "nwse-resize" },
-            { key: "ne", left: "100%", top: "0%",   cursor: "nesw-resize" },
-            { key: "sw", left: "0%",   top: "100%", cursor: "nesw-resize" },
-            { key: "se", left: "100%", top: "100%", cursor: "nwse-resize" },
+          type HandleKind = "corner" | "edge-h" | "edge-v";
+          const handleDescriptors: Array<{ key: ResizeHandle; left: string; top: string; cursor: string; kind: HandleKind }> = [
+            { key: "nw", left: "0%",   top: "0%",   cursor: "nwse-resize", kind: "corner" },
+            { key: "ne", left: "100%", top: "0%",   cursor: "nesw-resize", kind: "corner" },
+            { key: "sw", left: "0%",   top: "100%", cursor: "nesw-resize", kind: "corner" },
+            { key: "se", left: "100%", top: "100%", cursor: "nwse-resize", kind: "corner" },
+            { key: "n",  left: "50%",  top: "0%",   cursor: "ns-resize",   kind: "edge-h" },
+            { key: "s",  left: "50%",  top: "100%", cursor: "ns-resize",   kind: "edge-h" },
+            { key: "w",  left: "0%",   top: "50%",  cursor: "ew-resize",   kind: "edge-v" },
+            { key: "e",  left: "100%", top: "50%",  cursor: "ew-resize",   kind: "edge-v" },
           ];
 
           return (
@@ -385,7 +389,7 @@ export default function DocumentOverlay({
               onPointerUp={(e) => handleRegionPointerUp(r.id, e)}
               onPointerCancel={(e) => handleRegionPointerUp(r.id, e)}
               onContextMenu={(e) => handleRegionContextMenu(r, e)}
-              title={showHandles ? "Drag a corner handle to resize" : "Open linked note"}
+              title={showHandles ? "Drag a handle to resize" : "Open linked note"}
               style={{
                 position: "absolute",
                 left: `${(rect.x / naturalSize.width) * 100}%`,
@@ -404,30 +408,53 @@ export default function DocumentOverlay({
                 touchAction: isEditing ? "none" : "auto",
               }}
             >
-              {showHandles && handleDescriptors.map((handleDesc) => (
-                <div
-                  key={handleDesc.key}
-                  onPointerDown={(e) => handleResizePointerDown(r, handleDesc.key, e)}
-                  onPointerMove={handleResizePointerMove}
-                  onPointerUp={handleResizePointerUp}
-                  onPointerCancel={handleResizePointerCancel}
-                  style={{
-                    position: "absolute",
-                    left: handleDesc.left,
-                    top: handleDesc.top,
-                    width: REGION_HANDLE_SIZE_PX,
-                    height: REGION_HANDLE_SIZE_PX,
-                    transform: "translate(-50%, -50%)",
-                    borderRadius: "50%",
-                    background: "#ffffff",
-                    border: "2px solid rgba(74, 108, 247, 0.9)",
-                    boxSizing: "border-box",
-                    cursor: handleDesc.cursor,
-                    touchAction: "none",
-                    boxShadow: "0 1px 4px rgba(0, 0, 0, 0.18)",
-                  }}
-                />
-              ))}
+              {showHandles && handleDescriptors.map((h) => {
+                const isCorner = h.kind === "corner";
+                const isEdgeH = h.kind === "edge-h";
+                const visualStyle: React.CSSProperties = isCorner ? {
+                  width: 12,
+                  height: 12,
+                  background: "transparent",
+                  borderTop:    h.key.includes("n") ? "2.5px solid rgba(74, 108, 247, 0.95)" : undefined,
+                  borderBottom: h.key.includes("s") ? "2.5px solid rgba(74, 108, 247, 0.95)" : undefined,
+                  borderLeft:   h.key.includes("w") ? "2.5px solid rgba(74, 108, 247, 0.95)" : undefined,
+                  borderRight:  h.key.includes("e") ? "2.5px solid rgba(74, 108, 247, 0.95)" : undefined,
+                  filter: "drop-shadow(0 0 1.5px white) drop-shadow(0 0 2px rgba(0,0,0,0.25))",
+                  boxSizing: "border-box",
+                } : {
+                  width:  isEdgeH ? 22 : 5,
+                  height: isEdgeH ? 5  : 22,
+                  background: "white",
+                  border: "1.5px solid rgba(74, 108, 247, 0.9)",
+                  borderRadius: 3,
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.18)",
+                  boxSizing: "border-box",
+                };
+                return (
+                  <div
+                    key={h.key}
+                    onPointerDown={(e) => handleResizePointerDown(r, h.key, e)}
+                    onPointerMove={handleResizePointerMove}
+                    onPointerUp={handleResizePointerUp}
+                    onPointerCancel={handleResizePointerCancel}
+                    style={{
+                      position: "absolute",
+                      left: h.left,
+                      top: h.top,
+                      width: 28,
+                      height: 28,
+                      transform: "translate(-50%, -50%)",
+                      cursor: h.cursor,
+                      touchAction: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <div style={{ ...visualStyle, pointerEvents: "none" }} />
+                  </div>
+                );
+              })}
             </div>
           );
         })}
