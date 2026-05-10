@@ -8,6 +8,8 @@ export interface DrawingSettings {
   simulatePressure: boolean;
   palmRejection: boolean;
   palmThreshold: number;
+  pressureMultiplier: number;
+  pressureGamma: number;
 }
 
 export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
@@ -18,6 +20,8 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   simulatePressure: false,
   palmRejection: true,
   palmThreshold: 60,
+  pressureMultiplier: 1.0,
+  pressureGamma: 1.0,
 };
 
 const STORAGE_KEY = "drawingSettings";

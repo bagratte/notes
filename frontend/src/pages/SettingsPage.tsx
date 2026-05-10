@@ -59,6 +59,44 @@ export default function SettingsPage() {
 
           <div className={css.row}>
             <div>
+              <div className={css.rowLabel}>Pressure multiplier</div>
+              <div className={css.rowHint}>Scale raw pressure before the curve · &gt;1 amplifies, &lt;1 reduces</div>
+            </div>
+            <div className={css.sliderGroup}>
+              <input
+                type="range"
+                className={css.slider}
+                min="0.25"
+                max="3"
+                step="0.05"
+                value={settings.pressureMultiplier}
+                onChange={(e) => update({ pressureMultiplier: Number(e.target.value) })}
+              />
+              <span className={css.sliderValue}>{settings.pressureMultiplier.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className={css.row}>
+            <div>
+              <div className={css.rowLabel}>Pressure curve (gamma)</div>
+              <div className={css.rowHint}>&lt;1 = more response at light pressure · &gt;1 = need harder press for thick lines</div>
+            </div>
+            <div className={css.sliderGroup}>
+              <input
+                type="range"
+                className={css.slider}
+                min="0.25"
+                max="3"
+                step="0.05"
+                value={settings.pressureGamma}
+                onChange={(e) => update({ pressureGamma: Number(e.target.value) })}
+              />
+              <span className={css.sliderValue}>{settings.pressureGamma.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className={css.row}>
+            <div>
               <div className={css.rowLabel}>Smoothing</div>
               <div className={css.rowHint}>Stroke outline smoothness</div>
             </div>

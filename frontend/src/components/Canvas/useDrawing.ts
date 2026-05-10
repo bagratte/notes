@@ -14,9 +14,18 @@ export function getPenHwOverride(e: React.PointerEvent | PointerEvent): "segment
   return null;
 }
 
-export function normalizePressure(pressure: number, pointerType: string): number {
+export function normalizePressure(
+  pressure: number,
+  pointerType: string,
+  multiplier = 1.0,
+  gamma = 1.0,
+): number {
   if (pointerType === "pen") {
-    if (pressure > 0) return Math.min(1, Math.max(0.12, pressure));
+    if (pressure > 0) {
+      const scaled = Math.min(1, pressure * multiplier);
+      const curved = gamma === 1.0 ? scaled : Math.pow(scaled, gamma);
+      return Math.min(1, Math.max(0.12, curved));
+    }
     return 0.2;
   }
   return pressure > 0 ? pressure : 0.5;
@@ -100,6 +109,8 @@ export function useDrawing({
   const simulatePressureRef = useRef(ds.simulatePressure);
   const palmRejectionRef = useRef(ds.palmRejection);
   const palmThresholdRef = useRef(ds.palmThreshold);
+  const pressureMultiplierRef = useRef(ds.pressureMultiplier);
+  const pressureGammaRef = useRef(ds.pressureGamma);
   const lastHwOverrideRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
   const barrelHeldRef = useRef<"stroke-eraser" | "segment-eraser" | null>(null);
   const onHwOverrideChangeRef = useRef(onHwOverrideChange);
@@ -122,6 +133,8 @@ export function useDrawing({
   useEffect(() => { simulatePressureRef.current = ds.simulatePressure; }, [ds.simulatePressure]);
   useEffect(() => { palmRejectionRef.current = ds.palmRejection; }, [ds.palmRejection]);
   useEffect(() => { palmThresholdRef.current = ds.palmThreshold; }, [ds.palmThreshold]);
+  useEffect(() => { pressureMultiplierRef.current = ds.pressureMultiplier; }, [ds.pressureMultiplier]);
+  useEffect(() => { pressureGammaRef.current = ds.pressureGamma; }, [ds.pressureGamma]);
   useEffect(() => { strokePathCache.current.clear(); }, [ds.streamline, ds.thinning, ds.smoothing, ds.simulatePressure]);
 
   const reportHwOverride = useCallback((override: "stroke-eraser" | "segment-eraser" | null) => {
@@ -291,7 +304,7 @@ export function useDrawing({
     effectiveModeRef.current = resolvedMode;
     if (resolvedMode === "pen" || resolvedMode === "auto") {
       const toSvgCoords = getSvgTransform();
-      const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
+      const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType, pressureMultiplierRef.current, pressureGammaRef.current));
       livePointsRef.current = [pt];
       updateLivePath(livePointsRef.current);
     } else if (resolvedMode === "stroke-eraser") {
@@ -302,7 +315,7 @@ export function useDrawing({
       applyEraserStep(e.clientX, e.clientY);
     } else if (resolvedMode === "select-region") {
       const toSvgCoords = getSvgTransform();
-      const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
+      const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType, pressureMultiplierRef.current, pressureGammaRef.current));
       onSelectRegionStartRef.current?.([pt[0], pt[1]]);
     }
   }, [getSvgTransform, updateLivePath, eraseAtPoint, applyEraserStep]);
@@ -357,13 +370,13 @@ export function useDrawing({
       const toSvgCoords = getSvgTransform();
       const pts = livePointsRef.current;
       for (const ce of coalescedEvents) {
-        pts.push(toSvgCoords(ce.clientX, ce.clientY, normalizePressure(ce.pressure, ce.pointerType)));
+        pts.push(toSvgCoords(ce.clientX, ce.clientY, normalizePressure(ce.pressure, ce.pointerType, pressureMultiplierRef.current, pressureGammaRef.current)));
       }
       const predictedEvents = predictiveRef.current
         ? (e.nativeEvent as PointerEvent).getPredictedEvents?.() ?? []
         : [];
       const drawPts: [number, number, number][] = predictedEvents.length > 0
-        ? [...pts, ...predictedEvents.map((pe) => toSvgCoords(pe.clientX, pe.clientY, normalizePressure(pe.pressure, pe.pointerType)))]
+        ? [...pts, ...predictedEvents.map((pe) => toSvgCoords(pe.clientX, pe.clientY, normalizePressure(pe.pressure, pe.pointerType, pressureMultiplierRef.current, pressureGammaRef.current)))]
         : pts;
       updateLivePath(drawPts);
     } else if (resolvedMode === "stroke-eraser") {
@@ -372,7 +385,7 @@ export function useDrawing({
       applyEraserStep(e.clientX, e.clientY);
     } else if (resolvedMode === "select-region") {
       const toSvgCoords = getSvgTransform();
-      const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType));
+      const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType, pressureMultiplierRef.current, pressureGammaRef.current));
       onSelectRegionMoveRef.current?.([pt[0], pt[1]]);
     }
   }, [mode, getSvgTransform, updateLivePath, eraseAtPoint, applyEraserStep, markPenContextMenuSuppressed, reportHwOverride]);
