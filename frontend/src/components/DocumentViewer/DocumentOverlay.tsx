@@ -6,6 +6,7 @@ import type { StrokeData } from "@/components/Canvas";
 import type { Note, Region, ToolMode } from "@/types";
 import { notes as notesApi } from "@/api";
 import { useDrawingSettings } from "@/context/DrawingSettings";
+import { useTouchMode } from "@/context/TouchMode";
 import NoteStrokePreview from "./NoteStrokePreview";
 
 export interface EnrichedRegion extends Region {
@@ -186,7 +187,9 @@ export default function DocumentOverlay({
   const [notesLoading, setNotesLoading] = useState(false);
   const [hoveredNoteId, setHoveredNoteId] = useState<number | null>(null);
   const [previewPos, setPreviewPos] = useState<{ x: number; y: number } | null>(null);
+  const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { isTouch } = useTouchMode();
   const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
   const [regionMenu, setRegionMenu] = useState<{ regionId: number; x: number; y: number } | null>(null);
   const [regionDrafts, setRegionDrafts] = useState<Record<number, DragRect>>({});
@@ -280,6 +283,7 @@ export default function DocumentOverlay({
         setNotesList([]);
         setHoveredNoteId(null);
         setPreviewPos(null);
+        setSelectedNoteId(null);
         if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
       }
     };
@@ -613,7 +617,7 @@ export default function DocumentOverlay({
             onPointerDown={() => {
               if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
               setPendingSelection(null); setAddToNoteOpen(false); setNotesList([]);
-              setHoveredNoteId(null); setPreviewPos(null);
+              setHoveredNoteId(null); setPreviewPos(null); setSelectedNoteId(null);
             }}
           />
           <div
@@ -661,7 +665,7 @@ export default function DocumentOverlay({
               onClick={async () => {
                 if (addToNoteOpen) {
                   setAddToNoteOpen(false); setNotesList([]);
-                  setHoveredNoteId(null); setPreviewPos(null);
+                  setHoveredNoteId(null); setPreviewPos(null); setSelectedNoteId(null);
                   if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
                   return;
                 }
@@ -688,41 +692,69 @@ export default function DocumentOverlay({
                 ) : notesList.length === 0 ? (
                   <div style={{ padding: "8px 16px", fontSize: 12, color: "#aaa" }}>No notes yet</div>
                 ) : notesList.map((note) => (
-                  <button
-                    key={note.id}
-                    style={{
-                      display: "block", width: "100%", padding: "8px 16px 8px 24px",
-                      background: "none", border: "none", textAlign: "left",
-                      fontSize: 13, cursor: "pointer", color: "#2a2a2a",
-                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                    }}
-                    onPointerEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef";
-                      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                      const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                      hoverTimerRef.current = setTimeout(() => {
-                        setHoveredNoteId(note.id);
-                        setPreviewPos({ x: rect.right + 8, y: rect.top });
-                      }, 150);
-                    }}
-                    onPointerLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background = "none";
-                      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                      setHoveredNoteId(null);
-                      setPreviewPos(null);
-                    }}
-                    onClick={() => {
-                      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                      setHoveredNoteId(null); setPreviewPos(null);
-                      const sel = pendingSelection;
-                      setPendingSelection(null);
-                      setAddToNoteOpen(false);
-                      setNotesList([]);
-                      if (sel) onRegionAddToNote?.(sel, note.id);
-                    }}
-                  >
-                    {note.name}
-                  </button>
+                  <div key={note.id}>
+                    <button
+                      style={{
+                        display: "block", width: "100%", padding: "8px 16px 8px 24px",
+                        background: selectedNoteId === note.id ? "#eae8fc" : "none",
+                        border: "none", textAlign: "left",
+                        fontSize: 13, cursor: "pointer",
+                        color: selectedNoteId === note.id ? "#3a4bd6" : "#2a2a2a",
+                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                      }}
+                      onPointerEnter={(e) => {
+                        if (isTouch) return;
+                        (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef";
+                        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                        const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                        hoverTimerRef.current = setTimeout(() => {
+                          setHoveredNoteId(note.id);
+                          setPreviewPos({ x: rect.right + 8, y: rect.top });
+                        }, 150);
+                      }}
+                      onPointerLeave={(e) => {
+                        if (isTouch) return;
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          selectedNoteId === note.id ? "#eae8fc" : "none";
+                        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                        setHoveredNoteId(null);
+                        setPreviewPos(null);
+                      }}
+                      onClick={() => {
+                        if (isTouch) {
+                          if (selectedNoteId === note.id) {
+                            // Second tap — execute
+                            setSelectedNoteId(null);
+                            const sel = pendingSelection;
+                            setPendingSelection(null);
+                            setAddToNoteOpen(false);
+                            setNotesList([]);
+                            if (sel) onRegionAddToNote?.(sel, note.id);
+                          } else {
+                            // First tap — select and show inline preview
+                            setSelectedNoteId(note.id);
+                          }
+                          return;
+                        }
+                        // Mouse: single click executes immediately
+                        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                        setHoveredNoteId(null); setPreviewPos(null);
+                        const sel = pendingSelection;
+                        setPendingSelection(null);
+                        setAddToNoteOpen(false);
+                        setNotesList([]);
+                        if (sel) onRegionAddToNote?.(sel, note.id);
+                      }}
+                    >
+                      {note.name}
+                      {isTouch && selectedNoteId === note.id && (
+                        <span style={{ fontSize: 11, color: "#7c7ccc", marginLeft: 6 }}>tap again to add</span>
+                      )}
+                    </button>
+                    {isTouch && selectedNoteId === note.id && (
+                      <NoteStrokePreview noteId={note.id} inline />
+                    )}
+                  </div>
                 ))}
               </div>
             )}

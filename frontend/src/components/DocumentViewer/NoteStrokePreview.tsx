@@ -55,11 +55,12 @@ function StrokeSectionPreview({ strokes }: { strokes: Stroke[] }) {
 
 interface Props {
   noteId: number;
-  x: number;
-  y: number;
+  x?: number;
+  y?: number;
+  inline?: boolean;
 }
 
-export default function NoteStrokePreview({ noteId, x, y }: Props) {
+export default function NoteStrokePreview({ noteId, x, y, inline }: Props) {
   const [sections, setSections] = useState<SectionData[] | null>(null);
 
   useEffect(() => {
@@ -75,28 +76,26 @@ export default function NoteStrokePreview({ noteId, x, y }: Props) {
     return () => { cancelled = true; };
   }, [noteId]);
 
-  // Clamp to viewport
-  const clampedX = Math.min(x, window.innerWidth - PREVIEW_W - 8);
-  const clampedY = Math.min(y, window.innerHeight - MAX_PREVIEW_H - 8);
+  // Floating mode: clamp to viewport
+  const clampedX = inline ? 0 : Math.min(x ?? 0, window.innerWidth - PREVIEW_W - 8);
+  const clampedY = inline ? 0 : Math.min(y ?? 0, window.innerHeight - MAX_PREVIEW_H - 8);
+
+  const sharedStyle: React.CSSProperties = {
+    background: "#f8f6f2",
+    border: "1px solid #e0dbd3",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.14)",
+    pointerEvents: "none",
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+  };
+
+  const containerStyle: React.CSSProperties = inline
+    ? { ...sharedStyle, width: "100%", maxHeight: MAX_PREVIEW_H, borderRadius: "0 0 6px 6px", borderTop: "none" }
+    : { ...sharedStyle, position: "fixed", left: clampedX, top: clampedY, width: PREVIEW_W, maxHeight: MAX_PREVIEW_H, borderRadius: 8, zIndex: 300 };
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        left: clampedX,
-        top: clampedY,
-        width: PREVIEW_W,
-        maxHeight: MAX_PREVIEW_H,
-        background: "#f8f6f2",
-        border: "1px solid #e0dbd3",
-        borderRadius: 8,
-        boxShadow: "0 4px 20px rgba(0,0,0,0.14)",
-        zIndex: 300,
-        pointerEvents: "none",
-        overflowY: "auto",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div style={containerStyle}>
       {sections === null ? (
         <div style={{ padding: 16, fontSize: 12, color: "#bbb", textAlign: "center" }}>Loading…</div>
       ) : sections.length === 0 ? (
