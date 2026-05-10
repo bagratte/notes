@@ -600,7 +600,7 @@ export default function DocumentOverlay({
               position: "absolute",
               left: `${(pendingSelection.x / naturalSize.width) * 100}%`,
               top: `${Math.min(((pendingSelection.y + pendingSelection.height) / naturalSize.height) * 100, 80)}%`,
-              zIndex: 102,
+              zIndex: 104,
               background: "#fff",
               border: "1px solid #e0dbd3",
               borderRadius: 8,
