@@ -56,6 +56,14 @@ interface RegionResizeState {
   startRect: DragRect;
 }
 
+interface PendingResizeState {
+  pointerId: number;
+  handle: ResizeHandle;
+  startClientX: number;
+  startClientY: number;
+  startRect: DragRect;
+}
+
 interface RegionPressState {
   pointerId: number;
   regionId: number;
@@ -126,6 +134,7 @@ export default function DocumentOverlay({
 
   const touchPressRef = useRef<RegionPressState | null>(null);
   const resizeStateRef = useRef<RegionResizeState | null>(null);
+  const pendingResizeStateRef = useRef<PendingResizeState | null>(null);
   const suppressRegionClickRef = useRef<number | null>(null);
 
   const onSelectRegionEnd = useCallback(() => {
@@ -214,12 +223,14 @@ export default function DocumentOverlay({
   useEffect(() => () => {
     clearTouchPress();
     resizeStateRef.current = null;
+    pendingResizeStateRef.current = null;
   }, [clearTouchPress]);
 
   useEffect(() => {
     if (mode === "hand") return;
     clearTouchPress();
     resizeStateRef.current = null;
+    pendingResizeStateRef.current = null;
     setEditingRegionId(null);
     setRegionMenu(null);
     setRegionDrafts({});
@@ -344,6 +355,60 @@ export default function DocumentOverlay({
     finishRegionResize(e.pointerId, false);
   }, [finishRegionResize]);
 
+  const handlePendingResizePointerDown = useCallback(
+    (handle: ResizeHandle, e: React.PointerEvent<HTMLDivElement>) => {
+      if (!pendingSelection || naturalSize === undefined) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      pendingResizeStateRef.current = {
+        pointerId: e.pointerId,
+        handle,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startRect: pendingSelection,
+      };
+    },
+    [pendingSelection, naturalSize]
+  );
+
+  const handlePendingResizePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const resize = pendingResizeStateRef.current;
+      const overlay = overlayRef.current;
+      if (!resize || resize.pointerId !== e.pointerId || naturalSize === undefined || !overlay) return;
+      e.preventDefault();
+      const rect = overlay.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      const dx = (e.clientX - resize.startClientX) * (naturalSize.width / rect.width);
+      const dy = (e.clientY - resize.startClientY) * (naturalSize.height / rect.height);
+      setPendingSelection(resizeRegionRect(resize.startRect, resize.handle, dx, dy, naturalSize));
+    },
+    [naturalSize]
+  );
+
+  const handlePendingResizePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const resize = pendingResizeStateRef.current;
+      if (!resize || resize.pointerId !== e.pointerId) return;
+      e.preventDefault();
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      pendingResizeStateRef.current = null;
+    },
+    []
+  );
+
+  const handlePendingResizePointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const resize = pendingResizeStateRef.current;
+      if (!resize || resize.pointerId !== e.pointerId) return;
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      pendingResizeStateRef.current = null;
+      setPendingSelection(resize.startRect);
+    },
+    []
+  );
+
   const dragRect: DragRect | null =
     dragStart && dragCurrent
       ? {
@@ -353,6 +418,13 @@ export default function DocumentOverlay({
           height: Math.abs(dragCurrent[1] - dragStart[1]),
         }
       : null;
+
+  const handleDescriptors: Array<{ key: ResizeHandle; left: string; top: string; cursor: string }> = [
+    { key: "nw", left: "0%",   top: "0%",   cursor: "nwse-resize" },
+    { key: "ne", left: "100%", top: "0%",   cursor: "nesw-resize" },
+    { key: "sw", left: "0%",   top: "100%", cursor: "nesw-resize" },
+    { key: "se", left: "100%", top: "100%", cursor: "nwse-resize" },
+  ];
 
   const active = mode !== "hand";
   return (
@@ -473,10 +545,37 @@ export default function DocumentOverlay({
               border: "1.5px dashed rgba(74, 108, 247, 0.7)",
               borderRadius: 2,
               boxSizing: "border-box",
-              pointerEvents: "none",
-              zIndex: 100,
+              pointerEvents: "auto",
+              zIndex: 103,
+              touchAction: "none",
             }}
-          />
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {handleDescriptors.map((handleDesc) => (
+              <div
+                key={handleDesc.key}
+                onPointerDown={(e) => handlePendingResizePointerDown(handleDesc.key, e)}
+                onPointerMove={handlePendingResizePointerMove}
+                onPointerUp={handlePendingResizePointerUp}
+                onPointerCancel={handlePendingResizePointerCancel}
+                style={{
+                  position: "absolute",
+                  left: handleDesc.left,
+                  top: handleDesc.top,
+                  width: REGION_HANDLE_SIZE_PX,
+                  height: REGION_HANDLE_SIZE_PX,
+                  transform: "translate(-50%, -50%)",
+                  borderRadius: "50%",
+                  background: "#ffffff",
+                  border: "2px solid rgba(74, 108, 247, 0.9)",
+                  boxSizing: "border-box",
+                  cursor: handleDesc.cursor,
+                  touchAction: "none",
+                  boxShadow: "0 1px 4px rgba(0, 0, 0, 0.18)",
+                }}
+              />
+            ))}
+          </div>
           <div
             style={{ position: "absolute", inset: 0, zIndex: 101 }}
             onPointerDown={() => setPendingSelection(null)}
