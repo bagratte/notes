@@ -124,6 +124,7 @@ const styles = {
   },
   body: {
     padding: "24px 32px",
+    paddingBottom: "80vh",
     maxWidth: 860,
     width: "100%",
     margin: "0 auto",
