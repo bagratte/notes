@@ -708,8 +708,10 @@ export default function DocumentOverlay({
                         if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
                         const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
                         hoverTimerRef.current = setTimeout(() => {
+                          const spaceRight = window.innerWidth - rect.right - 8;
+                          const px = spaceRight >= 420 ? rect.right + 8 : rect.left - 420 - 8;
                           setHoveredNoteId(note.id);
-                          setPreviewPos({ x: rect.right + 8, y: rect.top });
+                          setPreviewPos({ x: px, y: rect.top });
                         }, 150);
                       }}
                       onPointerLeave={(e) => {
@@ -720,19 +722,26 @@ export default function DocumentOverlay({
                         setHoveredNoteId(null);
                         setPreviewPos(null);
                       }}
-                      onClick={() => {
+                      onClick={(e) => {
                         if (isTouch) {
                           if (selectedNoteId === note.id) {
                             // Second tap — execute
                             setSelectedNoteId(null);
+                            setHoveredNoteId(null);
+                            setPreviewPos(null);
                             const sel = pendingSelection;
                             setPendingSelection(null);
                             setAddToNoteOpen(false);
                             setNotesList([]);
                             if (sel) onRegionAddToNote?.(sel, note.id);
                           } else {
-                            // First tap — select and show inline preview
+                            // First tap — select and show floating preview
                             setSelectedNoteId(note.id);
+                            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                            const spaceRight = window.innerWidth - rect.right - 8;
+                            const px = spaceRight >= 420 ? rect.right + 8 : rect.left - 420 - 8;
+                            setHoveredNoteId(note.id);
+                            setPreviewPos({ x: px, y: rect.top });
                           }
                           return;
                         }
@@ -751,9 +760,6 @@ export default function DocumentOverlay({
                         <span style={{ fontSize: 11, color: "#7c7ccc", marginLeft: 6 }}>tap again to add</span>
                       )}
                     </button>
-                    {isTouch && selectedNoteId === note.id && (
-                      <NoteStrokePreview noteId={note.id} inline />
-                    )}
                   </div>
                 ))}
               </div>

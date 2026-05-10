@@ -77,7 +77,7 @@ export default function NoteStrokePreview({ noteId, x, y, inline }: Props) {
   }, [noteId]);
 
   // Floating mode: clamp to viewport
-  const clampedX = inline ? 0 : Math.min(x ?? 0, window.innerWidth - PREVIEW_W - 8);
+  const clampedX = inline ? 0 : Math.max(8, Math.min(x ?? 0, window.innerWidth - PREVIEW_W - 8));
   const clampedY = inline ? 0 : Math.min(y ?? 0, window.innerHeight - MAX_PREVIEW_H - 8);
 
   const sharedStyle: React.CSSProperties = {
