@@ -85,6 +85,7 @@ export interface UseDocumentViewerResult {
   handleRegionComplete: (page: number, rect: PendingRegion) => Promise<void>;
   handleRegionUpdate: (page: number, regionId: number, rect: PendingRegion) => Promise<void>;
   handleRegionClick: (region: EnrichedRegion) => void;
+  handleRegionDelete: (page: number, region: EnrichedRegion) => Promise<void>;
   stopPointerPan: () => void;
   handleScrollPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
   handleScrollPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
@@ -492,6 +493,23 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     navigate(`/notes/${region.note_id}`);
   }, [navigate]);
 
+  const handleRegionDelete = useCallback(async (page: number, region: EnrichedRegion) => {
+    setRegionsByPage((prev) => ({
+      ...prev,
+      [page]: (prev[page] ?? []).filter((r) => r.id !== region.id),
+    }));
+    try {
+      await notesApi.delete(region.note_id);
+      window.dispatchEvent(new CustomEvent("note:deleted", { detail: { noteId: region.note_id } }));
+      window.dispatchEvent(new CustomEvent("sidebar:refresh"));
+    } catch {
+      setRegionsByPage((prev) => ({
+        ...prev,
+        [page]: [...(prev[page] ?? []), region],
+      }));
+    }
+  }, []);
+
   // ---------- pan ----------
 
   const stopPointerPan = useCallback(() => {
@@ -611,6 +629,22 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     return () => { el.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
   }, [numPages, syncActivePageFromScroll]);
 
+  // remove regions whose linked note was deleted elsewhere (e.g. sidebar)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { noteId } = (e as CustomEvent<{ noteId: number }>).detail;
+      setRegionsByPage((prev) => {
+        const next: Record<number, EnrichedRegion[]> = {};
+        for (const [page, rs] of Object.entries(prev)) {
+          next[Number(page)] = rs.filter((r) => r.note_id !== noteId);
+        }
+        return next;
+      });
+    };
+    window.addEventListener("note:deleted", handler);
+    return () => window.removeEventListener("note:deleted", handler);
+  }, []);
+
   // jump to initial page after layout
   useEffect(() => {
     if (numPages === 0) return;
@@ -674,6 +708,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     handleRegionComplete,
     handleRegionUpdate,
     handleRegionClick,
+    handleRegionDelete,
     stopPointerPan,
     handleScrollPointerDown,
     handleScrollPointerMove,

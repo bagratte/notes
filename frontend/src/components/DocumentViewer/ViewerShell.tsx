@@ -53,6 +53,7 @@ export default function ViewerShell({
   handleRegionComplete,
   handleRegionUpdate,
   handleRegionClick,
+  handleRegionDelete,
   stopPointerPan,
   handleScrollPointerDown,
   handleScrollPointerMove,
@@ -202,6 +203,7 @@ export default function ViewerShell({
                           onRegionComplete={(rect) => handleRegionComplete(page, rect)}
                           onRegionUpdate={(regionId, rect) => handleRegionUpdate(page, regionId, rect)}
                           onRegionClick={handleRegionClick}
+                          onRegionDelete={(region) => handleRegionDelete(page, region)}
                           onHwOverrideChange={setHwOverride}
                           mode={toolMode}
                           viewBox={viewBox}

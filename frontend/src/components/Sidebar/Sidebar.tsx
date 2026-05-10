@@ -261,6 +261,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         Object.entries(d.docNotes).map(([k, ns]) => [k, (ns as Note[]).filter((n) => n.id !== note.id)])
       ),
     }));
+    window.dispatchEvent(new CustomEvent("note:deleted", { detail: { noteId: note.id } }));
     if (location.pathname === `/notes/${note.id}`) navigate("/");
   };
 
