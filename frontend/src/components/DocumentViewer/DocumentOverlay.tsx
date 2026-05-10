@@ -756,9 +756,6 @@ export default function DocumentOverlay({
                       }}
                     >
                       {note.name}
-                      {isTouch && selectedNoteId === note.id && (
-                        <span style={{ fontSize: 11, color: "#7c7ccc", marginLeft: 6 }}>tap again to add</span>
-                      )}
                     </button>
                   </div>
                 ))}
