@@ -51,6 +51,7 @@ export default function ViewerShell({
   handleEraseStroke,
   handleSegmentErase,
   handleRegionComplete,
+  handleRegionAddToNote,
   handleRegionUpdate,
   handleRegionClick,
   handleRegionDelete,
@@ -201,6 +202,7 @@ export default function ViewerShell({
                           onSegmentErase={(del, cr) => handleSegmentErase(page, del, cr)}
                           regions={regions}
                           onRegionComplete={(rect) => handleRegionComplete(page, rect)}
+                          onRegionAddToNote={(rect, noteId) => handleRegionAddToNote(page, rect, noteId)}
                           onRegionUpdate={(regionId, rect) => handleRegionUpdate(page, regionId, rect)}
                           onRegionClick={handleRegionClick}
                           onRegionDelete={(region) => handleRegionDelete(page, region)}

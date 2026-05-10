@@ -3,7 +3,8 @@ import { getStroke } from "perfect-freehand";
 import { svgPathFromStroke } from "@/components/Canvas/utils";
 import { useDrawing, getPenHwOverride } from "@/components/Canvas/useDrawing";
 import type { StrokeData } from "@/components/Canvas";
-import type { Region, ToolMode } from "@/types";
+import type { Note, Region, ToolMode } from "@/types";
+import { notes as notesApi } from "@/api";
 import { useDrawingSettings } from "@/context/DrawingSettings";
 
 export interface EnrichedRegion extends Region {
@@ -27,6 +28,7 @@ interface Props {
   onStrokeComplete?: (s: StrokeData) => void;
   regions: EnrichedRegion[];
   onRegionComplete?: (rect: DragRect) => void;
+  onRegionAddToNote?: (rect: DragRect, noteId: number) => void;
   onRegionClick?: (region: EnrichedRegion) => void;
   onRegionUpdate?: (regionId: number, rect: DragRect) => void;
   onRegionDelete?: (region: EnrichedRegion) => void;
@@ -160,6 +162,7 @@ export default function DocumentOverlay({
   onStrokeComplete,
   regions,
   onRegionComplete,
+  onRegionAddToNote,
   onRegionClick,
   onRegionUpdate,
   onRegionDelete,
@@ -177,6 +180,9 @@ export default function DocumentOverlay({
   const [dragStart, setDragStart] = useState<[number, number] | null>(null);
   const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
   const [pendingSelection, setPendingSelection] = useState<DragRect | null>(null);
+  const [addToNoteOpen, setAddToNoteOpen] = useState(false);
+  const [notesList, setNotesList] = useState<Note[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
   const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
   const [regionMenu, setRegionMenu] = useState<{ regionId: number; x: number; y: number } | null>(null);
   const [regionDrafts, setRegionDrafts] = useState<Record<number, DragRect>>({});
@@ -264,7 +270,11 @@ export default function DocumentOverlay({
   useEffect(() => {
     if (!pendingSelection) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPendingSelection(null);
+      if (e.key === "Escape") {
+        setPendingSelection(null);
+        setAddToNoteOpen(false);
+        setNotesList([]);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -593,7 +603,7 @@ export default function DocumentOverlay({
           </div>
           <div
             style={{ position: "absolute", inset: 0, zIndex: 101 }}
-            onPointerDown={() => setPendingSelection(null)}
+            onPointerDown={() => { setPendingSelection(null); setAddToNoteOpen(false); setNotesList([]); }}
           />
           <div
             style={{
@@ -606,7 +616,7 @@ export default function DocumentOverlay({
               borderRadius: 8,
               boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
               overflow: "hidden",
-              minWidth: 140,
+              minWidth: 160,
             }}
             onPointerDown={(e) => e.stopPropagation()}
           >
@@ -621,11 +631,67 @@ export default function DocumentOverlay({
               onClick={() => {
                 const sel = pendingSelection;
                 setPendingSelection(null);
+                setAddToNoteOpen(false);
+                setNotesList([]);
                 if (sel) onRegionComplete?.(sel);
               }}
             >
               Create Note
             </button>
+            <button
+              style={{
+                display: "block", width: "100%", padding: "10px 16px",
+                background: "none", border: "none", textAlign: "left",
+                fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
+                borderTop: "1px solid #f0ede8",
+              }}
+              onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+              onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+              onClick={async () => {
+                if (addToNoteOpen) { setAddToNoteOpen(false); setNotesList([]); return; }
+                setAddToNoteOpen(true);
+                setNotesLoading(true);
+                try {
+                  const all = await notesApi.list();
+                  all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                  setNotesList(all);
+                } finally {
+                  setNotesLoading(false);
+                }
+              }}
+            >
+              Add to Note ›
+            </button>
+            {addToNoteOpen && (
+              <div style={{ borderTop: "1px solid #f0ede8", maxHeight: 200, overflowY: "auto" }}>
+                {notesLoading ? (
+                  <div style={{ padding: "8px 16px", fontSize: 12, color: "#aaa" }}>Loading…</div>
+                ) : notesList.length === 0 ? (
+                  <div style={{ padding: "8px 16px", fontSize: 12, color: "#aaa" }}>No notes yet</div>
+                ) : notesList.map((note) => (
+                  <button
+                    key={note.id}
+                    style={{
+                      display: "block", width: "100%", padding: "8px 16px 8px 24px",
+                      background: "none", border: "none", textAlign: "left",
+                      fontSize: 13, cursor: "pointer", color: "#2a2a2a",
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                    }}
+                    onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+                    onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                    onClick={() => {
+                      const sel = pendingSelection;
+                      setPendingSelection(null);
+                      setAddToNoteOpen(false);
+                      setNotesList([]);
+                      if (sel) onRegionAddToNote?.(sel, note.id);
+                    }}
+                  >
+                    {note.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}

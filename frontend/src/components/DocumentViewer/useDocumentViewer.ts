@@ -83,6 +83,7 @@ export interface UseDocumentViewerResult {
   handleEraseStroke: (page: number, id: number) => Promise<void>;
   handleSegmentErase: (page: number, deleted: number[], created: StrokeData[]) => Promise<void>;
   handleRegionComplete: (page: number, rect: PendingRegion) => Promise<void>;
+  handleRegionAddToNote: (page: number, rect: PendingRegion, noteId: number) => Promise<void>;
   handleRegionUpdate: (page: number, regionId: number, rect: PendingRegion) => Promise<void>;
   handleRegionClick: (region: EnrichedRegion) => void;
   handleRegionDelete: (page: number, region: EnrichedRegion) => Promise<void>;
@@ -462,6 +463,28 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     navigate(`/notes/${note.id}`);
   }, [documentId, folderId, navigate]);
 
+  const handleRegionAddToNote = useCallback(async (page: number, rect: PendingRegion, noteId: number) => {
+    const existingSections = await sectionsApi.list(noteId);
+    const section = await sectionsApi.create(noteId, existingSections.length);
+
+    const region = await regionsApi.create({
+      documentId,
+      sectionId: section.id,
+      pageNumber: page,
+      ...rect,
+    });
+
+    setRegionsByPage((prev) => {
+      const existing = prev[page] ?? [];
+      return { ...prev, [page]: [...existing, { ...region, note_id: noteId }] };
+    });
+
+    sectionNoteCacheRef.current.set(section.id, noteId);
+    loadedRegionPagesRef.current.add(page);
+    setToolMode("hand");
+    navigate(`/notes/${noteId}`);
+  }, [documentId, navigate]);
+
   const handleRegionUpdate = useCallback(async (page: number, regionId: number, rect: PendingRegion) => {
     let previousRegion: EnrichedRegion | null = null;
 
@@ -706,6 +729,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     handleEraseStroke,
     handleSegmentErase,
     handleRegionComplete,
+    handleRegionAddToNote,
     handleRegionUpdate,
     handleRegionClick,
     handleRegionDelete,
