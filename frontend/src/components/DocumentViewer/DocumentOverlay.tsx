@@ -29,6 +29,7 @@ interface Props {
   onRegionComplete?: (rect: DragRect) => void;
   onRegionClick?: (region: EnrichedRegion) => void;
   onRegionUpdate?: (regionId: number, rect: DragRect) => void;
+  onRegionDelete?: (region: EnrichedRegion) => void;
   onEraseStroke?: (id: number) => void;
   onSegmentErase?: (deleted: number[], created: StrokeData[]) => void;
   onHwOverrideChange?: (o: "stroke-eraser" | "segment-eraser" | null) => void;
@@ -104,6 +105,7 @@ export default function DocumentOverlay({
   onRegionComplete,
   onRegionClick,
   onRegionUpdate,
+  onRegionDelete,
   onEraseStroke,
   onSegmentErase,
   onHwOverrideChange,
@@ -543,6 +545,25 @@ export default function DocumentOverlay({
                 }}
               >
                 Resize Region
+              </button>
+            )}
+            {onRegionDelete && (
+              <button
+                style={{
+                  display: "block", width: "100%", padding: "10px 16px",
+                  background: "none", border: "none", textAlign: "left",
+                  fontSize: 13, cursor: "pointer", color: "#c0392b", whiteSpace: "nowrap",
+                }}
+                onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fdf0ef"; }}
+                onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                onClick={() => {
+                  const menu = regionMenu;
+                  setRegionMenu(null);
+                  const region = regions.find(r => r.id === menu.regionId);
+                  if (region) onRegionDelete(region);
+                }}
+              >
+                Delete Note
               </button>
             )}
           </div>
