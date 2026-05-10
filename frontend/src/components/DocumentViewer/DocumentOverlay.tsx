@@ -42,6 +42,7 @@ interface Props {
 }
 
 const MIN_REGION_PX = 10;
+const REGION_HANDLE_SIZE_PX = 28;
 const REGION_LONG_PRESS_MS = 450;
 const REGION_PRESS_DEADZONE_PX = 8;
 
