@@ -167,8 +167,6 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
       const docNotePageNums = Object.fromEntries(pageNumsByDoc);
       const docAnnotatedPages = Object.fromEntries(annotatedByDoc);
       setData({ folders: flds, notes: nts, documents: docs, docNotes, docNotePageNums, docAnnotatedPages });
-      setExpandedFolders(new Set(flds.map((f) => f.id)));
-      setExpandedDocuments(new Set(docs.filter((d) => docNotes[d.id]?.length > 0 || docAnnotatedPages[d.id]?.length > 0).map((d) => d.id)));
     } catch (err) {
       console.error("Failed to load sidebar data:", err);
     }
