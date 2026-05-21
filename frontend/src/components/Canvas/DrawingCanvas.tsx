@@ -1,9 +1,10 @@
 import { useDrawing } from "./useDrawing";
 import { getStroke } from "perfect-freehand";
-import { svgPathFromStroke } from "./utils";
+import { svgPathFromStroke, flipLightness } from "./utils";
 import type { StrokeData } from "./types";
 import type { ToolMode } from "@/types";
 import { useDrawingSettings } from "@/context/DrawingSettings";
+import { useTheme } from "@/context/Theme";
 
 interface Props {
   strokes: StrokeData[];
@@ -41,6 +42,8 @@ export default function DrawingCanvas({
   style,
 }: Props) {
   const { settings: ds } = useDrawingSettings();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   const {
     svgRef,
@@ -56,6 +59,7 @@ export default function DrawingCanvas({
     mode,
     color,
     penWidth,
+    isDark,
     viewBox,
     inputEnabled,
     readonly,
@@ -110,7 +114,7 @@ export default function DrawingCanvas({
               d = svgPathFromStroke(outline);
               strokePathCache.current.set(cacheKey, { points: s.points, d });
             }
-            return <path key={s.id ?? i} d={d} fill={s.color} data-stroke-id={s.id} />;
+            return <path key={s.id ?? i} d={d} fill={isDark ? flipLightness(s.color) : s.color} data-stroke-id={s.id} />;
           })}
         {erasePreview.size > 0 && [...erasePreview.values()].flat().map((frag, i) => {
           const outline = getStroke(frag.points, {
@@ -120,7 +124,7 @@ export default function DrawingCanvas({
             simulatePressure: ds.simulatePressure,
             size: frag.width,
           });
-          return <path key={`ef-${i}`} d={svgPathFromStroke(outline)} fill={frag.color} />;
+          return <path key={`ef-${i}`} d={svgPathFromStroke(outline)} fill={isDark ? flipLightness(frag.color) : frag.color} />;
         })}
         {effectiveModeRef.current === "segment-eraser" && eraserPos && (
           <circle

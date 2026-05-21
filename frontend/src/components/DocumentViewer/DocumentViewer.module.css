@@ -219,10 +219,6 @@
   filter: invert(1) hue-rotate(180deg);
 }
 
-:global([data-theme="dark"]) .overlay {
-  filter: invert(1) hue-rotate(180deg);
-}
-
 .pagePlaceholder {
   width: 100%;
   height: 100%;

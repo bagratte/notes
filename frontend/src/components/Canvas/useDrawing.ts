@@ -4,6 +4,7 @@ import { eraseFromStroke } from "./eraserUtils";
 import type { StrokeData } from "./types";
 import type { ToolMode } from "@/types";
 import { useDrawingSettings } from "@/context/DrawingSettings";
+import { flipLightness } from "./utils";
 
 const PEN_CONTEXT_MENU_SUPPRESS_MS = 800;
 
@@ -36,6 +37,7 @@ export interface UseDrawingOptions {
   mode: ToolMode;
   color: string;
   penWidth: number;
+  isDark?: boolean;
   viewBox?: string;
   inputEnabled?: boolean;
   readonly?: boolean;
@@ -75,6 +77,7 @@ export function useDrawing({
   mode,
   color,
   penWidth,
+  isDark = false,
   inputEnabled = true,
   readonly = false,
   onStrokeComplete,
@@ -100,6 +103,7 @@ export function useDrawing({
   const suppressContextMenuUntilRef = useRef(0);
 
   const colorRef = useRef(color);
+  const isDarkRef = useRef(isDark);
   const penWidthRef = useRef(penWidth);
   const onStrokeCompleteRef = useRef(onStrokeComplete);
   const streamlineRef = useRef(ds.streamline);
@@ -120,6 +124,7 @@ export function useDrawing({
   const onSelectRegionEndRef = useRef(onSelectRegionEnd);
 
   useEffect(() => { colorRef.current = color; }, [color]);
+  useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
   useEffect(() => { penWidthRef.current = penWidth; }, [penWidth]);
   useEffect(() => { onStrokeCompleteRef.current = onStrokeComplete; }, [onStrokeComplete]);
   useEffect(() => { onHwOverrideChangeRef.current = onHwOverrideChange; }, [onHwOverrideChange]);
@@ -196,7 +201,7 @@ export function useDrawing({
       ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
     }
     ctx.closePath();
-    ctx.fillStyle = colorRef.current;
+    ctx.fillStyle = isDarkRef.current ? flipLightness(colorRef.current) : colorRef.current;
     ctx.fill();
     ctx.restore();
   }, []);

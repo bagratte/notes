@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getStroke } from "perfect-freehand";
-import { svgPathFromStroke } from "@/components/Canvas/utils";
+import { svgPathFromStroke, flipLightness } from "@/components/Canvas/utils";
 import { useDrawing, getPenHwOverride } from "@/components/Canvas/useDrawing";
+import { useTheme } from "@/context/Theme";
 import type { StrokeData } from "@/components/Canvas";
 import type { Note, Region, ToolMode } from "@/types";
 import { notes as notesApi } from "@/api";
@@ -194,6 +195,8 @@ export default function DocumentOverlay({
   const [regionMenu, setRegionMenu] = useState<{ regionId: number; x: number; y: number } | null>(null);
   const [regionDrafts, setRegionDrafts] = useState<Record<number, DragRect>>({});
   const { settings: ds } = useDrawingSettings();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   const touchPressRef = useRef<RegionPressState | null>(null);
   const resizeStateRef = useRef<RegionResizeState | null>(null);
@@ -232,6 +235,7 @@ export default function DocumentOverlay({
     mode,
     color,
     penWidth,
+    isDark,
     viewBox,
     onStrokeComplete,
     onEraseStroke,
@@ -890,7 +894,7 @@ export default function DocumentOverlay({
               d = svgPathFromStroke(outline);
               strokePathCache.current.set(cacheKey, { points: s.points, d });
             }
-            return <path key={s.id ?? i} d={d} fill={s.color} data-stroke-id={s.id} />;
+            return <path key={s.id ?? i} d={d} fill={isDark ? flipLightness(s.color) : s.color} data-stroke-id={s.id} />;
           })}
         {erasePreview.size > 0 && [...erasePreview.values()].flat().map((frag, i) => {
           const outline = getStroke(frag.points, {
@@ -900,7 +904,7 @@ export default function DocumentOverlay({
             simulatePressure: ds.simulatePressure,
             size: frag.width,
           });
-          return <path key={`ef-${i}`} d={svgPathFromStroke(outline)} fill={frag.color} />;
+          return <path key={`ef-${i}`} d={svgPathFromStroke(outline)} fill={isDark ? flipLightness(frag.color) : frag.color} />;
         })}
 
         {dragRect && (

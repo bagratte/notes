@@ -6,7 +6,6 @@ import type { Stroke } from "@/types";
 import type { PenSettings } from "@/components/Toolbar";
 import type { ToolMode } from "@/types";
 import RegionPreview from "./RegionPreview";
-import css from "./SectionCanvas.module.css";
 
 const MIN_H = 80;
 const MAX_H = 3000;
@@ -190,7 +189,6 @@ export default function SectionCanvas({
               color={pen.color}
               penWidth={pen.width}
               height={height}
-              className={css.drawingCanvas}
             />
           )}
           <div
