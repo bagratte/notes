@@ -10,7 +10,8 @@ A handwriting note-taking and document annotation app. Write freehand notes, ann
 - **Region linking** — drag a bounding box on a page, link it to a note section; click the box to jump to the linked note
 - **Side-by-side view** — document on the left, linked note on the right; clicking a region scrolls the note pane to the linked section
 - **Pen settings** — color and width picker per drawing surface
-- **Drawing settings** — global tuning of streamline, thinning, smoothing, pressure simulation, and predictive drawing (persisted to localStorage)
+- **Drawing settings** — global tuning of streamline, thinning, smoothing, pressure simulation, pressure multiplier/gamma, palm rejection, and predictive drawing (persisted to localStorage)
+- **Dark mode** — follows OS preference by default; manual override in Settings (light / dark / system)
 - **Undo / redo** — per canvas, via toolbar buttons or keyboard shortcuts
 - **Organization** — Folders (arbitrarily nested) containing Notes and Documents
 

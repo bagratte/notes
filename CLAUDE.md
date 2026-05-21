@@ -136,7 +136,7 @@ The app targets **touch-only devices** (tablets, iPads) as the primary platform.
 ## Frontend summary
 
 - Four routes under `AppLayout` (sidebar + outlet): `/notes/:noteId`, `/documents/:documentId`, `/folders/:folderId`, `/settings`
-- Two global context providers (both persisted to `localStorage`): `TouchModeProvider` and `DrawingSettingsProvider` — everything else is local component state + direct API calls
+- Three global context providers (all persisted to `localStorage`): `TouchModeProvider`, `DrawingSettingsProvider`, and `ThemeProvider` — everything else is local component state + direct API calls
 - CSS Modules for all styles
 - Drawing is SVG-based using `perfect-freehand`; strokes stored in natural page coordinates
 - DjVu.js loaded as a pre-built IIFE global (`public/djvu.js`) — not importable as a module

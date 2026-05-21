@@ -58,7 +58,7 @@ const x = (e.clientX - rect.left) * scaleX;
 
 ### DrawingSettings context
 
-`src/context/DrawingSettings.tsx` provides five algorithm parameters consumed by `DrawingCanvas` and `DocumentOverlay`:
+`src/context/DrawingSettings.tsx` provides algorithm parameters consumed by `DrawingCanvas` and `DocumentOverlay`:
 
 | Setting | Type | Default | Effect |
 |---------|------|---------|--------|
@@ -67,6 +67,10 @@ const x = (e.clientX - rect.left) * scaleX;
 | `smoothing` | `number` 0–1 | 0.5 | Stroke outline smoothness |
 | `simulatePressure` | `boolean` | false | Infer pressure from velocity when hardware pressure unavailable |
 | `predictive` | `boolean` | false | Draw ahead of pen tip using `getPredictedEvents()` |
+| `pressureMultiplier` | `number` | 1.0 | Scales raw hardware pressure before `thinning` is applied |
+| `pressureGamma` | `number` | 1.0 | Gamma curve applied to pressure (>1 compresses low pressure, <1 expands it) |
+| `palmRejection` | `boolean` | true | Ignore touch contacts wider/taller than `palmThreshold` px |
+| `palmThreshold` | `number` | 60 | Contact size threshold (px) for palm rejection |
 
 Settings are persisted to `localStorage` as JSON under key `"drawingSettings"`. The context provides `{ settings, update(patch), reset() }`.
 
@@ -91,6 +95,8 @@ When `RegionLinkModal` confirms a link it first calls `sectionsApi.create` to ad
 ### Region context menu
 
 Clicking a region navigates to its linked note. Long-pressing on touch or right-clicking opens a fixed-position context menu with **Open Note** and **Resize Region** options. Resize handles only appear after the user explicitly enters edit mode via this menu — there are no hover-activated handles. `suppressRegionClickRef` prevents a click event from firing after a long-press that opened the menu.
+
+Resize uses 8 handles (`nw`, `ne`, `sw`, `se` corners + `n`, `s`, `e`, `w` edge midpoints), defined in `REGION_HANDLE_DESCRIPTORS`. Corners are rendered as solid squares; edge handles as thin bars on the corresponding side. Dragging a handle calls `resizeRegionRect` with the handle key, computing the new rect while keeping the opposite edge/corner anchored.
 
 ### Document viewer architecture
 
@@ -120,6 +126,18 @@ Hardware barrel-button overrides (`getPenHwOverride`) fire `onHwOverrideChange` 
 ### Touch mode
 
 `TouchModeProvider` (`src/context/TouchMode.tsx`) wraps the entire app and exposes `{ isTouch, toggle }` via `useTouchMode()`. The value is persisted to `localStorage` and the `has-touch` class is toggled on `<html>` so CSS can target it. The sidebar toggle button calls `toggle()`; CSS rules keyed on `.has-touch` adjust tap-target sizes, show/hide controls, and switch the sidebar to overlay mode.
+
+### Dark mode
+
+`ThemeProvider` (`src/context/Theme.tsx`) exposes `{ theme, resolvedTheme, setTheme }` via `useTheme()`. `theme` is the user choice (`"light" | "dark" | "system"`); `resolvedTheme` is the effective value after resolving `"system"` against `window.matchMedia("(prefers-color-scheme: dark)")`. The choice is persisted to `localStorage` under key `"theme"` and defaults to `"system"`.
+
+On resolve, `data-theme="light|dark"` is set on `<html>` (CSS vars key off this) and the `<meta name="theme-color">` tag is updated.
+
+Ink strokes store colors in their original form. In dark mode, `flipLightness(hex)` (`src/components/Canvas/utils.ts`) inverts the HSL lightness (`L → 1 - L`) before rendering, so dark strokes become light and vice versa. The stored data is never mutated.
+
+### NoteStrokePreview
+
+`NoteStrokePreview` (`src/components/DocumentViewer/NoteStrokePreview.tsx`) renders a floating or inline preview of a note's handwritten content. It fetches all sections and their strokes, renders each section as a cropped SVG (bounding-box viewport around the strokes), and falls back to `RegionPreview` for sections with no strokes. Used in `DocumentOverlay` to show a tooltip preview of the linked note when hovering over a region box. The preview is pointer-events-none and viewport-clamped in floating mode.
 
 ### MergeModal
 
