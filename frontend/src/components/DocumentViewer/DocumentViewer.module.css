@@ -62,10 +62,9 @@
 .syncBtnActive {
   opacity: 1;
   cursor: pointer;
-  color: var(--accent);
-  border-color: var(--accent);
+  color: var(--text-muted);
 }
-.syncBtnActive:hover { background: var(--accent-bg); }
+.syncBtnActive:hover { background: var(--bg-hover); border-color: var(--border-soft); }
 
 .pageInput {
   width: 48px;
