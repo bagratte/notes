@@ -33,6 +33,12 @@ npm run dev                   # Vite dev server on :5173
 
 The frontend proxies `/api` → `http://localhost:8000` (Vite config). There is a `GET /health` endpoint for liveness checks.
 
+The backend allows CORS only from `http://localhost:5173` — direct browser requests from any other origin will be blocked.
+
+## Backend commands
+
+There is no test suite or linter configured.
+
 ## Running as services
 
 Unit files live in `systemd/`. To install:
@@ -120,9 +126,13 @@ The strokes router has two delete endpoints that are easy to confuse:
 | GET/POST | `/regions/` | filter by `document_id`, `page_number`, `section_id` |
 | PATCH | `/regions/{id}` | partial update of geometry fields |
 | DELETE | `/regions/{id}` | delete a region |
-| GET | `/notes/` | optional filters: `folder_id`, `document_id` (returns notes linked via regions) |
+| GET/POST | `/folders/` | list accepts optional `parent_folder_id`; POST body: `{ name, parent_folder_id? }` |
+| GET/PATCH/DELETE | `/folders/{id}` | PATCH updates `name` only |
+| GET/POST | `/notes/` | GET: optional `folder_id`, `document_id` filters (latter returns notes linked via regions) |
+| GET/PATCH/DELETE | `/notes/{id}` | PATCH updates `name` only |
 | POST | `/notes/{id}/merge` | body: `{ target_note_id }` — moves all sections, deletes source note |
-| POST | `/documents/` | multipart: optional `folder_id` + `name` + `file` |
+| GET/POST | `/documents/` | POST is multipart: optional `folder_id` + `name` + `file` |
+| GET/PATCH/DELETE | `/documents/{id}` | PATCH updates `name` only |
 | GET | `/documents/{id}/file` | serves the raw file from disk |
 
 ## Target platform
