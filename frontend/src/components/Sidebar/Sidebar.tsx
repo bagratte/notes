@@ -5,6 +5,7 @@ import { folders as foldersApi, notes as notesApi, documents as docsApi, strokes
 import type { Folder, Note, Document } from "@/types";
 import MergeModal from "@/components/MergeModal";
 import { useTouchMode } from "@/context/TouchMode";
+import { useTheme } from "@/context/Theme";
 import css from "./Sidebar.module.css";
 
 // ── tiny inline icons ──────────────────────────────────────────────────────
@@ -137,6 +138,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const navigate = useNavigate();
   const location = useLocation();
   const { isTouch, toggle: toggleTouchMode } = useTouchMode();
+  const { resolvedTheme, setTheme } = useTheme();
 
   const [data, setData] = useState<SidebarData>({ folders: [], notes: [], documents: [], docNotes: {}, docNotePageNums: {}, docAnnotatedPages: {} });
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
@@ -412,7 +414,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
             {folderNotes.map((note) => renderNote(note, indent + 16))}
             {folderDocs.map((doc) => renderDocument(doc, indent + 16))}
             {children.length === 0 && folderNotes.length === 0 && folderDocs.length === 0 && (
-              <div style={{ paddingLeft: `${indent + 16}px`, padding: "4px 8px 4px " + (indent + 16) + "px", fontSize: 12, color: "#bbb" }}>
+              <div style={{ paddingLeft: `${indent + 16}px`, padding: "4px 8px 4px " + (indent + 16) + "px", fontSize: 12, color: "var(--text-ghost)" }}>
                 Empty folder
               </div>
             )}
@@ -446,6 +448,22 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
           onClick={toggleTouchMode}
         >
           <TouchModeIcon />
+        </button>
+        <button
+          className={css.toolbarBtn}
+          title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+        >
+          {resolvedTheme === "dark" ? (
+            <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M12.95 3.05l-1.06 1.06M4.11 11.89l-1.06 1.06" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
+              <path d="M13.5 9.5A5.5 5.5 0 016.5 2.5a5.5 5.5 0 100 11 5.5 5.5 0 007-4z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+            </svg>
+          )}
         </button>
         <div className={css.toolbarSpacer} />
         <button

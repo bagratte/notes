@@ -6,9 +6,11 @@ import FolderPage from "@/pages/FolderPage";
 import SettingsPage from "@/pages/SettingsPage";
 import { TouchModeProvider } from "@/context/TouchMode";
 import { DrawingSettingsProvider } from "@/context/DrawingSettings";
+import { ThemeProvider } from "@/context/Theme";
 
 export default function App() {
   return (
+    <ThemeProvider>
     <TouchModeProvider>
     <DrawingSettingsProvider>
     <BrowserRouter>
@@ -23,5 +25,6 @@ export default function App() {
     </BrowserRouter>
     </DrawingSettingsProvider>
     </TouchModeProvider>
+    </ThemeProvider>
   );
 }

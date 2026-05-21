@@ -1,0 +1,7 @@
+.drawingCanvas {
+  /* no-op in light mode */
+}
+
+:global([data-theme="dark"]) .drawingCanvas {
+  filter: invert(1) hue-rotate(180deg);
+}

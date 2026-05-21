@@ -7,15 +7,15 @@
 .btn {
   padding: 0 8px;
   height: 26px;
-  border: 1.5px solid #dedad3;
-  background: #fff;
+  border: 1.5px solid var(--border);
+  background: var(--bg-card);
   border-radius: 5px;
   cursor: pointer;
   font-size: 12px;
-  color: #555;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   transition: border-color 0.1s;
 }
-.btn:hover:not(:disabled) { border-color: #aaa; }
+.btn:hover:not(:disabled) { border-color: var(--text-dim); }
 .btn:disabled { opacity: 0.35; cursor: default; }

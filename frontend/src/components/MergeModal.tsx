@@ -74,37 +74,40 @@ export default function MergeModal({ sourceNoteId, onClose }: Props) {
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0,
-  background: "rgba(0,0,0,0.3)",
+  background: "rgba(0,0,0,0.45)",
   display: "flex", alignItems: "center", justifyContent: "center",
   zIndex: 100,
 };
 
 const card: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--bg-card)",
   borderRadius: 8,
-  boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+  boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
   width: 380,
   maxHeight: "70vh",
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
+  border: "1px solid var(--border-card)",
 };
 
 const header: React.CSSProperties = {
   padding: "16px 20px 12px",
   fontSize: 15,
   fontWeight: 600,
-  color: "#2a2a2a",
-  borderBottom: "1px solid #eeebe6",
+  color: "var(--text-secondary)",
+  borderBottom: "1px solid var(--border-faint)",
 };
 
 const searchInput: React.CSSProperties = {
   margin: "12px 20px 8px",
   padding: "7px 10px",
-  border: "1px solid #ddd",
+  border: "1px solid var(--border)",
   borderRadius: 5,
   fontSize: 13,
   outline: "none",
+  background: "var(--bg-card)",
+  color: "var(--text-primary)",
 };
 
 const list: React.CSSProperties = {
@@ -115,7 +118,7 @@ const list: React.CSSProperties = {
 
 const empty: React.CSSProperties = {
   padding: "16px 20px",
-  color: "#aaa",
+  color: "var(--text-dim)",
   fontSize: 13,
 };
 
@@ -128,22 +131,22 @@ const row: React.CSSProperties = {
   border: "none",
   cursor: "pointer",
   fontSize: 13,
-  color: "#2a2a2a",
+  color: "var(--text-secondary)",
 };
 
 const footer: React.CSSProperties = {
   padding: "10px 20px",
-  borderTop: "1px solid #eeebe6",
+  borderTop: "1px solid var(--border-faint)",
   display: "flex",
   justifyContent: "flex-end",
 };
 
 const cancelBtn: React.CSSProperties = {
   padding: "6px 14px",
-  border: "1px solid #ddd",
+  border: "1px solid var(--border)",
   borderRadius: 5,
-  background: "#fff",
+  background: "var(--bg-card)",
   fontSize: 13,
   cursor: "pointer",
-  color: "#555",
+  color: "var(--text-muted)",
 };

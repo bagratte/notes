@@ -8,7 +8,7 @@
 .sep {
   width: 1px;
   height: 18px;
-  background: #dedad3;
+  background: var(--border);
   margin: 0 1px;
   flex-shrink: 0;
 }
@@ -24,14 +24,14 @@
   transition: transform 0.1s;
 }
 .colorBtn:hover { transform: scale(1.15); }
-.colorBtn.active { border-color: #4a6cf7; box-shadow: 0 0 0 1px #fff inset; }
+.colorBtn.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--bg-card) inset; }
 
 .toolBtn {
   width: 26px;
   height: 26px;
   border-radius: 5px;
-  border: 1.5px solid #dedad3;
-  background: #fff;
+  border: 1.5px solid var(--border);
+  background: var(--bg-card);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -39,7 +39,8 @@
   padding: 0;
   flex-shrink: 0;
   transition: border-color 0.1s, background 0.1s;
+  color: var(--text-body);
 }
-.toolBtn:hover { border-color: #aaa; }
-.toolBtn.active { border-color: #4a6cf7; background: #f0f2ff; color: #4a6cf7; }
+.toolBtn:hover { border-color: var(--text-dim); }
+.toolBtn.active { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); }
 .toolBtn.override { border-color: #e08000; background: #fff8ec; color: #e08000; }

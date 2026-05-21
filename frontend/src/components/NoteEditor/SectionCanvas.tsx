@@ -6,6 +6,7 @@ import type { Stroke } from "@/types";
 import type { PenSettings } from "@/components/Toolbar";
 import type { ToolMode } from "@/types";
 import RegionPreview from "./RegionPreview";
+import css from "./SectionCanvas.module.css";
 
 const MIN_H = 80;
 const MAX_H = 3000;
@@ -163,7 +164,7 @@ export default function SectionCanvas({
       data-section-id={sectionId}
       style={{
         position: "relative",
-        background: "#fff",
+        background: "var(--bg-card)",
         borderRadius: 4,
         boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
         marginBottom: 2,
@@ -189,6 +190,7 @@ export default function SectionCanvas({
               color={pen.color}
               penWidth={pen.width}
               height={height}
+              className={css.drawingCanvas}
             />
           )}
           <div
@@ -203,7 +205,7 @@ export default function SectionCanvas({
               userSelect: "none",
             }}
           >
-            <div style={{ width: 40, height: 4, borderRadius: 2, background: "#d0ccc6" }} />
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: "var(--resize-handle)" }} />
           </div>
         </>
       )}
@@ -217,8 +219,8 @@ export default function SectionCanvas({
           width: 24,
           height: 24,
           borderRadius: 4,
-          border: "1px solid #ddd",
-          background: "#fff",
+          border: "1px solid var(--border)",
+          background: "var(--bg-card)",
           cursor: "pointer",
           fontSize: 16,
           lineHeight: 1,
@@ -228,6 +230,7 @@ export default function SectionCanvas({
           opacity: hovered ? 1 : 0,
           transition: "opacity 0.15s",
           pointerEvents: hovered ? "auto" : "none",
+          color: "var(--text-muted)",
         }}
       >
         ×

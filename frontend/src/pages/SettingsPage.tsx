@@ -2,10 +2,12 @@ import { useState, useCallback } from "react";
 import { DrawingCanvas } from "@/components/Canvas";
 import type { StrokeData } from "@/components/Canvas";
 import { useDrawingSettings } from "@/context/DrawingSettings";
+import { useTheme, type ThemeChoice } from "@/context/Theme";
 import css from "./SettingsPage.module.css";
 
 export default function SettingsPage() {
   const { settings, update, reset } = useDrawingSettings();
+  const { theme, setTheme } = useTheme();
   const [strokes, setStrokes] = useState<StrokeData[]>([]);
   const addStroke = useCallback((s: StrokeData) => setStrokes((prev) => [...prev, s]), []);
 
@@ -16,6 +18,27 @@ export default function SettingsPage() {
       </div>
 
       <div className={css.body}>
+        <div className={css.section}>
+          <div className={css.sectionTitle}>Appearance</div>
+          <div className={css.row}>
+            <div>
+              <div className={css.rowLabel}>Theme</div>
+              <div className={css.rowHint}>System follows your OS dark/light setting</div>
+            </div>
+            <div className={css.themeGroup}>
+              {(["system", "light", "dark"] as ThemeChoice[]).map((t) => (
+                <button
+                  key={t}
+                  className={`${css.themeBtn}${theme === t ? " " + css.themeBtnActive : ""}`}
+                  onClick={() => setTheme(t)}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div className={css.section}>
           <div className={css.sectionTitle}>Drawing</div>
 

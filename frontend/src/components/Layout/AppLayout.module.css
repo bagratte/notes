@@ -8,7 +8,7 @@
   width: 6px;
   height: 100vh;
   flex-shrink: 0;
-  background: #dedad3;
+  background: var(--border);
   cursor: col-resize;
   display: flex;
   align-items: center;
@@ -29,7 +29,7 @@
   transform: translateX(-50%);
   width: 6px;
   height: 100%;
-  background: #dedad3;
+  background: var(--border);
   pointer-events: none;
 }
 
@@ -69,25 +69,25 @@
   height: 44px;
   border: none;
   border-radius: 10px;
-  background: #ede9e3;
+  background: var(--bg-hover);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: var(--text-muted);
   padding: 0;
   box-shadow: 0 4px 14px rgba(0,0,0,0.18);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .handle:hover { background: #ccc9c2; }
-  .sidebarBtn:hover { background: #d8d3cb; color: #333; }
+  .handle:hover { background: var(--bg-hover-deep); }
+  .sidebarBtn:hover { background: var(--bg-hover-deep); color: var(--text-secondary); }
 }
 
 .main {
   flex: 1;
   overflow-y: auto;
-  background: #f0ede8;
+  background: var(--bg-main);
   min-width: 0;
 }
 
@@ -97,12 +97,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #bbb;
+  color: var(--text-ghost);
   font-size: 14px;
   gap: 8px;
 }
 
 .welcomeHint {
   font-size: 12px;
-  color: #ccc;
+  color: var(--text-ghost);
 }

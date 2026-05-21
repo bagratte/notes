@@ -139,13 +139,13 @@ export default function FolderPage() {
   if (missing) {
     return (
       <div style={styles.centered}>
-        <span style={{ color: "#aaa", fontSize: 14 }}>Folder not found.</span>
+        <span style={{ color: "var(--text-dim)", fontSize: 14 }}>Folder not found.</span>
       </div>
     );
   }
 
   if (!folder) {
-    return <div style={styles.centered}><span style={{ color: "#ccc", fontSize: 14 }}>Loading…</span></div>;
+    return <div style={styles.centered}><span style={{ color: "var(--text-ghost)", fontSize: 14 }}>Loading…</span></div>;
   }
 
   const renameFolder = async () => {
@@ -252,8 +252,8 @@ const styles = {
   header: {
     height: 50,
     padding: "0 32px",
-    borderBottom: "1px solid #e0ddd8",
-    background: "#f8f6f2",
+    borderBottom: "1px solid var(--border-soft)",
+    background: "var(--bg-header)",
     position: "sticky" as const,
     top: 0,
     zIndex: 1,
@@ -263,7 +263,7 @@ const styles = {
   title: {
     fontSize: 20,
     fontWeight: 500,
-    color: "#2a2a2a",
+    color: "var(--text-secondary)",
     flex: 1,
     overflow: "hidden" as const,
     textOverflow: "ellipsis",
@@ -283,7 +283,7 @@ const styles = {
   sectionLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: "#aaa",
+    color: "var(--text-dim)",
     textTransform: "uppercase" as const,
     letterSpacing: "0.07em",
     margin: "0 0 8px",
@@ -296,10 +296,10 @@ const styles = {
     minHeight: 44,
     borderRadius: 6,
     cursor: "pointer",
-    color: "#2a2a2a",
+    color: "var(--text-secondary)",
     fontSize: 15,
-    background: "#fff",
-    border: "1px solid #e8e5e0",
+    background: "var(--bg-card)",
+    border: "1px solid var(--border-card)",
     marginBottom: 6,
   },
   itemName: {
@@ -309,7 +309,7 @@ const styles = {
     whiteSpace: "nowrap" as const,
   },
   emptyState: {
-    color: "#bbb",
+    color: "var(--text-ghost)",
     fontSize: 14,
     marginTop: 32,
     textAlign: "center" as const,
@@ -326,11 +326,11 @@ const styles = {
     gap: 5,
     padding: "5px 11px",
     fontSize: 13,
-    border: "1px solid #ddd",
+    border: "1px solid var(--border)",
     borderRadius: 5,
-    background: "#fff",
+    background: "var(--bg-card)",
     cursor: "pointer",
-    color: "#555",
+    color: "var(--text-muted)",
     flexShrink: 0,
   },
 };

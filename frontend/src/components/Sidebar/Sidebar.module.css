@@ -1,6 +1,6 @@
 .sidebar {
   height: 100vh;
-  background: #f5f1eb;
+  background: var(--bg-sidebar);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -15,7 +15,7 @@
   gap: 2px;
   height: 50px;
   padding: 0 6px;
-  border-bottom: 1px solid #dedad3;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -29,13 +29,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #888;
+  color: var(--text-faint);
   padding: 0;
 }
-.toolbarBtnActive { background: #e3ddd5; color: #333; }
+.toolbarBtnActive { background: var(--bg-active); color: var(--text-secondary); }
 
 @media (hover: hover) and (pointer: fine) {
-  .toolbarBtn:hover { background: #d8d3cb; color: #333; }
+  .toolbarBtn:hover { background: var(--bg-hover-deep); color: var(--text-secondary); }
 }
 
 .toolbarSpacer {
@@ -45,7 +45,7 @@
 .toolbarDivider {
   width: 1px;
   height: 20px;
-  background: #dedad3;
+  background: var(--border);
   flex-shrink: 0;
   margin: 0 2px;
 }
@@ -59,7 +59,7 @@
 .emptyState {
   padding: 24px 16px;
   font-size: 16px;
-  color: #aaa;
+  color: var(--text-dim);
   text-align: center;
   line-height: 1.6;
 }
@@ -73,7 +73,7 @@
   gap: 4px;
   border-radius: 4px;
   margin: 0 4px;
-  color: #2a2a2a;
+  color: var(--text-secondary);
   font-size: 16px;
   font-weight: 500;
 }
@@ -87,7 +87,7 @@
   gap: 4px;
   border-radius: 4px;
   margin: 0 4px;
-  color: #3a3a3a;
+  color: var(--text-body);
   font-size: 16px;
 }
 
@@ -99,18 +99,18 @@
   cursor: pointer;
   border-radius: 4px;
   margin: 0 4px;
-  color: #4a4a4a;
+  color: var(--text-body);
   font-size: 16px;
   gap: 6px;
 }
 .leafRow.active {
-  background: #e3ddd5;
-  color: #1a1a1a;
+  background: var(--bg-active);
+  color: var(--text-primary);
   font-weight: 500;
 }
 .folderRow.active {
-  background: #e3ddd5;
-  color: #1a1a1a;
+  background: var(--bg-active);
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -141,22 +141,22 @@
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  color: #888;
+  color: var(--text-faint);
   padding: 0;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .notebookRow:hover { background: #ede9e3; }
-  .folderRow:hover { background: #ede9e3; }
-  .leafRow:hover { background: #ede9e3; }
-  .iconBtn:hover { background: #d8d3cb; color: #333; }
+  .notebookRow:hover { background: var(--bg-hover); }
+  .folderRow:hover { background: var(--bg-hover); }
+  .leafRow:hover { background: var(--bg-hover); }
+  .iconBtn:hover { background: var(--bg-hover-deep); color: var(--text-secondary); }
 }
 
 .chevron {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  color: #aaa;
+  color: var(--text-dim);
   transition: transform 0.15s;
 }
 .chevron.open { transform: rotate(90deg); }
@@ -165,7 +165,7 @@
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  color: #aaa;
+  color: var(--text-dim);
 }
 
 :global(.has-touch) .notebookRow { padding-top: 11px; padding-bottom: 11px; }
@@ -183,4 +183,3 @@
 }
 :global(.has-touch) .iconBtn     { width: 32px; height: 32px; }
 :global(.has-touch) .rowActions  { display: flex; }
-

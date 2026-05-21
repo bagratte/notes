@@ -87,7 +87,7 @@ export default function NoteEditor({ noteId }: Props) {
           availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser"]}
           activeOverride={hwOverride}
         />
-        <div style={{ width: 1, height: 18, background: "#dedad3", flexShrink: 0 }} />
+        <div style={{ width: 1, height: 18, background: "var(--border)", flexShrink: 0 }} />
         <UndoRedoBar
           canUndo={undoStack.length > 0}
           canRedo={redoStack.length > 0}
@@ -103,9 +103,9 @@ export default function NoteEditor({ noteId }: Props) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#aaa",
+            color: "var(--text-dim)",
             fontSize: 14,
-            background: "#fff",
+            background: "var(--bg-card)",
             borderRadius: 4,
             boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
           }}
@@ -138,11 +138,11 @@ export default function NoteEditor({ noteId }: Props) {
           marginTop: 8,
           padding: "8px 16px",
           borderRadius: 4,
-          border: "1px dashed #ccc",
+          border: "1px dashed var(--border)",
           background: "transparent",
           cursor: "pointer",
           fontSize: 13,
-          color: "#666",
+          color: "var(--text-muted)",
           alignSelf: "flex-start",
         }}
       >

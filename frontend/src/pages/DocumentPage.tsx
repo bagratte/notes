@@ -43,7 +43,7 @@ export default function DocumentPage() {
   if (missing) {
     return (
       <div style={styles.centered}>
-        <span style={{ color: "#aaa", fontSize: 14 }}>Document not found.</span>
+        <span style={{ color: "var(--text-dim)", fontSize: 14 }}>Document not found.</span>
       </div>
     );
   }
@@ -51,7 +51,7 @@ export default function DocumentPage() {
   if (!doc) {
     return (
       <div style={styles.centered}>
-        <span style={{ color: "#ccc", fontSize: 14 }}>Loading…</span>
+        <span style={{ color: "var(--text-ghost)", fontSize: 14 }}>Loading…</span>
       </div>
     );
   }
@@ -100,8 +100,8 @@ const styles = {
   header: {
     height: 50,
     padding: "0 24px",
-    borderBottom: "1px solid #e0ddd8",
-    background: "#f8f6f2",
+    borderBottom: "1px solid var(--border-soft)",
+    background: "var(--bg-header)",
     flexShrink: 0,
     display: "flex" as const,
     alignItems: "center" as const,
@@ -110,7 +110,7 @@ const styles = {
   title: {
     fontSize: 17,
     fontWeight: 500,
-    color: "#2a2a2a",
+    color: "var(--text-secondary)",
     flex: 1,
     overflow: "hidden" as const,
     textOverflow: "ellipsis",
@@ -123,11 +123,11 @@ const styles = {
     gap: 5,
     padding: "5px 11px",
     fontSize: 13,
-    border: "1px solid #ddd",
+    border: "1px solid var(--border)",
     borderRadius: 5,
-    background: "#fff",
+    background: "var(--bg-card)",
     cursor: "pointer",
-    color: "#555",
+    color: "var(--text-muted)",
     flexShrink: 0,
   },
   viewerWrap: {
