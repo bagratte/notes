@@ -102,6 +102,8 @@ Folders are arbitrarily nested. Top-level folders have `parent_folder_id = NULL`
 
 `Document.type` (`"pdf"` or `"djvu"`) is derived from the uploaded file's extension — the client never sends it. Uploaded files land in `backend/uploads/`; the absolute path is stored in `Document.file_path`.
 
+`Document.last_page` (nullable int) and `Document.last_page_updated_at` (nullable datetime) track the last-read page for cross-device sync. `last_page_updated_at` is stamped server-side whenever `last_page` is written. SQLite stores datetimes without timezone info, so the frontend must treat them as UTC (append `Z` before parsing).
+
 ### Router patterns
 
 All routers follow the same pattern: `Depends(get_db)` for the session, `db.get(Model, id)` for single lookups, `db.query(Model).filter(...)` for lists. Schemas use `model_config = {"from_attributes": True}` (Pydantic v2 ORM mode).
@@ -132,7 +134,7 @@ The strokes router has two delete endpoints that are easy to confuse:
 | GET/PATCH/DELETE | `/notes/{id}` | PATCH updates `name` only |
 | POST | `/notes/{id}/merge` | body: `{ target_note_id }` — moves all sections, deletes source note |
 | GET/POST | `/documents/` | POST is multipart: optional `folder_id` + `name` + `file` |
-| GET/PATCH/DELETE | `/documents/{id}` | PATCH updates `name` only |
+| GET/PATCH/DELETE | `/documents/{id}` | PATCH updates `name` and/or `last_page` (both optional); writing `last_page` auto-stamps `last_page_updated_at` |
 | GET | `/documents/{id}/file` | serves the raw file from disk |
 
 ## Target platform

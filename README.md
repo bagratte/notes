@@ -13,6 +13,7 @@ A handwriting note-taking and document annotation app. Write freehand notes, ann
 - **Drawing settings** — global tuning of streamline, thinning, smoothing, pressure simulation, pressure multiplier/gamma, palm rejection, and predictive drawing (persisted to localStorage)
 - **Dark mode** — follows OS preference by default; manual override in Settings (light / dark / system)
 - **Undo / redo** — per canvas, via toolbar buttons or keyboard shortcuts
+- **Cross-device page sync** — last-read page is stored server-side; a sync button activates when another device has advanced, jumping on confirmation
 - **Organization** — Folders (arbitrarily nested) containing Notes and Documents
 
 ## Tech stack

@@ -105,11 +105,21 @@ Resize uses 8 handles (`nw`, `ne`, `sw`, `se` corners + `n`, `s`, `e`, `w` edge 
 | File | Role |
 |------|------|
 | `viewerTypes.ts` | Shared interfaces (`ViewerProps`, `NaturalSize`, `PendingRegion`, `ViewportSize`, `PanState`), constants (`ZOOM_STEPS`, `WINDOW_BUFFER`, `PAGE_GUTTER`, `PAN_DEADZONE_PX`, `PAGE_FALLBACK_WIDTH/HEIGHT`), and pure helpers (`toStrokeData`, `getDisplayScale`) |
-| `useDocumentViewer.ts` | Custom hook `useDocumentViewer` — owns all shared state, refs, and handlers (zoom, pan, undo/redo, strokes, regions, page navigation, scroll sync). Exposes `setNumPages`, `setNaturalSizes`, `setPageLabels`, `setLoading`, `setError` so format-specific loading effects can feed data in. |
+| `useDocumentViewer.ts` | Custom hook `useDocumentViewer` — owns all shared state, refs, and handlers (zoom, pan, undo/redo, strokes, regions, page navigation, scroll sync). Exposes `setNumPages`, `setNaturalSizes`, `setPageLabels`, `setLoading`, `setError` so format-specific loading effects can feed data in. Also owns cross-device page sync (see below). |
 | `ViewerShell.tsx` | Shared UI: toolbar, page list, `DocumentOverlay` per page. Accepts the full `UseDocumentViewerResult` spread as props plus a render-page callback. |
 | `PdfViewer.tsx` / `DjvuViewer.tsx` | Thin wrappers. Each calls `useDocumentViewer`, adds format-specific loading/rendering effects (pdf.js or DjVu.js), and renders `<ViewerShell>` with a format-specific `renderPage` callback. |
 
 The key design constraint: PDF preloads natural sizes asynchronously before setting `numPages`, while DjVu sets both synchronously. The hook therefore accepts `numPages`/`naturalSizes` as settable state rather than computing them itself.
+
+### Cross-device page sync
+
+`useDocumentViewer` persists the current page to `Document.last_page` on the server and exposes a sync button when another device has advanced further.
+
+- **Write**: on every `pageNum` change (once the document is loaded), `localStorage` is updated immediately and a debounced PATCH fires after 1.5 s. The response updates `remotePage` / `remotePageUpdatedAt` in local state.
+- **Poll**: a `visibilitychange` listener + 60 s interval re-fetches the document and updates `remotePage`. This is how changes from another device are detected.
+- **`syncAvailable`**: `true` when `remotePage !== null && remotePage !== pageNum && !hasPendingWrite`. The `hasPendingWrite` flag is set via `useLayoutEffect` (fires before paint, preventing flicker) and cleared when the debounce timer fires.
+- **`ViewerShell`** renders a sync button next to the page input that is visually inactive (low opacity) when `!syncAvailable`. Clicking it shows a `window.confirm` with the target page and a time-ago hint, then calls `handleSync` which scrolls to `remotePage`.
+- **Timezone gotcha**: SQLite drops timezone info from stored datetimes. `last_page_updated_at` arrives as a naive ISO string; the frontend appends `Z` before passing it to `new Date()` to ensure UTC interpretation.
 
 ### Tool modes
 
