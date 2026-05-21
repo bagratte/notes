@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import type { EnrichedRegion } from "./DocumentOverlay";
 import type { ToolMode } from "@/types";
@@ -610,11 +610,16 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
 
   // ---------- effects ----------
 
+  // suppress sync button immediately (before paint) whenever page changes
+  useLayoutEffect(() => {
+    if (numPages === 0) return;
+    setHasPendingWrite(true);
+  }, [pageNum, numPages]);
+
   // persist current page locally and sync to server (debounced)
   useEffect(() => {
     if (numPages === 0) return;
     localStorage.setItem(`doc:${documentId}:page`, String(pageNum));
-    setHasPendingWrite(true);
     if (lastPageSaveTimerRef.current) clearTimeout(lastPageSaveTimerRef.current);
     lastPageSaveTimerRef.current = setTimeout(() => {
       setHasPendingWrite(false);
