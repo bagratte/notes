@@ -283,7 +283,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     }
     const numeric = parseInt(raw, 10);
     if (!Number.isNaN(numeric) && numeric >= 1 && numeric <= numPages) { scrollToPage(numeric); return; }
-    setPageInput(pageLabels ? pageLabels[pageNum - 1] ?? String(pageNum) : String(pageNum));
+    setPageInput(pageLabels ? pageLabels[pageNum - 1] || String(pageNum) : String(pageNum));
   }, [pageInput, pageLabels, pageNum, numPages, scrollToPage]);
 
   // ---------- strokes ----------
@@ -630,7 +630,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
 
   // page input sync
   useEffect(() => {
-    setPageInput(pageLabels ? pageLabels[pageNum - 1] ?? String(pageNum) : String(pageNum));
+    setPageInput(pageLabels ? pageLabels[pageNum - 1] || String(pageNum) : String(pageNum));
   }, [pageNum, pageLabels]);
 
   // update buffered window
