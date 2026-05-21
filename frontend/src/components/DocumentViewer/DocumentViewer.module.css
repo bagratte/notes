@@ -44,6 +44,29 @@
 .navBtn:hover:not(:disabled) { background: var(--bg-hover); border-color: var(--border-soft); }
 .navBtn:disabled { opacity: 0.35; cursor: default; }
 
+.syncBtn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  border-radius: 4px;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  padding: 0;
+  opacity: 0.4;
+  transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+}
+.syncBtnActive {
+  opacity: 1;
+  cursor: pointer;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.syncBtnActive:hover { background: var(--accent-bg); }
+
 .pageInput {
   width: 48px;
   height: 28px;

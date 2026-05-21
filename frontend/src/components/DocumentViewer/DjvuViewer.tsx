@@ -3,8 +3,8 @@ import ViewerShell from "./ViewerShell";
 import { useDocumentViewer } from "./useDocumentViewer";
 import type { ViewerProps, NaturalSize } from "./viewerTypes";
 
-export default function DjvuViewer({ url, documentId, folderId, initialPage, overlayEnabled = true }: ViewerProps) {
-  const hook = useDocumentViewer({ documentId, folderId, initialPage });
+export default function DjvuViewer({ url, documentId, folderId, initialPage, overlayEnabled = true, serverLastPage, serverLastPageUpdatedAt }: ViewerProps) {
+  const hook = useDocumentViewer({ documentId, folderId, initialPage, serverLastPage, serverLastPageUpdatedAt });
 
   // DjVu-specific refs
   const docRef = useRef<DjVuDocument | null>(null);

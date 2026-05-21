@@ -7,6 +7,8 @@ export interface ViewerProps {
   folderId?: number;
   initialPage?: number;
   overlayEnabled?: boolean;
+  serverLastPage?: number | null;
+  serverLastPageUpdatedAt?: string | null;
 }
 
 export interface NaturalSize {

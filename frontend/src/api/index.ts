@@ -31,6 +31,7 @@ export const documents = {
   },
   fileUrl: (id: number) => `/api/documents/${id}/file`,
   update: (id: number, name: string) => api.patch<Document>(`/documents/${id}`, { name }),
+  updateLastPage: (id: number, lastPage: number) => api.patch<Document>(`/documents/${id}`, { last_page: lastPage }),
   delete: (id: number) => api.delete(`/documents/${id}`),
 };
 

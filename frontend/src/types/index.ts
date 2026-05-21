@@ -14,6 +14,8 @@ export interface Document {
   file_path: string;
   type: "pdf" | "djvu";
   created_at: string;
+  last_page: number | null;
+  last_page_updated_at: string | null;
 }
 
 export interface Note {

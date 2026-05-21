@@ -1,10 +1,29 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import DocumentOverlay from "./DocumentOverlay";
 import { Toolbar } from "@/components/Toolbar";
 import { UndoRedoBar } from "@/components/UndoRedoBar";
 import type { UseDocumentViewerResult } from "./useDocumentViewer";
 import { toStrokeData, PAGE_GUTTER } from "./viewerTypes";
 import css from "./DocumentViewer.module.css";
+
+function formatTimeAgo(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  return hrs === 1 ? "1 hr ago" : `${hrs} hrs ago`;
+}
+
+function SyncIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M2.5 8A5.5 5.5 0 0 1 13 5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M11 3.5l2 2-2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13.5 8A5.5 5.5 0 0 1 3 10.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M5 12.5l-2-2 2-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 interface Props extends UseDocumentViewerResult {
   overlayEnabled: boolean;
@@ -66,8 +85,19 @@ export default function ViewerShell({
   redoInline,
   // drawing settings
   updateDs: _updateDs,
+  // sync
+  remotePage,
+  remotePageUpdatedAt,
+  syncAvailable,
+  handleSync,
 }: Props) {
   const [hwOverride, setHwOverride] = useState<"stroke-eraser" | "segment-eraser" | null>(null);
+
+  const handleSyncClick = useCallback(() => {
+    if (!syncAvailable || remotePage === null) return;
+    const timeHint = remotePageUpdatedAt ? ` · ${formatTimeAgo(remotePageUpdatedAt)}` : "";
+    if (window.confirm(`Jump to page ${remotePage}?${timeHint}`)) handleSync();
+  }, [syncAvailable, remotePage, remotePageUpdatedAt, handleSync]);
   const pages = useMemo(() => {
     const values: number[] = [];
     for (let p = 1; p <= numPages; p += 1) values.push(p);
@@ -92,6 +122,14 @@ export default function ViewerShell({
           />
           <span className={css.pageCount}>{loading ? "- / -" : `${pageNum} / ${numPages}`}</span>
           <button className={css.navBtn} onClick={nextPage} disabled={pageNum >= numPages || loading}>›</button>
+          <button
+            className={`${css.syncBtn}${syncAvailable ? " " + css.syncBtnActive : ""}`}
+            onClick={handleSyncClick}
+            disabled={!syncAvailable || loading}
+            title={syncAvailable && remotePage !== null ? `Sync to page ${remotePage}` : "No sync available"}
+          >
+            <SyncIcon />
+          </button>
         </div>
 
         <div className={css.toolbarSep} />

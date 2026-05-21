@@ -1,5 +1,6 @@
 import os
 import shutil
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -68,7 +69,11 @@ def update_document(document_id: int, data: DocumentUpdate, db: Session = Depend
     doc = db.get(Document, document_id)
     if not doc:
         raise HTTPException(404)
-    doc.name = data.name
+    if data.name is not None:
+        doc.name = data.name
+    if data.last_page is not None:
+        doc.last_page = data.last_page
+        doc.last_page_updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(doc)
     return doc

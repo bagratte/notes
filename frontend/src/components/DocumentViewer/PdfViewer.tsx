@@ -5,8 +5,8 @@ import { useDocumentViewer } from "./useDocumentViewer";
 import type { ViewerProps } from "./viewerTypes";
 import { WINDOW_BUFFER } from "./viewerTypes";
 
-export default function PdfViewer({ url, documentId, folderId, initialPage, overlayEnabled = true }: ViewerProps) {
-  const hook = useDocumentViewer({ documentId, folderId, initialPage });
+export default function PdfViewer({ url, documentId, folderId, initialPage, overlayEnabled = true, serverLastPage, serverLastPageUpdatedAt }: ViewerProps) {
+  const hook = useDocumentViewer({ documentId, folderId, initialPage, serverLastPage, serverLastPageUpdatedAt });
 
   // PDF-specific refs
   const pdfDocRef = useRef<Awaited<ReturnType<typeof pdfjsLib.getDocument>["promise"]> | null>(null);

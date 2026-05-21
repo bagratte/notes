@@ -29,7 +29,6 @@ export default function DocumentPage() {
   const [searchParams] = useSearchParams();
   const pageFromUrl = searchParams.get("page") ? Number(searchParams.get("page")) : undefined;
   const overlayEnabled = searchParams.get("canvas") !== "false";
-  const initialPage = pageFromUrl ?? (documentId ? Number(localStorage.getItem(`doc:${documentId}:page`)) || undefined : undefined);
   const [doc, setDoc] = useState<Document | null>(null);
   const [missing, setMissing] = useState(false);
 
@@ -82,9 +81,25 @@ export default function DocumentPage() {
       </div>
       <div style={styles.viewerWrap}>
         {doc.type === "pdf" ? (
-          <PdfViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} initialPage={initialPage} overlayEnabled={overlayEnabled} />
+          <PdfViewer
+            url={docsApi.fileUrl(doc.id)}
+            documentId={doc.id}
+            folderId={doc.folder_id ?? undefined}
+            initialPage={pageFromUrl ?? doc.last_page ?? undefined}
+            overlayEnabled={overlayEnabled}
+            serverLastPage={doc.last_page}
+            serverLastPageUpdatedAt={doc.last_page_updated_at}
+          />
         ) : (
-          <DjvuViewer url={docsApi.fileUrl(doc.id)} documentId={doc.id} folderId={doc.folder_id ?? undefined} initialPage={initialPage} overlayEnabled={overlayEnabled} />
+          <DjvuViewer
+            url={docsApi.fileUrl(doc.id)}
+            documentId={doc.id}
+            folderId={doc.folder_id ?? undefined}
+            initialPage={pageFromUrl ?? doc.last_page ?? undefined}
+            overlayEnabled={overlayEnabled}
+            serverLastPage={doc.last_page}
+            serverLastPageUpdatedAt={doc.last_page_updated_at}
+          />
         )}
       </div>
     </div>

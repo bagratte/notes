@@ -4,7 +4,8 @@ from pydantic import BaseModel
 
 
 class DocumentUpdate(BaseModel):
-    name: str
+    name: Optional[str] = None
+    last_page: Optional[int] = None
 
 
 class DocumentOut(BaseModel):
@@ -14,5 +15,7 @@ class DocumentOut(BaseModel):
     file_path: str
     type: str
     created_at: datetime
+    last_page: Optional[int]
+    last_page_updated_at: Optional[datetime]
 
     model_config = {"from_attributes": True}

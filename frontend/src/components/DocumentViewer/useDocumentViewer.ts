@@ -5,7 +5,7 @@ import type { ToolMode } from "@/types";
 import type { StrokeData } from "@/components/Canvas";
 import { DEFAULT_PEN_DOCUMENT as DEFAULT_PEN } from "@/components/Toolbar";
 import type { PenSettings } from "@/components/Toolbar";
-import { strokes as strokesApi, regions as regionsApi, sections as sectionsApi, notes as notesApi } from "@/api";
+import { strokes as strokesApi, regions as regionsApi, sections as sectionsApi, notes as notesApi, documents as docsApi } from "@/api";
 import type { Stroke } from "@/types";
 import { useDrawingSettings } from "@/context/DrawingSettings";
 import {
@@ -106,15 +106,23 @@ export interface UseDocumentViewerResult {
 
   // convenience batch reset for loader effects
   resetForLoad: (initialPage: number) => void;
+
+  // cross-device sync
+  remotePage: number | null;
+  remotePageUpdatedAt: string | null;
+  syncAvailable: boolean;
+  handleSync: () => void;
 }
 
 interface Options {
   documentId: number;
   folderId?: number;
   initialPage?: number;
+  serverLastPage?: number | null;
+  serverLastPageUpdatedAt?: string | null;
 }
 
-export function useDocumentViewer({ documentId, folderId, initialPage }: Options): UseDocumentViewerResult {
+export function useDocumentViewer({ documentId, folderId, initialPage, serverLastPage, serverLastPageUpdatedAt }: Options): UseDocumentViewerResult {
   const navigate = useNavigate();
   const { settings: ds, update: updateDs } = useDrawingSettings();
 
@@ -129,6 +137,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
   const panStateRef = useRef<PanState | null>(null);
   const prevViewportRef = useRef<ViewportSize | null>(null);
   const prevZoomRef = useRef<{ fitMode: string; manualScale: number } | null>(null);
+  const lastPageSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // state
   const [numPages, setNumPages] = useState(0);
@@ -148,6 +157,8 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
   const [toolMode, setToolMode] = useState<ToolMode>("auto");
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
   const [isPanning, setIsPanning] = useState(false);
+  const [remotePage, setRemotePage] = useState<number | null>(serverLastPage ?? null);
+  const [remotePageUpdatedAt, setRemotePageUpdatedAt] = useState<string | null>(serverLastPageUpdatedAt ?? null);
   const [windowRange, setWindowRange] = useState(() => {
     const target = Math.max(1, initialPage ?? 1);
     return { start: Math.max(1, target - WINDOW_BUFFER), end: target + WINDOW_BUFFER };
@@ -272,6 +283,12 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
 
   const prevPage = useCallback(() => scrollToPage(pageNum - 1), [pageNum, scrollToPage]);
   const nextPage = useCallback(() => scrollToPage(pageNum + 1), [pageNum, scrollToPage]);
+
+  const syncAvailable = remotePage !== null && remotePage !== pageNum;
+  const handleSync = useCallback(() => {
+    if (remotePage === null) return;
+    scrollToPage(remotePage);
+  }, [remotePage, scrollToPage]);
 
   // ---------- page input ----------
 
@@ -592,10 +609,36 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
 
   // ---------- effects ----------
 
-  // persist current page
+  // persist current page locally and sync to server (debounced)
   useEffect(() => {
+    if (numPages === 0) return;
     localStorage.setItem(`doc:${documentId}:page`, String(pageNum));
-  }, [documentId, pageNum]);
+    if (lastPageSaveTimerRef.current) clearTimeout(lastPageSaveTimerRef.current);
+    lastPageSaveTimerRef.current = setTimeout(() => {
+      docsApi.updateLastPage(documentId, pageNum).then((updated) => {
+        setRemotePage(updated.last_page);
+        setRemotePageUpdatedAt(updated.last_page_updated_at);
+      }).catch(() => {});
+    }, 1500);
+  }, [documentId, pageNum, numPages]);
+
+  // poll server for remote last_page (on tab focus + every 60 s)
+  useEffect(() => {
+    const poll = () => {
+      docsApi.get(documentId).then((updated) => {
+        setRemotePage(updated.last_page);
+        setRemotePageUpdatedAt(updated.last_page_updated_at);
+      }).catch(() => {});
+    };
+    const onVisibility = () => { if (!document.hidden) poll(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    const timer = setInterval(poll, 60_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      clearInterval(timer);
+      if (lastPageSaveTimerRef.current) clearTimeout(lastPageSaveTimerRef.current);
+    };
+  }, [documentId]);
 
   // viewport resize observer
   useEffect(() => {
@@ -745,5 +788,9 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     updateDs,
     resetForLoad,
     setPen,
+    remotePage,
+    remotePageUpdatedAt,
+    syncAvailable,
+    handleSync,
   };
 }

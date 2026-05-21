@@ -16,6 +16,8 @@ class Document(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
+    last_page: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    last_page_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     folder: Mapped[Optional["Folder"]] = relationship(back_populates="documents")
     regions: Mapped[list["Region"]] = relationship(back_populates="document", cascade="all, delete-orphan")
