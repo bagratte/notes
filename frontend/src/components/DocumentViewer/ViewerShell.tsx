@@ -6,8 +6,12 @@ import type { UseDocumentViewerResult } from "./useDocumentViewer";
 import { toStrokeData, PAGE_GUTTER } from "./viewerTypes";
 import css from "./DocumentViewer.module.css";
 
+function parseUtc(iso: string): Date {
+  return new Date(/[Z+]/.test(iso) ? iso : iso + "Z");
+}
+
 function formatTimeAgo(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  const mins = Math.floor((Date.now() - parseUtc(iso).getTime()) / 60_000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins} min ago`;
   const hrs = Math.floor(mins / 60);
