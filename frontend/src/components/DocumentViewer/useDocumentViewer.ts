@@ -165,7 +165,6 @@ export function useDocumentViewer({ documentId, folderId, initialPage }: Options
     setNumPages(0);
     setPageNum(target);
     setPageLabels(null);
-    setPageInput("");
     setNaturalSizes({});
     setStrokesByPage({});
     setRedoByPage({});
