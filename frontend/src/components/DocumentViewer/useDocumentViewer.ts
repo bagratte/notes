@@ -159,6 +159,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   const [isPanning, setIsPanning] = useState(false);
   const [remotePage, setRemotePage] = useState<number | null>(serverLastPage ?? null);
   const [remotePageUpdatedAt, setRemotePageUpdatedAt] = useState<string | null>(serverLastPageUpdatedAt ?? null);
+  const [hasPendingWrite, setHasPendingWrite] = useState(false);
   const [windowRange, setWindowRange] = useState(() => {
     const target = Math.max(1, initialPage ?? 1);
     return { start: Math.max(1, target - WINDOW_BUFFER), end: target + WINDOW_BUFFER };
@@ -284,7 +285,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   const prevPage = useCallback(() => scrollToPage(pageNum - 1), [pageNum, scrollToPage]);
   const nextPage = useCallback(() => scrollToPage(pageNum + 1), [pageNum, scrollToPage]);
 
-  const syncAvailable = remotePage !== null && remotePage !== pageNum;
+  const syncAvailable = remotePage !== null && remotePage !== pageNum && !hasPendingWrite;
   const handleSync = useCallback(() => {
     if (remotePage === null) return;
     scrollToPage(remotePage);
@@ -613,8 +614,10 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   useEffect(() => {
     if (numPages === 0) return;
     localStorage.setItem(`doc:${documentId}:page`, String(pageNum));
+    setHasPendingWrite(true);
     if (lastPageSaveTimerRef.current) clearTimeout(lastPageSaveTimerRef.current);
     lastPageSaveTimerRef.current = setTimeout(() => {
+      setHasPendingWrite(false);
       docsApi.updateLastPage(documentId, pageNum).then((updated) => {
         setRemotePage(updated.last_page);
         setRemotePageUpdatedAt(updated.last_page_updated_at);
