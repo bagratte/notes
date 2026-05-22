@@ -8,6 +8,7 @@ interface DjVuPage {
   getRotation(): 0 | 90 | 180 | 270;
   getImageData(rotate?: boolean): ImageData;
   reset(): void;
+  getNormalizedTextZones(): Array<{ x: number; y: number; width: number; height: number; text: string }>;
 }
 
 interface DjVuDocument {

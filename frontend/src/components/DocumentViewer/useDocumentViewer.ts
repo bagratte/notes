@@ -27,6 +27,7 @@ export interface UseDocumentViewerResult {
   containerRef: React.RefObject<HTMLDivElement>;
   pageRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
   canvasRefs: React.MutableRefObject<Map<number, HTMLCanvasElement>>;
+  textLayerRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
   loadedStrokePagesRef: React.MutableRefObject<Set<number>>;
   loadedRegionPagesRef: React.MutableRefObject<Set<number>>;
   sectionNoteCacheRef: React.MutableRefObject<Map<number, number>>;
@@ -130,6 +131,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
+  const textLayerRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const loadedStrokePagesRef = useRef<Set<number>>(new Set());
   const loadedRegionPagesRef = useRef<Set<number>>(new Set());
   const sectionNoteCacheRef = useRef<Map<number, number>>(new Map());
@@ -729,6 +731,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     containerRef,
     pageRefs,
     canvasRefs,
+    textLayerRefs,
     loadedStrokePagesRef,
     loadedRegionPagesRef,
     sectionNoteCacheRef,

@@ -123,11 +123,11 @@ The key design constraint: PDF preloads natural sizes asynchronously before sett
 
 ### Tool modes
 
-`ToolMode = "auto" | "hand" | "pen" | "stroke-eraser" | "segment-eraser" | "select-region"` (defined in `src/types/index.ts`).
+`ToolMode = "auto" | "hand" | "pen" | "stroke-eraser" | "segment-eraser" | "select-region" | "text-select"` (defined in `src/types/index.ts`).
 
-The unified `Toolbar` component (`src/components/Toolbar/`) renders tool buttons, colour swatches, and stroke-width buttons. `availableTools: ToolMode[]` controls which tools appear — notes omit `select-region`, document viewers include all six. `UndoRedoBar` (`src/components/UndoRedoBar/`) is a separate component rendered alongside `Toolbar` in both contexts.
+The unified `Toolbar` component (`src/components/Toolbar/`) renders tool buttons, colour swatches, and stroke-width buttons. `availableTools: ToolMode[]` controls which tools appear — notes omit `select-region` and `text-select`, document viewers include all seven. `UndoRedoBar` (`src/components/UndoRedoBar/`) is a separate component rendered alongside `Toolbar` in both contexts.
 
-In `"hand"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s become clickable. In all explicit tool modes (`"pen"`, `"stroke-eraser"`, `"segment-eraser"`, `"select-region"`), the SVG captures pointer events from **all** input types — pen, finger/touch, and mouse — and region divs get `pointerEvents: none`. In `"select-region"` mode dragging produces a pending selection rectangle; a contextual menu then lets the user create a linked note.
+In `"hand"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s become clickable. In all explicit tool modes (`"pen"`, `"stroke-eraser"`, `"segment-eraser"`, `"select-region"`, `"text-select"`), the SVG captures pointer events from **all** input types — pen, finger/touch, and mouse — and region divs get `pointerEvents: none`. In `"select-region"` mode dragging produces a pending selection rectangle; a contextual menu then lets the user create a linked note. In `"text-select"` mode a transparent text layer div is rendered between the canvas and the SVG overlay: for PDFs it is populated via `pdfjsLib.TextLayer` at scale=1 (then CSS `scale()` on the container handles zoom); for DjVu it uses percentage-positioned `<span>` elements from `djvuPage.getNormalizedTextZones()`. The SVG and region divs having `pointerEvents: none` lets the browser's native selection reach the text layer.
 
 `"auto"` mode routes input by pointer type at the SVG level: the SVG handler returns early for any non-pen input, leaving finger/mouse events to fall through to region divs (which have `pointerEvents: auto` in auto mode). When a stylus hits a region div, `handleRegionPointerDown` transfers pointer capture to the SVG and starts a stroke directly — this avoids the race condition of updating React state before `pointermove` fires.
 

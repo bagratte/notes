@@ -494,12 +494,12 @@ export default function DocumentOverlay({
         }
       : null;
 
-  const active = mode !== "hand";
+  const active = mode !== "hand" && mode !== "text-select";
   return (
     <div
       ref={overlayRef}
       className={className}
-      style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+      style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: mode === "text-select" ? "none" : "auto" }}
       onPointerDownCapture={handleOverlayPointerDownCapture}
     >
       {/* Region boxes — clickable divs so they work independently of SVG pointer-events */}

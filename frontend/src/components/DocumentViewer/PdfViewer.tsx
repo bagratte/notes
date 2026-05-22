@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { pdfjsLib } from "./pdfSetup";
+import { pdfjsLib, TextLayer } from "./pdfSetup";
 import ViewerShell from "./ViewerShell";
 import { useDocumentViewer } from "./useDocumentViewer";
 import type { ViewerProps } from "./viewerTypes";
@@ -13,6 +13,7 @@ export default function PdfViewer({ url, documentId, folderId, initialPage, over
   const renderTasksRef = useRef<Map<number, { cancel: () => void }>>(new Map());
   const renderVersionRef = useRef<Map<number, number>>(new Map());
   const loadingPagesRef = useRef<Set<number>>(new Set());
+  const textLayerInstancesRef = useRef<Map<number, TextLayer>>(new Map());
 
   // Load individual page natural sizes (PDF sizes are lazy, unlike DjVu which provides all upfront)
   const loadPdfPageNaturalSize = useCallback(async (page: number) => {
@@ -83,6 +84,12 @@ export default function PdfViewer({ url, documentId, folderId, initialPage, over
       renderTasksRef.current.forEach((t) => t.cancel());
       renderTasksRef.current.clear();
       renderVersionRef.current.clear();
+      textLayerInstancesRef.current.forEach((tl) => tl.cancel());
+      textLayerInstancesRef.current.clear();
+      hook.textLayerRefs.current.forEach((div) => {
+        div.innerHTML = "";
+        delete div.dataset.pdfTextRendered;
+      });
       pdfDocRef.current?.destroy();
       pdfDocRef.current = null;
     };
@@ -156,6 +163,38 @@ export default function PdfViewer({ url, documentId, folderId, initialPage, over
     window.addEventListener("document:page-strokes-changed", handler);
     return () => window.removeEventListener("document:page-strokes-changed", handler);
   }, [documentId, hook.loadPageData]);
+
+  // Render text layer for each buffered page when in text-select mode
+  useEffect(() => {
+    if (hook.toolMode !== "text-select") return;
+    const doc = pdfDocRef.current;
+    if (!doc || hook.numPages === 0) return;
+
+    for (let page = hook.windowRange.start; page <= hook.windowRange.end; page += 1) {
+      const div = hook.textLayerRefs.current.get(page);
+      if (!div || div.dataset.pdfTextRendered) continue;
+
+      const capturedPage = page;
+      doc.getPage(capturedPage).then((pdfPage) => {
+        const currentDiv = hook.textLayerRefs.current.get(capturedPage);
+        if (!currentDiv || currentDiv.dataset.pdfTextRendered) return;
+
+        // Cancel any stale instance for this page (e.g. page re-entered the buffer)
+        textLayerInstancesRef.current.get(capturedPage)?.cancel();
+
+        const viewport = pdfPage.getViewport({ scale: 1 });
+        const textLayer = new TextLayer({
+          textContentSource: pdfPage.streamTextContent(),
+          container: currentDiv,
+          viewport,
+        });
+        textLayerInstancesRef.current.set(capturedPage, textLayer);
+        textLayer.render()
+          .then(() => { currentDiv.dataset.pdfTextRendered = "1"; })
+          .catch(() => { /* cancelled or page unavailable */ });
+      }).catch(() => { /* page unavailable */ });
+    }
+  }, [hook.toolMode, hook.windowRange, hook.numPages, hook.textLayerRefs]);
 
   return <ViewerShell {...hook} overlayEnabled={overlayEnabled} errorLabel="PDF" />;
 }

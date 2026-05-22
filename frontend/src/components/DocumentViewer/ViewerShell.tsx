@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import DocumentOverlay from "./DocumentOverlay";
 import { Toolbar } from "@/components/Toolbar";
 import { UndoRedoBar } from "@/components/UndoRedoBar";
@@ -65,6 +65,7 @@ export default function ViewerShell({
   containerRef,
   pageRefs,
   canvasRefs,
+  textLayerRefs,
   // callbacks
   getPageDisplaySize,
   prevPage,
@@ -96,6 +97,10 @@ export default function ViewerShell({
   handleSync,
 }: Props) {
   const [hwOverride, setHwOverride] = useState<"stroke-eraser" | "segment-eraser" | null>(null);
+
+  useEffect(() => {
+    if (toolMode !== "text-select") window.getSelection()?.removeAllRanges();
+  }, [toolMode]);
 
   const handleSyncClick = useCallback(() => {
     if (!syncAvailable || remotePage === null) return;
@@ -177,7 +182,7 @@ export default function ViewerShell({
           onChange={setPen}
           tool={toolMode}
           onToolChange={setToolMode}
-          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser", "select-region"]}
+          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser", "select-region", "text-select"]}
           activeOverride={hwOverride}
         />
 
@@ -197,6 +202,8 @@ export default function ViewerShell({
         style={
           toolMode === "hand"
             ? { cursor: isPanning ? "grabbing" : "grab", userSelect: isPanning ? "none" : undefined }
+            : toolMode === "text-select"
+            ? { cursor: "text" }
             : undefined
         }
         onPointerDown={handleScrollPointerDown}
@@ -235,6 +242,17 @@ export default function ViewerShell({
                           else canvasRefs.current.delete(page);
                         }}
                         className={css.canvas}
+                      />
+                      <div
+                        ref={(el) => {
+                          if (el) textLayerRefs.current.set(page, el);
+                          else textLayerRefs.current.delete(page);
+                        }}
+                        className={css.textLayer}
+                        style={{
+                          display: toolMode === "text-select" ? "block" : "none",
+                          ["--scale-factor" as string]: width / natural.width,
+                        } as CSSProperties}
                       />
                       {overlayEnabled && (
                         <DocumentOverlay

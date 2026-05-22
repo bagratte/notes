@@ -34,6 +34,7 @@ const TOOL_TITLES: Record<ToolMode, string> = {
   "stroke-eraser": "Stroke eraser",
   "segment-eraser": "Precision eraser",
   "select-region": "Select region",
+  "text-select": "Select text",
 };
 
 function AutoIcon() {
@@ -86,6 +87,15 @@ function SelectRegionIcon() {
   );
 }
 
+function TextSelectIcon() {
+  return (
+    <>
+      <path d="M4 2h6M7 2v10M4 12h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+      <path d="M3 5v4M11 5v4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeDasharray="1 1.5"/>
+    </>
+  );
+}
+
 const TOOL_ICONS: Record<ToolMode, () => ReactElement> = {
   auto: AutoIcon,
   hand: HandIcon,
@@ -93,6 +103,7 @@ const TOOL_ICONS: Record<ToolMode, () => ReactElement> = {
   "stroke-eraser": StrokeEraserIcon,
   "segment-eraser": SegmentEraserIcon,
   "select-region": SelectRegionIcon,
+  "text-select": TextSelectIcon,
 };
 
 interface Props {

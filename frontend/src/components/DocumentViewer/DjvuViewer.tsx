@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import ViewerShell from "./ViewerShell";
 import { useDocumentViewer } from "./useDocumentViewer";
 import type { ViewerProps, NaturalSize } from "./viewerTypes";
+import css from "./DocumentViewer.module.css";
 
 export default function DjvuViewer({ url, documentId, folderId, initialPage, overlayEnabled = true, serverLastPage, serverLastPageUpdatedAt }: ViewerProps) {
   const hook = useDocumentViewer({ documentId, folderId, initialPage, serverLastPage, serverLastPageUpdatedAt });
@@ -105,6 +106,10 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
     return () => {
       cancelled = true;
       docRef.current = null;
+      hook.textLayerRefs.current.forEach((div) => {
+        div.innerHTML = "";
+        delete div.dataset.djvuTextRendered;
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, initialPage]);
@@ -131,6 +136,57 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
     window.addEventListener("document:page-strokes-changed", handler);
     return () => window.removeEventListener("document:page-strokes-changed", handler);
   }, [documentId, hook.loadPageData, renderDjvuPage]);
+
+  // Render text layer for each buffered page when in text-select mode
+  useEffect(() => {
+    if (hook.toolMode !== "text-select") return;
+    const doc = docRef.current;
+    if (!doc || hook.numPages === 0) return;
+
+    for (let page = hook.windowRange.start; page <= hook.windowRange.end; page += 1) {
+      const div = hook.textLayerRefs.current.get(page);
+      if (!div || div.dataset.djvuTextRendered) continue;
+
+      const capturedPage = page;
+      doc.getPage(capturedPage).then((djvuPage) => {
+        const currentDiv = hook.textLayerRefs.current.get(capturedPage);
+        if (!currentDiv || currentDiv.dataset.djvuTextRendered) return;
+
+        const pageW = djvuPage.getWidth();
+        const pageH = djvuPage.getHeight();
+        const zones = djvuPage.getNormalizedTextZones();
+
+        // Each zone is a paragraph (or whatever the OCR leaf level is) — we render it
+        // as a single <div> with text-align:justify so the browser wraps the text into
+        // lines that approximately follow the underlying image's line layout.
+        // Coordinates: zone.x/y in raw DjVu pixels with y=0 at bottom-left; CSS
+        // `bottom` maps directly. Container is at display size (100% of pageWrap), so
+        // percentage positions resolve to display pixels. Font-size uses --scale-factor
+        // so it tracks zoom without re-rendering.
+        const fragment = document.createDocumentFragment();
+        for (const zone of zones) {
+          const div = document.createElement("div");
+          div.className = css.djvuZone;
+          div.textContent = zone.text;
+          // Estimate font-size to fit text within the zone bounds, assuming avg char
+          // width ≈ 0.55 * fontSize and line-height ≈ 1.2.
+          const textLen = Math.max(zone.text.length, 1);
+          const estFontSize = Math.sqrt((zone.width * zone.height) / (textLen * 0.66));
+          const fontSize = Math.min(estFontSize, zone.height);
+          div.style.left = `${(zone.x / pageW) * 100}%`;
+          div.style.bottom = `${(zone.y / pageH) * 100}%`;
+          div.style.width = `${(zone.width / pageW) * 100}%`;
+          div.style.height = `${(zone.height / pageH) * 100}%`;
+          div.style.fontSize = `calc(var(--scale-factor) * ${fontSize}px)`;
+          fragment.appendChild(div);
+        }
+        currentDiv.appendChild(fragment);
+        currentDiv.dataset.djvuTextRendered = "1";
+      }).catch(() => {
+        // page unavailable — ignore
+      });
+    }
+  }, [hook.toolMode, hook.windowRange, hook.numPages, hook.textLayerRefs]);
 
   return <ViewerShell {...hook} overlayEnabled={overlayEnabled} errorLabel="DjVu" />;
 }
