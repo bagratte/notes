@@ -44,3 +44,46 @@
 .toolBtn:hover { border-color: var(--text-dim); }
 .toolBtn.active { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); }
 .toolBtn.override { border-color: #e08000; background: #fff8ec; color: #e08000; }
+
+/* Popover infrastructure */
+
+.popoverAnchor {
+  position: relative;
+}
+
+.popoverBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+}
+
+/* Color popover — right-aligned, single row of all 8 swatches */
+
+.colorPopover {
+  left: auto;
+  right: 0;
+  gap: 6px;
+  padding: 8px;
+}
+
+/* Width popover — right-aligned, single row of 3 width buttons */
+
+.widthPopover {
+  left: auto;
+  right: 0;
+}

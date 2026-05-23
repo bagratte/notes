@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { type ReactElement, useState, useEffect } from "react";
 import type { ToolMode } from "@/types";
 import css from "./Toolbar.module.css";
 
@@ -36,6 +36,21 @@ const TOOL_TITLES: Record<ToolMode, string> = {
   "select-region": "Select region",
   "text-select": "Select text",
 };
+
+const OVERFLOW_TOOLS = new Set<ToolMode>(["hand", "pen", "segment-eraser"]);
+
+function useCompact(): boolean {
+  const [compact, setCompact] = useState(
+    () => window.matchMedia("(max-width: 912px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 912px)");
+    const handle = (e: MediaQueryListEvent) => setCompact(e.matches);
+    mq.addEventListener("change", handle);
+    return () => mq.removeEventListener("change", handle);
+  }, []);
+  return compact;
+}
 
 function AutoIcon() {
   return (
@@ -96,6 +111,16 @@ function TextSelectIcon() {
   );
 }
 
+function MoreIcon() {
+  return (
+    <>
+      <circle cx="2.5" cy="7" r="1.2" fill="currentColor"/>
+      <circle cx="7" cy="7" r="1.2" fill="currentColor"/>
+      <circle cx="11.5" cy="7" r="1.2" fill="currentColor"/>
+    </>
+  );
+}
+
 const TOOL_ICONS: Record<ToolMode, () => ReactElement> = {
   auto: AutoIcon,
   hand: HandIcon,
@@ -123,53 +148,156 @@ export default function Toolbar({
   availableTools,
   activeOverride = null,
 }: Props) {
+  const compact = useCompact();
   const showPenSettings = availableTools.includes("pen");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [colorOpen, setColorOpen] = useState(false);
+  const [widthOpen, setWidthOpen] = useState(false);
+
+  const primaryTools = compact
+    ? availableTools.filter((t) => !OVERFLOW_TOOLS.has(t))
+    : availableTools;
+  const overflowTools = compact
+    ? availableTools.filter((t) => OVERFLOW_TOOLS.has(t))
+    : [];
+
+  const overflowIsActive = overflowTools.includes(tool) && !activeOverride;
+  const overflowHasOverride = activeOverride != null && OVERFLOW_TOOLS.has(activeOverride);
+
+  function ToolBtn({ t, onSelect }: { t: ToolMode; onSelect?: () => void }) {
+    const Icon = TOOL_ICONS[t];
+    const isOverride = activeOverride === t;
+    const isActive = tool === t && !activeOverride;
+    return (
+      <button
+        className={`${css.toolBtn}${isActive ? " " + css.active : ""}${isOverride ? " " + css.override : ""}`}
+        title={TOOL_TITLES[t]}
+        onClick={() => { onToolChange(t); onSelect?.(); }}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <Icon />
+        </svg>
+      </button>
+    );
+  }
 
   return (
     <div className={css.toolbar}>
-      {availableTools.map((t) => {
-        const Icon = TOOL_ICONS[t];
-        const isOverride = activeOverride === t;
-        const isActive = tool === t && !activeOverride;
-        return (
+      {primaryTools.map((t) => <ToolBtn key={t} t={t} />)}
+
+      {compact && overflowTools.length > 0 && (
+        <div className={css.popoverAnchor}>
+          {moreOpen && (
+            <div className={css.popoverBackdrop} onPointerDown={() => setMoreOpen(false)} />
+          )}
           <button
-            key={t}
-            className={`${css.toolBtn}${isActive ? " " + css.active : ""}${isOverride ? " " + css.override : ""}`}
-            title={TOOL_TITLES[t]}
-            onClick={() => onToolChange(t)}
+            className={`${css.toolBtn}${overflowIsActive ? " " + css.active : ""}${overflowHasOverride ? " " + css.override : ""}`}
+            title="More tools"
+            onClick={() => { setMoreOpen((o) => !o); setColorOpen(false); setWidthOpen(false); }}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <Icon />
+              <MoreIcon />
             </svg>
           </button>
-        );
-      })}
+          {moreOpen && (
+            <div className={css.popover}>
+              {overflowTools.map((t) => (
+                <ToolBtn key={t} t={t} onSelect={() => setMoreOpen(false)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showPenSettings && (
         <>
           <div className={css.sep} />
-          {COLORS.map(({ value, label }) => (
-            <button
-              key={value}
-              className={`${css.colorBtn}${settings.color === value ? " " + css.active : ""}`}
-              style={{ background: value }}
-              title={label}
-              onClick={() => onChange({ ...settings, color: value })}
-            />
-          ))}
-          <div className={css.sep} />
-          {WIDTHS.map(({ value, label }) => (
-            <button
-              key={value}
-              className={`${css.toolBtn}${settings.width === value ? " " + css.active : ""}`}
-              title={label}
-              onClick={() => onChange({ ...settings, width: value })}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14">
-                <circle cx="7" cy="7" r={value} fill="currentColor"/>
-              </svg>
-            </button>
-          ))}
+
+          {!compact && (
+            <>
+              {COLORS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  className={`${css.colorBtn}${settings.color === value ? " " + css.active : ""}`}
+                  style={{ background: value }}
+                  title={label}
+                  onClick={() => onChange({ ...settings, color: value })}
+                />
+              ))}
+              <div className={css.sep} />
+              {WIDTHS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  className={`${css.toolBtn}${settings.width === value ? " " + css.active : ""}`}
+                  title={label}
+                  onClick={() => onChange({ ...settings, width: value })}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14">
+                    <circle cx="7" cy="7" r={value} fill="currentColor"/>
+                  </svg>
+                </button>
+              ))}
+            </>
+          )}
+
+          {compact && (
+            <>
+              <div className={css.popoverAnchor}>
+                {colorOpen && (
+                  <div className={css.popoverBackdrop} onPointerDown={() => setColorOpen(false)} />
+                )}
+                <button
+                  className={`${css.colorBtn} ${css.active}`}
+                  style={{ background: settings.color }}
+                  title="Pen color"
+                  onClick={() => { setColorOpen((o) => !o); setWidthOpen(false); setMoreOpen(false); }}
+                />
+                {colorOpen && (
+                  <div className={`${css.popover} ${css.colorPopover}`}>
+                    {COLORS.map(({ value, label }) => (
+                      <button
+                        key={value}
+                        className={`${css.colorBtn}${settings.color === value ? " " + css.active : ""}`}
+                        style={{ background: value }}
+                        title={label}
+                        onClick={() => onChange({ ...settings, color: value })}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className={css.popoverAnchor}>
+                {widthOpen && (
+                  <div className={css.popoverBackdrop} onPointerDown={() => setWidthOpen(false)} />
+                )}
+                <button
+                  className={`${css.toolBtn} ${css.active}`}
+                  title="Pen width"
+                  onClick={() => { setWidthOpen((o) => !o); setColorOpen(false); setMoreOpen(false); }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14">
+                    <circle cx="7" cy="7" r={settings.width} fill="currentColor"/>
+                  </svg>
+                </button>
+                {widthOpen && (
+                  <div className={`${css.popover} ${css.widthPopover}`}>
+                    {WIDTHS.map(({ value, label }) => (
+                      <button
+                        key={value}
+                        className={`${css.toolBtn}${settings.width === value ? " " + css.active : ""}`}
+                        title={label}
+                        onClick={() => onChange({ ...settings, width: value })}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14">
+                          <circle cx="7" cy="7" r={value} fill="currentColor"/>
+                        </svg>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
