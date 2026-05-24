@@ -62,8 +62,9 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
       if (!canvas) break;
 
       const { width, height } = getPageDisplaySizeRef.current(page);
-      canvas.width = Math.round(width);
-      canvas.height = Math.round(height);
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
 
       const ctx = canvas.getContext("2d");
       if (!ctx) break;
