@@ -271,7 +271,6 @@ export default function DocumentOverlay({
     resizeStateRef.current = null;
     const nextRect = regionDrafts[resize.regionId] ?? resize.startRect;
     updateRegionDraft(resize.regionId, null);
-    setEditingRegionId((current) => (current === resize.regionId ? null : current));
     if (commit && rectChanged(nextRect, resize.startRect)) {
       suppressRegionClickRef.current = resize.regionId;
       onRegionUpdate?.(resize.regionId, nextRect);
