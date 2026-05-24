@@ -156,6 +156,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const [docToc, setDocToc] = useState<Record<number, TocEntry[]>>({});
   const [expandedTocPaths, setExpandedTocPaths] = useState<Set<string>>(new Set());
   const [expandedTocRoots, setExpandedTocRoots] = useState<Set<number>>(new Set());
+  const [expandedNotesRoots, setExpandedNotesRoots] = useState<Set<number>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -423,29 +424,49 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
                 </>
               );
             })()}
-            {linked.map((n) => {
-              const pg = data.docNotePageNums[doc.id]?.[n.id];
-              return renderNote(
-                n,
-                indent + 28,
-                pg !== undefined ? `Page ${pg} – ` : undefined,
-                pg !== undefined ? { docId: doc.id, page: pg } : undefined,
+            {(linked.length > 0 || pages.length > 0) && (() => {
+              const notesOpen = expandedNotesRoots.has(doc.id);
+              return (
+                <>
+                  <div
+                    className={css.leafRow}
+                    style={{ paddingLeft: `${indent + 28}px` }}
+                    onClick={() => setExpandedNotesRoots((s) => { const n = new Set(s); n.has(doc.id) ? n.delete(doc.id) : n.add(doc.id); return n; })}
+                  >
+                    <span><ChevronIcon open={notesOpen} /></span>
+                    <NoteIcon />
+                    <span className={css.rowLabel}>Notes</span>
+                  </div>
+                  {notesOpen && (
+                    <>
+                      {linked.map((n) => {
+                        const pg = data.docNotePageNums[doc.id]?.[n.id];
+                        return renderNote(
+                          n,
+                          indent + 44,
+                          pg !== undefined ? `Page ${pg} – ` : undefined,
+                          pg !== undefined ? { docId: doc.id, page: pg } : undefined,
+                        );
+                      })}
+                      {pages.map((pageNum) => (
+                        <div
+                          key={`page-${pageNum}`}
+                          className={css.leafRow}
+                          style={{ paddingLeft: `${indent + 44}px` }}
+                          onClick={() => navigate(`/documents/${doc.id}?page=${pageNum}`)}
+                        >
+                          <AnnotatedPageIcon />
+                          <span className={css.rowLabel}>Page {pageNum} – Annotation</span>
+                          <div className={css.rowActions} onClick={stop}>
+                            <button className={css.iconBtn} title="Delete strokes" onClick={() => deleteAnnotatedPage(doc.id, pageNum)}>✕</button>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </>
               );
-            })}
-            {pages.map((pageNum) => (
-              <div
-                key={`page-${pageNum}`}
-                className={css.leafRow}
-                style={{ paddingLeft: `${indent + 28}px` }}
-                onClick={() => navigate(`/documents/${doc.id}?page=${pageNum}`)}
-              >
-                <AnnotatedPageIcon />
-                <span className={css.rowLabel}>Page {pageNum} – Annotation</span>
-                <div className={css.rowActions} onClick={stop}>
-                  <button className={css.iconBtn} title="Delete strokes" onClick={() => deleteAnnotatedPage(doc.id, pageNum)}>✕</button>
-                </div>
-              </div>
-            ))}
+            })()}
           </>
         )}
       </div>
