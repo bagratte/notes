@@ -138,6 +138,7 @@ interface Props {
   onToolChange: (t: ToolMode) => void;
   availableTools: ToolMode[];
   activeOverride?: "stroke-eraser" | "segment-eraser" | null;
+  disableCompact?: boolean;
 }
 
 export default function Toolbar({
@@ -147,8 +148,9 @@ export default function Toolbar({
   onToolChange,
   availableTools,
   activeOverride = null,
+  disableCompact = false,
 }: Props) {
-  const compact = useCompact();
+  const compact = useCompact() && !disableCompact;
   const showPenSettings = availableTools.includes("pen");
   const [moreOpen, setMoreOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);

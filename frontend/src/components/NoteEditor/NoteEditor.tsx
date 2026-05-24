@@ -86,6 +86,7 @@ export default function NoteEditor({ noteId }: Props) {
           onToolChange={setTool}
           availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser"]}
           activeOverride={hwOverride}
+          disableCompact
         />
         <div style={{ width: 1, height: 18, background: "var(--border)", flexShrink: 0 }} />
         <UndoRedoBar
