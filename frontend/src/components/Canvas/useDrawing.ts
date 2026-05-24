@@ -10,8 +10,8 @@ const PEN_CONTEXT_MENU_SUPPRESS_MS = 800;
 
 export function getPenHwOverride(e: React.PointerEvent | PointerEvent): "segment-eraser" | "stroke-eraser" | null {
   if (e.pointerType !== "pen") return null;
-  if (e.buttons & 32) return "segment-eraser";
-  if (e.buttons & 2) return "stroke-eraser";
+  if (e.buttons & 32) return "stroke-eraser";
+  if (e.buttons & 2) return "segment-eraser";
   return null;
 }
 
@@ -334,7 +334,7 @@ export function useDrawing({
         (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
     if (e.button !== 0 && e.pointerType !== "pen") return;
     e.preventDefault();
-    if (e.pointerType === "pen" && e.button !== 0) {
+    if (e.pointerType === "pen" && e.button !== 0 && !(e.buttons & 32)) {
       markPenContextMenuSuppressed();
       const hw = getPenHwOverride(e);
       if (hw) barrelHeldRef.current = hw;
