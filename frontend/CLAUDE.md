@@ -41,6 +41,10 @@ Creating or clicking a region navigates to `/notes/:noteId`, replacing the docum
 
 The `Sidebar` loads all folders, notes, and documents in a single `Promise.all` on mount — there is no lazy per-folder fetching.
 
+Each document row expands to show up to two collapsible supersections:
+- **Contents** — TOC entries extracted from the document outline (`TocEntry[]`), hierarchically nested and individually collapsible. Auto-expands when the TOC loads. Only shown for documents that have been opened in the current session.
+- **Notes** — linked notes (with page prefix) and inline-annotated pages. Collapsed by default.
+
 ### Drawing
 
 `useDrawing` (`Canvas/useDrawing.ts`) is the custom hook that owns all pointer event handlers, stroke state, and the canvas/SVG render cycle. `DrawingCanvas` is a thin wrapper around it. `DocumentOverlay` is a separate variant that also calls `useDrawing` and adds the region drag-rectangle mode on top.
@@ -181,6 +185,7 @@ Two `window` custom events keep the sidebar and document viewers in sync without
 |-------|----------|----------|-------------|
 | `sidebar:refresh` | — | PdfViewer/DjvuViewer (region created), MergeModal (note merged) | Sidebar — full reload |
 | `document:page-strokes-changed` | `{ documentId, pageNumber }` | PdfViewer/DjvuViewer (first/last stroke on page), Sidebar (page strokes deleted) | Sidebar — re-fetches `annotatedPages` for that doc; PdfViewer/DjvuViewer — reloads strokes if currently on that page |
+| `document:toc-loaded` | `{ documentId, toc: TocEntry[] }` | PdfViewer (via `doc.getOutline()`), DjvuViewer (via `doc.getContents()`) | Sidebar — stores TOC for that doc, auto-expands document row and Contents section |
 
 Fire `sidebar:refresh` for mutations that change the note/document/folder tree. Fire `document:page-strokes-changed` for mutations that change whether a document page has inline strokes. The `document:page-strokes-changed` event is only dispatched when a page crosses the zero-stroke boundary (empty → first stroke, or last stroke → empty).
 

@@ -14,6 +14,7 @@ A handwriting note-taking and document annotation app. Write freehand notes, ann
 - **Dark mode** — follows OS preference by default; manual override in Settings (light / dark / system)
 - **Undo / redo** — per canvas, via toolbar buttons or keyboard shortcuts
 - **Cross-device page sync** — last-read page is stored server-side; a sync button activates when another device has advanced, jumping on confirmation
+- **Document table of contents** — TOC extracted from PDF outlines and DjVu bookmarks; shown as a collapsible tree in the sidebar for quick chapter navigation
 - **Organization** — Folders (arbitrarily nested) containing Notes and Documents
 
 ## Tech stack
