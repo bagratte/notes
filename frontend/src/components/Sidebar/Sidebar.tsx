@@ -155,6 +155,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const [mergingNote, setMergingNote] = useState<Note | null>(null);
   const [docToc, setDocToc] = useState<Record<number, TocEntry[]>>({});
   const [expandedTocPaths, setExpandedTocPaths] = useState<Set<string>>(new Set());
+  const [expandedTocRoots, setExpandedTocRoots] = useState<Set<number>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -209,7 +210,10 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     const handler = (e: Event) => {
       const { documentId, toc } = (e as CustomEvent<{ documentId: number; toc: TocEntry[] }>).detail;
       setDocToc((prev) => ({ ...prev, [documentId]: toc }));
-      if (toc.length > 0) setExpandedDocuments((s) => new Set([...s, documentId]));
+      if (toc.length > 0) {
+        setExpandedDocuments((s) => new Set([...s, documentId]));
+        setExpandedTocRoots((s) => new Set([...s, documentId]));
+      }
     };
     window.addEventListener("document:toc-loaded", handler);
     return () => window.removeEventListener("document:toc-loaded", handler);
@@ -402,7 +406,23 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         </div>
         {hasChildren && isOpen && (
           <>
-            {toc.map((entry, i) => renderTocEntry(entry, doc.id, indent + 28, String(i)))}
+            {toc.length > 0 && (() => {
+              const tocOpen = expandedTocRoots.has(doc.id);
+              return (
+                <>
+                  <div
+                    className={css.leafRow}
+                    style={{ paddingLeft: `${indent + 28}px` }}
+                    onClick={() => setExpandedTocRoots((s) => { const n = new Set(s); n.has(doc.id) ? n.delete(doc.id) : n.add(doc.id); return n; })}
+                  >
+                    <span><ChevronIcon open={tocOpen} /></span>
+                    <TocIcon />
+                    <span className={css.rowLabel}>Contents</span>
+                  </div>
+                  {tocOpen && toc.map((entry, i) => renderTocEntry(entry, doc.id, indent + 44, String(i)))}
+                </>
+              );
+            })()}
             {linked.map((n) => {
               const pg = data.docNotePageNums[doc.id]?.[n.id];
               return renderNote(
