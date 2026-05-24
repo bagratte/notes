@@ -6,7 +6,7 @@ import type { StrokeData } from "@/components/Canvas";
 import { DEFAULT_PEN_DOCUMENT as DEFAULT_PEN } from "@/components/Toolbar";
 import type { PenSettings } from "@/components/Toolbar";
 import { strokes as strokesApi, regions as regionsApi, sections as sectionsApi, notes as notesApi, documents as docsApi } from "@/api";
-import type { Stroke } from "@/types";
+import type { Stroke, DocUndoEntry } from "@/types";
 import { useDrawingSettings } from "@/context/DrawingSettings";
 import {
   NaturalSize,
@@ -43,7 +43,7 @@ export interface UseDocumentViewerResult {
   viewport: ViewportSize;
   naturalSizes: Record<number, NaturalSize>;
   strokesByPage: Record<number, Stroke[]>;
-  redoByPage: Record<number, Stroke[]>;
+  redoByPage: Record<number, DocUndoEntry[]>;
   regionsByPage: Record<number, EnrichedRegion[]>;
   loading: boolean;
   error: string | null;
@@ -52,7 +52,8 @@ export interface UseDocumentViewerResult {
   isPanning: boolean;
   windowRange: { start: number; end: number };
   activeStrokes: Stroke[];
-  activeRedo: Stroke[];
+  activeRedo: DocUndoEntry[];
+  activeUndo: DocUndoEntry[];
 
   // state setters exposed for viewer loading effects
   setNumPages: React.Dispatch<React.SetStateAction<number>>;
@@ -62,7 +63,7 @@ export interface UseDocumentViewerResult {
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   setWindowRange: React.Dispatch<React.SetStateAction<{ start: number; end: number }>>;
   setStrokesByPage: React.Dispatch<React.SetStateAction<Record<number, Stroke[]>>>;
-  setRedoByPage: React.Dispatch<React.SetStateAction<Record<number, Stroke[]>>>;
+  setRedoByPage: React.Dispatch<React.SetStateAction<Record<number, DocUndoEntry[]>>>;
   setRegionsByPage: React.Dispatch<React.SetStateAction<Record<number, EnrichedRegion[]>>>;
   setFitMode: React.Dispatch<React.SetStateAction<"width" | "page" | "manual">>;
   setFitPopoverOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -83,6 +84,8 @@ export interface UseDocumentViewerResult {
   redoInline: () => void;
   handleEraseStroke: (page: number, id: number) => Promise<void>;
   handleSegmentErase: (page: number, deleted: number[], created: StrokeData[]) => Promise<void>;
+  handleBatchDeleteInline: (page: number, toDelete: StrokeData[]) => Promise<void>;
+  handleBatchMoveInline: (page: number, deleted: StrokeData[], created: StrokeData[]) => Promise<void>;
   handleRegionComplete: (page: number, rect: PendingRegion) => Promise<void>;
   handleRegionAddToNote: (page: number, rect: PendingRegion, noteId: number) => Promise<void>;
   handleRegionUpdate: (page: number, regionId: number, rect: PendingRegion) => Promise<void>;
@@ -152,7 +155,8 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   const [viewport, setViewport] = useState<ViewportSize>({ width: 1200, height: 900 });
   const [naturalSizes, setNaturalSizes] = useState<Record<number, NaturalSize>>({});
   const [strokesByPage, setStrokesByPage] = useState<Record<number, Stroke[]>>({});
-  const [redoByPage, setRedoByPage] = useState<Record<number, Stroke[]>>({});
+  const [redoByPage, setRedoByPage] = useState<Record<number, DocUndoEntry[]>>({});
+  const [undoByPage, setUndoByPage] = useState<Record<number, DocUndoEntry[]>>({});
   const [regionsByPage, setRegionsByPage] = useState<Record<number, EnrichedRegion[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -169,6 +173,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
 
   const activeStrokes = strokesByPage[pageNum] ?? [];
   const activeRedo = redoByPage[pageNum] ?? [];
+  const activeUndo = undoByPage[pageNum] ?? [];
 
   // ---------- convenience reset ----------
 
@@ -182,6 +187,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     setNaturalSizes({});
     setStrokesByPage({});
     setRedoByPage({});
+    setUndoByPage({});
     setRegionsByPage({});
     setWindowRange({ start: Math.max(1, target - WINDOW_BUFFER), end: target + WINDOW_BUFFER });
     loadedStrokePagesRef.current.clear();
@@ -230,6 +236,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
 
       setStrokesByPage((prev) => ({ ...prev, [page]: strokeData }));
       setRedoByPage((prev) => (prev[page] ? { ...prev, [page]: [] } : prev));
+      setUndoByPage((prev) => (prev[page] ? { ...prev, [page]: [] } : prev));
       loadedStrokePagesRef.current.add(page);
 
       const enriched: EnrichedRegion[] = await Promise.all(
@@ -342,6 +349,10 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
       ...prev,
       [page]: (prev[page] ?? []).map((s) => (s.id === tempId ? saved : s)),
     }));
+    setUndoByPage((prev) => ({
+      ...prev,
+      [page]: [...(prev[page] ?? []), { kind: "stroke", stroke: saved }],
+    }));
 
     if (firstStroke) {
       window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
@@ -352,54 +363,141 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
 
   const undoInline = useCallback(async () => {
     const page = pageNum;
-    const pageStrokes = strokesByPage[page] ?? [];
-    if (pageStrokes.length === 0) return;
+    const undoList = undoByPage[page] ?? [];
+    if (undoList.length === 0) return;
 
-    const last = pageStrokes[pageStrokes.length - 1];
-    if (last.id < 0) return;
+    const entry = undoList[undoList.length - 1];
+    setUndoByPage((prev) => ({ ...prev, [page]: undoList.slice(0, -1) }));
 
-    setStrokesByPage((prev) => ({ ...prev, [page]: pageStrokes.slice(0, -1) }));
-    setRedoByPage((prev) => ({ ...prev, [page]: [...(prev[page] ?? []), last] }));
-
-    await strokesApi.delete(last.id);
-
-    if (pageStrokes.length === 1) {
-      window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
-        detail: { documentId, pageNumber: page },
+    if (entry.kind === "stroke") {
+      const stroke = entry.stroke;
+      let wasLast = false;
+      setStrokesByPage((prev) => {
+        const current = prev[page] ?? [];
+        const next = current.filter((s) => s.id !== stroke.id);
+        wasLast = next.length === 0 && current.length > 0;
+        return { ...prev, [page]: next };
+      });
+      setRedoByPage((prev) => ({ ...prev, [page]: [...(prev[page] ?? []), entry] }));
+      await strokesApi.delete(stroke.id);
+      if (wasLast) {
+        window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
+          detail: { documentId, pageNumber: page },
+        }));
+      }
+    } else if (entry.kind === "batch-delete") {
+      const saved = await strokesApi.createBatch(
+        entry.strokes.map((s) => ({
+          section_id: null, document_id: documentId, page_number: page,
+          points: s.points, color: s.color, width: s.width,
+        }))
+      );
+      let firstStrokes = false;
+      setStrokesByPage((prev) => {
+        const current = prev[page] ?? [];
+        firstStrokes = current.length === 0 && saved.length > 0;
+        return { ...prev, [page]: [...current, ...saved] };
+      });
+      setRedoByPage((prev) => ({
+        ...prev,
+        [page]: [...(prev[page] ?? []), { kind: "batch-delete", strokes: saved }],
+      }));
+      if (firstStrokes) {
+        window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
+          detail: { documentId, pageNumber: page },
+        }));
+      }
+    } else if (entry.kind === "batch-move") {
+      await Promise.all(entry.created.map((s) => strokesApi.delete(s.id)));
+      const saved = await strokesApi.createBatch(
+        entry.deleted.map((s) => ({
+          section_id: null, document_id: documentId, page_number: page,
+          points: s.points, color: s.color, width: s.width,
+        }))
+      );
+      setStrokesByPage((prev) => {
+        const createdIds = new Set(entry.created.map((s) => s.id));
+        return { ...prev, [page]: [...(prev[page] ?? []).filter((s) => !createdIds.has(s.id)), ...saved] };
+      });
+      setRedoByPage((prev) => ({
+        ...prev,
+        [page]: [...(prev[page] ?? []), { kind: "batch-move", deleted: saved, created: entry.created }],
       }));
     }
-  }, [documentId, pageNum, strokesByPage]);
+  }, [documentId, pageNum, undoByPage]);
 
   const redoInline = useCallback(() => {
     const page = pageNum;
     const redoList = redoByPage[page] ?? [];
     if (redoList.length === 0) return;
 
-    const last = redoList[redoList.length - 1];
-
-    void strokesApi
-      .create({
-        section_id: null,
-        document_id: documentId,
-        page_number: page,
-        points: last.points,
-        color: last.color,
-        width: last.width,
-      })
-      .then((saved) => {
-        setStrokesByPage((prev) => {
-          const current = prev[page] ?? [];
-          if (current.length === 0) {
-            window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
-              detail: { documentId, pageNumber: page },
-            }));
-          }
-          return { ...prev, [page]: [...current, saved] };
-        });
-        loadedStrokePagesRef.current.add(page);
-      });
-
+    const entry = redoList[redoList.length - 1];
     setRedoByPage((prev) => ({ ...prev, [page]: redoList.slice(0, -1) }));
+
+    if (entry.kind === "stroke") {
+      const last = entry.stroke;
+      void strokesApi
+        .create({
+          section_id: null,
+          document_id: documentId,
+          page_number: page,
+          points: last.points,
+          color: last.color,
+          width: last.width,
+        })
+        .then((saved) => {
+          setStrokesByPage((prev) => {
+            const current = prev[page] ?? [];
+            if (current.length === 0) {
+              window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
+                detail: { documentId, pageNumber: page },
+              }));
+            }
+            return { ...prev, [page]: [...current, saved] };
+          });
+          setUndoByPage((prev) => ({
+            ...prev,
+            [page]: [...(prev[page] ?? []), { kind: "stroke", stroke: saved }],
+          }));
+          loadedStrokePagesRef.current.add(page);
+        });
+    } else if (entry.kind === "batch-delete") {
+      void Promise.all(entry.strokes.map((s) => strokesApi.delete(s.id))).then(() => {
+        let wasLast = false;
+        setStrokesByPage((prev) => {
+          const ids = new Set(entry.strokes.map((s) => s.id));
+          const next = (prev[page] ?? []).filter((s) => !ids.has(s.id));
+          wasLast = next.length === 0 && (prev[page] ?? []).length > 0;
+          return { ...prev, [page]: next };
+        });
+        setUndoByPage((prev) => ({
+          ...prev,
+          [page]: [...(prev[page] ?? []), { kind: "batch-delete", strokes: entry.strokes }],
+        }));
+        if (wasLast) {
+          window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
+            detail: { documentId, pageNumber: page },
+          }));
+        }
+      });
+    } else if (entry.kind === "batch-move") {
+      void Promise.all(entry.deleted.map((s) => strokesApi.delete(s.id))).then(async () => {
+        const saved = await strokesApi.createBatch(
+          entry.created.map((s) => ({
+            section_id: null, document_id: documentId, page_number: page,
+            points: s.points, color: s.color, width: s.width,
+          }))
+        );
+        setStrokesByPage((prev) => {
+          const ids = new Set(entry.deleted.map((s) => s.id));
+          return { ...prev, [page]: [...(prev[page] ?? []).filter((s) => !ids.has(s.id)), ...saved] };
+        });
+        setUndoByPage((prev) => ({
+          ...prev,
+          [page]: [...(prev[page] ?? []), { kind: "batch-move", deleted: saved, created: entry.deleted }],
+        }));
+      });
+    }
   }, [documentId, pageNum, redoByPage]);
 
   const handleEraseStroke = useCallback(async (page: number, id: number) => {
@@ -454,6 +552,75 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
         detail: { documentId, pageNumber: page },
       }));
     }
+  }, [documentId]);
+
+  const handleBatchDeleteInline = useCallback(async (page: number, toDelete: StrokeData[]) => {
+    const ids = new Set(toDelete.map((s) => s.id!));
+    let wasLast = false;
+    setStrokesByPage((prev) => {
+      const current = prev[page] ?? [];
+      const next = current.filter((s) => !ids.has(s.id));
+      wasLast = next.length === 0 && current.length > 0;
+      return { ...prev, [page]: next };
+    });
+    setRedoByPage((prev) => ({ ...prev, [page]: [] }));
+
+    const deletedStrokes: Stroke[] = toDelete.map((s) => ({
+      id: s.id!, section_id: null, document_id: documentId, page_number: page,
+      points: s.points, color: s.color, width: s.width, created_at: "",
+    }));
+
+    await Promise.all(toDelete.map((s) => strokesApi.delete(s.id!)));
+
+    setUndoByPage((prev) => ({
+      ...prev,
+      [page]: [...(prev[page] ?? []), { kind: "batch-delete", strokes: deletedStrokes }],
+    }));
+
+    if (wasLast) {
+      window.dispatchEvent(new CustomEvent("document:page-strokes-changed", {
+        detail: { documentId, pageNumber: page },
+      }));
+    }
+  }, [documentId]);
+
+  const handleBatchMoveInline = useCallback(async (page: number, deleted: StrokeData[], created: StrokeData[]) => {
+    const deletedIds = new Set(deleted.map((s) => s.id!));
+    const tempIds = created.map((_, i) => -(Date.now() + i + 1));
+
+    setStrokesByPage((prev) => {
+      const current = (prev[page] ?? []).filter((s) => !deletedIds.has(s.id));
+      const optimistic: Stroke[] = created.map((s, i) => ({
+        id: tempIds[i], section_id: null, document_id: documentId, page_number: page,
+        points: s.points, color: s.color, width: s.width, created_at: new Date().toISOString(),
+      }));
+      return { ...prev, [page]: [...current, ...optimistic] };
+    });
+    setRedoByPage((prev) => ({ ...prev, [page]: [] }));
+
+    const deletedStrokes: Stroke[] = deleted.map((s) => ({
+      id: s.id!, section_id: null, document_id: documentId, page_number: page,
+      points: s.points, color: s.color, width: s.width, created_at: "",
+    }));
+
+    await Promise.all(deleted.map((s) => strokesApi.delete(s.id!)));
+
+    const savedMoved = await strokesApi.createBatch(
+      created.map((s) => ({
+        section_id: null, document_id: documentId, page_number: page,
+        points: s.points, color: s.color, width: s.width,
+      }))
+    );
+
+    setStrokesByPage((prev) => {
+      const without = (prev[page] ?? []).filter((s) => !tempIds.includes(s.id));
+      return { ...prev, [page]: [...without, ...savedMoved] };
+    });
+
+    setUndoByPage((prev) => ({
+      ...prev,
+      [page]: [...(prev[page] ?? []), { kind: "batch-move", deleted: deletedStrokes, created: savedMoved }],
+    }));
   }, [documentId]);
 
   // ---------- regions ----------
@@ -755,6 +922,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     windowRange,
     activeStrokes,
     activeRedo,
+    activeUndo,
     setNumPages,
     setNaturalSizes,
     setPageLabels,
@@ -781,6 +949,8 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     redoInline,
     handleEraseStroke,
     handleSegmentErase,
+    handleBatchDeleteInline,
+    handleBatchMoveInline,
     handleRegionComplete,
     handleRegionAddToNote,
     handleRegionUpdate,

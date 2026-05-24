@@ -48,6 +48,9 @@ export interface UseDrawingOptions {
   onSelectRegionStart?: (pt: [number, number]) => void;
   onSelectRegionMove?: (pt: [number, number]) => void;
   onSelectRegionEnd?: () => void;
+  onStrokeSelectStart?: (pt: [number, number]) => void;
+  onStrokeSelectMove?: (pt: [number, number]) => void;
+  onStrokeSelectEnd?: () => void;
 }
 
 export interface UseDrawingResult {
@@ -87,6 +90,9 @@ export function useDrawing({
   onSelectRegionStart,
   onSelectRegionMove,
   onSelectRegionEnd,
+  onStrokeSelectStart,
+  onStrokeSelectMove,
+  onStrokeSelectEnd,
 }: UseDrawingOptions): UseDrawingResult {
   const [activePointerType, setActivePointerType] = useState<string | null>(null);
   const [erasePreview, setErasePreview] = useState<Map<number, StrokeData[]>>(new Map());
@@ -122,6 +128,9 @@ export function useDrawing({
   const onSelectRegionStartRef = useRef(onSelectRegionStart);
   const onSelectRegionMoveRef = useRef(onSelectRegionMove);
   const onSelectRegionEndRef = useRef(onSelectRegionEnd);
+  const onStrokeSelectStartRef = useRef(onStrokeSelectStart);
+  const onStrokeSelectMoveRef = useRef(onStrokeSelectMove);
+  const onStrokeSelectEndRef = useRef(onStrokeSelectEnd);
 
   useEffect(() => { colorRef.current = color; }, [color]);
   useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
@@ -131,6 +140,9 @@ export function useDrawing({
   useEffect(() => { onSelectRegionStartRef.current = onSelectRegionStart; }, [onSelectRegionStart]);
   useEffect(() => { onSelectRegionMoveRef.current = onSelectRegionMove; }, [onSelectRegionMove]);
   useEffect(() => { onSelectRegionEndRef.current = onSelectRegionEnd; }, [onSelectRegionEnd]);
+  useEffect(() => { onStrokeSelectStartRef.current = onStrokeSelectStart; }, [onStrokeSelectStart]);
+  useEffect(() => { onStrokeSelectMoveRef.current = onStrokeSelectMove; }, [onStrokeSelectMove]);
+  useEffect(() => { onStrokeSelectEndRef.current = onStrokeSelectEnd; }, [onStrokeSelectEnd]);
   useEffect(() => { streamlineRef.current = ds.streamline; }, [ds.streamline]);
   useEffect(() => { predictiveRef.current = ds.predictive; }, [ds.predictive]);
   useEffect(() => { thinningRef.current = ds.thinning; }, [ds.thinning]);
@@ -296,6 +308,10 @@ export function useDrawing({
       onSelectRegionEndRef.current?.();
       return;
     }
+    if (em === "stroke-select") {
+      onStrokeSelectEndRef.current?.();
+      return;
+    }
     const pts = livePointsRef.current;
     if (pts.length > 0) {
       onStrokeCompleteRef.current?.({ points: [...pts], color: colorRef.current, width: penWidthRef.current });
@@ -322,6 +338,10 @@ export function useDrawing({
       const toSvgCoords = getSvgTransform();
       const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType, pressureMultiplierRef.current, pressureGammaRef.current));
       onSelectRegionStartRef.current?.([pt[0], pt[1]]);
+    } else if (resolvedMode === "stroke-select") {
+      const toSvgCoords = getSvgTransform();
+      const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType, pressureMultiplierRef.current, pressureGammaRef.current));
+      onStrokeSelectStartRef.current?.([pt[0], pt[1]]);
     }
   }, [getSvgTransform, updateLivePath, eraseAtPoint, applyEraserStep]);
 
@@ -392,6 +412,10 @@ export function useDrawing({
       const toSvgCoords = getSvgTransform();
       const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType, pressureMultiplierRef.current, pressureGammaRef.current));
       onSelectRegionMoveRef.current?.([pt[0], pt[1]]);
+    } else if (resolvedMode === "stroke-select") {
+      const toSvgCoords = getSvgTransform();
+      const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType, pressureMultiplierRef.current, pressureGammaRef.current));
+      onStrokeSelectMoveRef.current?.([pt[0], pt[1]]);
     }
   }, [mode, getSvgTransform, updateLivePath, eraseAtPoint, applyEraserStep, markPenContextMenuSuppressed, reportHwOverride]);
 

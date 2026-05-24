@@ -35,6 +35,7 @@ const TOOL_TITLES: Record<ToolMode, string> = {
   "segment-eraser": "Precision eraser",
   "select-region": "Select region",
   "text-select": "Select text",
+  "stroke-select": "Select strokes",
 };
 
 const OVERFLOW_TOOLS = new Set<ToolMode>(["hand", "pen", "segment-eraser"]);
@@ -111,6 +112,15 @@ function TextSelectIcon() {
   );
 }
 
+function StrokeSelectIcon() {
+  return (
+    <>
+      <rect x="2" y="2" width="10" height="10" rx="1" stroke="currentColor" strokeWidth="1.3" strokeDasharray="3 1.5" fill="none"/>
+      <path d="M9 9l4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+    </>
+  );
+}
+
 function MoreIcon() {
   return (
     <>
@@ -129,6 +139,7 @@ const TOOL_ICONS: Record<ToolMode, () => ReactElement> = {
   "segment-eraser": SegmentEraserIcon,
   "select-region": SelectRegionIcon,
   "text-select": TextSelectIcon,
+  "stroke-select": StrokeSelectIcon,
 };
 
 interface Props {

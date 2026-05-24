@@ -2,6 +2,7 @@ import { useDrawing } from "./useDrawing";
 import { getStroke } from "perfect-freehand";
 import { svgPathFromStroke, flipLightness } from "./utils";
 import type { StrokeData } from "./types";
+import type { NaturalRect } from "./strokeSelectUtils";
 import type { ToolMode } from "@/types";
 import { useDrawingSettings } from "@/context/DrawingSettings";
 import { useTheme } from "@/context/Theme";
@@ -12,6 +13,9 @@ interface Props {
   onEraseStroke?: (id: number) => void;
   onSegmentErase?: (deleted: number[], created: StrokeData[]) => void;
   onHwOverrideChange?: (o: "stroke-eraser" | "segment-eraser" | null) => void;
+  onStrokeSelectStart?: (pt: [number, number]) => void;
+  onStrokeSelectMove?: (pt: [number, number]) => void;
+  onStrokeSelectEnd?: () => void;
   mode?: ToolMode;
   color?: string;
   penWidth?: number;
@@ -22,6 +26,9 @@ interface Props {
   inputEnabled?: boolean;
   className?: string;
   style?: React.CSSProperties;
+  selectionDragRect?: NaturalRect | null;
+  selectedStrokeIds?: Set<number> | null;
+  strokeMoveOffset?: { dx: number; dy: number } | null;
 }
 
 export default function DrawingCanvas({
@@ -30,6 +37,9 @@ export default function DrawingCanvas({
   onEraseStroke,
   onSegmentErase,
   onHwOverrideChange,
+  onStrokeSelectStart,
+  onStrokeSelectMove,
+  onStrokeSelectEnd,
   mode = "pen",
   color = "#000000",
   penWidth = 3,
@@ -40,6 +50,9 @@ export default function DrawingCanvas({
   inputEnabled = true,
   className,
   style,
+  selectionDragRect = null,
+  selectedStrokeIds = null,
+  strokeMoveOffset = null,
 }: Props) {
   const { settings: ds } = useDrawingSettings();
   const { resolvedTheme } = useTheme();
@@ -67,7 +80,12 @@ export default function DrawingCanvas({
     onEraseStroke,
     onSegmentErase,
     onHwOverrideChange,
+    onStrokeSelectStart,
+    onStrokeSelectMove,
+    onStrokeSelectEnd,
   });
+
+  const hasSelection = selectedStrokeIds != null && selectedStrokeIds.size > 0;
 
   return (
     <div
@@ -88,6 +106,8 @@ export default function DrawingCanvas({
             ? "cell"
             : effectiveModeRef.current === "segment-eraser"
             ? "none"
+            : effectiveModeRef.current === "stroke-select"
+            ? "crosshair"
             : activePointerType === "pen"
             ? "none"
             : "default",
@@ -95,9 +115,12 @@ export default function DrawingCanvas({
         }}
         {...svgHandlers}
       >
-        {strokes
-          .filter(s => !erasePreview.has(s.id as number))
-          .map((s, i) => {
+        {(() => {
+          const visible = strokes.filter(s => !erasePreview.has(s.id as number));
+          const nonSelected = hasSelection ? visible.filter(s => s.id == null || !selectedStrokeIds!.has(s.id)) : visible;
+          const selected    = hasSelection ? visible.filter(s => s.id != null && selectedStrokeIds!.has(s.id))  : [];
+
+          function renderPath(s: StrokeData, i: number) {
             const cacheKey: number | StrokeData = s.id ?? s;
             const cached = strokePathCache.current.get(cacheKey);
             let d: string;
@@ -115,7 +138,21 @@ export default function DrawingCanvas({
               strokePathCache.current.set(cacheKey, { points: s.points, d });
             }
             return <path key={s.id ?? i} d={d} fill={isDark ? flipLightness(s.color) : s.color} data-stroke-id={s.id} />;
-          })}
+          }
+
+          return (
+            <>
+              <g opacity={hasSelection ? 0.3 : 1}>
+                {nonSelected.map((s, i) => renderPath(s, i))}
+              </g>
+              {selected.length > 0 && (
+                <g transform={strokeMoveOffset ? `translate(${strokeMoveOffset.dx},${strokeMoveOffset.dy})` : undefined}>
+                  {selected.map((s, i) => renderPath(s, i))}
+                </g>
+              )}
+            </>
+          );
+        })()}
         {erasePreview.size > 0 && [...erasePreview.values()].flat().map((frag, i) => {
           const outline = getStroke(frag.points, {
             thinning: ds.thinning,
@@ -126,6 +163,19 @@ export default function DrawingCanvas({
           });
           return <path key={`ef-${i}`} d={svgPathFromStroke(outline)} fill={isDark ? flipLightness(frag.color) : frag.color} />;
         })}
+        {selectionDragRect && (
+          <rect
+            x={selectionDragRect.x}
+            y={selectionDragRect.y}
+            width={selectionDragRect.width}
+            height={selectionDragRect.height}
+            fill="rgba(74,108,247,0.08)"
+            stroke="rgba(74,108,247,0.7)"
+            strokeWidth={1}
+            strokeDasharray="5 3"
+            style={{ pointerEvents: "none" }}
+          />
+        )}
         {effectiveModeRef.current === "segment-eraser" && eraserPos && (
           <circle
             cx={eraserPos[0]}

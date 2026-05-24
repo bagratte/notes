@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { sections as sectionsApi } from "@/api";
-import type { Section, ToolMode, Stroke } from "@/types";
+import type { Section, ToolMode, Stroke, NoteUndoEntry } from "@/types";
 import SectionCanvas from "./SectionCanvas";
 import { Toolbar, DEFAULT_PEN } from "@/components/Toolbar";
 import type { PenSettings } from "@/components/Toolbar";
@@ -10,18 +10,26 @@ interface Props {
   noteId: number;
 }
 
+function isSingleEntry(e: NoteUndoEntry): e is { sectionId: number; stroke: Stroke } {
+  return !("kind" in e);
+}
+
 export default function NoteEditor({ noteId }: Props) {
   const [sectionList, setSectionList] = useState<Section[]>([]);
   const [adding, setAdding] = useState(false);
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
   const [tool, setTool] = useState<ToolMode>("auto");
   const [hwOverride, setHwOverride] = useState<"stroke-eraser" | "segment-eraser" | null>(null);
-  const [undoStack, setUndoStack] = useState<Array<{ sectionId: number; stroke: Stroke }>>([]);
-  const [redoStack, setRedoStack] = useState<Array<{ sectionId: number; stroke: Stroke }>>([]);
+  const [undoStack, setUndoStack] = useState<NoteUndoEntry[]>([]);
+  const [redoStack, setRedoStack] = useState<NoteUndoEntry[]>([]);
   const [undoPending, setUndoPending] = useState<{ sectionId: number; strokeId: number } | null>(null);
   const [redoPending, setRedoPending] = useState<{ sectionId: number; stroke: Stroke } | null>(null);
-  const pendingUndoEntryRef = useRef<{ sectionId: number; stroke: Stroke } | null>(null);
+  const [undoBatchPending, setUndoBatchPending] = useState<NoteUndoEntry | null>(null);
+  const [redoBatchPending, setRedoBatchPending] = useState<NoteUndoEntry | null>(null);
+  const pendingUndoEntryRef = useRef<NoteUndoEntry | null>(null);
   const pendingRedoSectionIdRef = useRef<number | null>(null);
+  const pendingUndoBatchRef = useRef<NoteUndoEntry | null>(null);
+  const pendingRedoBatchRef = useRef<NoteUndoEntry | null>(null);
 
   useEffect(() => {
     sectionsApi.list(noteId).then(setSectionList);
@@ -32,12 +40,22 @@ export default function NoteEditor({ noteId }: Props) {
     setRedoStack([]);
   }, []);
 
+  const handleBatchOperation = useCallback((entry: NoteUndoEntry) => {
+    setUndoStack((prev) => [...prev, entry]);
+    setRedoStack([]);
+  }, []);
+
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0) return;
     const last = undoStack[undoStack.length - 1];
-    pendingUndoEntryRef.current = last;
     setUndoStack((prev) => prev.slice(0, -1));
-    setUndoPending({ sectionId: last.sectionId, strokeId: last.stroke.id });
+    if (isSingleEntry(last)) {
+      pendingUndoEntryRef.current = last;
+      setUndoPending({ sectionId: last.sectionId, strokeId: last.stroke.id });
+    } else {
+      pendingUndoBatchRef.current = last;
+      setUndoBatchPending(last);
+    }
   }, [undoStack]);
 
   const handleUndoConsumed = useCallback(() => {
@@ -47,12 +65,30 @@ export default function NoteEditor({ noteId }: Props) {
     if (entry) setRedoStack((prev) => [...prev, entry]);
   }, []);
 
+  const handleUndoBatchConsumed = useCallback((newStrokes: Stroke[]) => {
+    const entry = pendingUndoBatchRef.current;
+    pendingUndoBatchRef.current = null;
+    setUndoBatchPending(null);
+    if (!entry || !("kind" in entry)) return;
+    // Build inverse entry for redo stack
+    if (entry.kind === "batch-delete") {
+      setRedoStack((prev) => [...prev, { kind: "batch-delete", sectionId: entry.sectionId, strokes: newStrokes }]);
+    } else if (entry.kind === "batch-move") {
+      setRedoStack((prev) => [...prev, { kind: "batch-move", sectionId: entry.sectionId, deleted: newStrokes, created: entry.created }]);
+    }
+  }, []);
+
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0) return;
     const last = redoStack[redoStack.length - 1];
-    pendingRedoSectionIdRef.current = last.sectionId;
     setRedoStack((prev) => prev.slice(0, -1));
-    setRedoPending({ sectionId: last.sectionId, stroke: last.stroke });
+    if (isSingleEntry(last)) {
+      pendingRedoSectionIdRef.current = last.sectionId;
+      setRedoPending({ sectionId: last.sectionId, stroke: last.stroke });
+    } else {
+      pendingRedoBatchRef.current = last;
+      setRedoBatchPending(last);
+    }
   }, [redoStack]);
 
   const handleRedoConsumed = useCallback((newStroke: Stroke) => {
@@ -60,6 +96,18 @@ export default function NoteEditor({ noteId }: Props) {
     pendingRedoSectionIdRef.current = null;
     setRedoPending(null);
     if (sectionId != null) setUndoStack((prev) => [...prev, { sectionId, stroke: newStroke }]);
+  }, []);
+
+  const handleRedoBatchConsumed = useCallback((newStrokes: Stroke[]) => {
+    const entry = pendingRedoBatchRef.current;
+    pendingRedoBatchRef.current = null;
+    setRedoBatchPending(null);
+    if (!entry || !("kind" in entry)) return;
+    if (entry.kind === "batch-delete") {
+      setUndoStack((prev) => [...prev, { kind: "batch-delete", sectionId: entry.sectionId, strokes: entry.strokes }]);
+    } else if (entry.kind === "batch-move") {
+      setUndoStack((prev) => [...prev, { kind: "batch-move", sectionId: entry.sectionId, deleted: entry.deleted, created: newStrokes }]);
+    }
   }, []);
 
   const addSection = async () => {
@@ -84,7 +132,7 @@ export default function NoteEditor({ noteId }: Props) {
           onChange={setPen}
           tool={tool}
           onToolChange={setTool}
-          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser"]}
+          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser", "stroke-select"]}
           activeOverride={hwOverride}
           disableCompact
         />
@@ -129,6 +177,11 @@ export default function NoteEditor({ noteId }: Props) {
           onUndoConsumed={handleUndoConsumed}
           redoPending={redoPending?.sectionId === section.id ? redoPending.stroke : null}
           onRedoConsumed={handleRedoConsumed}
+          undoBatchPending={undoBatchPending && "kind" in undoBatchPending && undoBatchPending.sectionId === section.id ? undoBatchPending : null}
+          onUndoBatchConsumed={handleUndoBatchConsumed}
+          redoBatchPending={redoBatchPending && "kind" in redoBatchPending && redoBatchPending.sectionId === section.id ? redoBatchPending : null}
+          onRedoBatchConsumed={handleRedoBatchConsumed}
+          onBatchOperation={handleBatchOperation}
         />
       ))}
 

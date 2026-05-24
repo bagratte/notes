@@ -1,14 +1,26 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { DrawingCanvas } from "@/components/Canvas";
+import StrokeSelectionOverlay from "@/components/Canvas/StrokeSelectionOverlay";
 import type { StrokeData } from "@/components/Canvas";
 import { strokes as strokesApi, sections as sectionsApi } from "@/api";
-import type { Stroke } from "@/types";
+import type { Stroke, NoteUndoEntry } from "@/types";
 import type { PenSettings } from "@/components/Toolbar";
 import type { ToolMode } from "@/types";
+import { normaliseRect, hitTestStrokes, offsetStroke } from "@/components/Canvas/strokeSelectUtils";
+import type { NaturalRect } from "@/components/Canvas/strokeSelectUtils";
 import RegionPreview from "./RegionPreview";
 
 const MIN_H = 80;
 const MAX_H = 3000;
+const MIN_SEL_W = 4;
+
+interface SelectionState {
+  rect: NaturalRect;
+  selectedIds: Set<number>;
+  dragOffset: { dx: number; dy: number } | null;
+  drawingAnchor: [number, number] | null;
+  drawingCurrent: [number, number] | null;
+}
 
 interface Props {
   sectionId: number;
@@ -22,6 +34,11 @@ interface Props {
   onUndoConsumed?: () => void;
   redoPending?: Stroke | null;
   onRedoConsumed?: (newStroke: Stroke) => void;
+  undoBatchPending?: NoteUndoEntry | null;
+  onUndoBatchConsumed?: (newStrokes: Stroke[]) => void;
+  redoBatchPending?: NoteUndoEntry | null;
+  onRedoBatchConsumed?: (newStrokes: Stroke[]) => void;
+  onBatchOperation?: (entry: NoteUndoEntry) => void;
 }
 
 function toDisplay(s: Stroke): StrokeData {
@@ -40,13 +57,19 @@ export default function SectionCanvas({
   onUndoConsumed,
   redoPending,
   onRedoConsumed,
+  undoBatchPending,
+  onUndoBatchConsumed,
+  redoBatchPending,
+  onRedoBatchConsumed,
+  onBatchOperation,
 }: Props) {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [loading, setLoading] = useState(true);
   const [hovered, setHovered] = useState(false);
-  // null = not yet determined, false = no region, {w,h} = linked region dims
   const [regionDims, setRegionDims] = useState<{ width: number; height: number } | false | null>(null);
   const [height, setHeight] = useState(initialHeight);
+  const [selection, setSelection] = useState<SelectionState | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     strokesApi.listForSection(sectionId).then((data) => {
@@ -55,8 +78,95 @@ export default function SectionCanvas({
     });
   }, [sectionId]);
 
-  // Add stroke optimistically so it stays visible immediately; replace with
-  // server-confirmed version (which has the real id) after the save completes.
+  // Clear selection when leaving stroke-select mode
+  useEffect(() => {
+    if (mode !== "stroke-select") setSelection(null);
+  }, [mode]);
+
+  const naturalWidth = regionDims ? regionDims.width : (containerRef.current?.clientWidth ?? 800);
+  const naturalHeight = regionDims ? regionDims.height : height;
+
+  const handleStrokeSelectStart = useCallback((pt: [number, number]) => {
+    setSelection({ rect: { x: pt[0], y: pt[1], width: 0, height: 0 }, selectedIds: new Set(), dragOffset: null, drawingAnchor: pt, drawingCurrent: pt });
+  }, []);
+
+  const handleStrokeSelectMove = useCallback((pt: [number, number]) => {
+    setSelection(prev => {
+      if (!prev?.drawingAnchor) return prev;
+      return { ...prev, drawingCurrent: pt };
+    });
+  }, []);
+
+  const handleStrokeSelectEnd = useCallback(() => {
+    setSelection(prev => {
+      if (!prev?.drawingAnchor || !prev.drawingCurrent) return null;
+      const rect = normaliseRect(prev.drawingAnchor[0], prev.drawingAnchor[1], prev.drawingCurrent[0], prev.drawingCurrent[1]);
+      if (rect.width < MIN_SEL_W || rect.height < MIN_SEL_W) return null;
+      const selectedIds = hitTestStrokes(strokes.map(toDisplay), rect);
+      return { rect, selectedIds, dragOffset: null, drawingAnchor: null, drawingCurrent: null };
+    });
+  }, [strokes]);
+
+  const handleRectChange = useCallback((newRect: NaturalRect) => {
+    setSelection(prev => {
+      if (!prev) return null;
+      const selectedIds = hitTestStrokes(strokes.map(toDisplay), newRect);
+      return { ...prev, rect: newRect, selectedIds, dragOffset: null, drawingAnchor: null, drawingCurrent: null };
+    });
+  }, [strokes]);
+
+  const handleMoveChange = useCallback((dx: number, dy: number) => {
+    setSelection(prev => prev ? { ...prev, dragOffset: { dx, dy } } : null);
+  }, []);
+
+  const handleMoveComplete = useCallback(async (dx: number, dy: number) => {
+    if (!selection || selection.selectedIds.size === 0) {
+      setSelection(prev => prev ? { ...prev, dragOffset: null } : null);
+      return;
+    }
+    const toMove = strokes.filter(s => selection.selectedIds.has(s.id));
+    if (toMove.length === 0) {
+      setSelection(prev => prev ? { ...prev, dragOffset: null } : null);
+      return;
+    }
+    const newPoints = toMove.map(s => offsetStroke(s, dx, dy));
+    // Optimistic: update local state immediately
+    setStrokes(prev => {
+      const ids = new Set(toMove.map(s => s.id));
+      const remaining = prev.filter(s => !ids.has(s.id));
+      const tempCreated: Stroke[] = newPoints.map((s, i) => ({ ...s, id: -(Date.now() + i) }));
+      return [...remaining, ...tempCreated];
+    });
+    setSelection(prev => prev ? {
+      ...prev,
+      rect: { ...prev.rect, x: prev.rect.x + dx, y: prev.rect.y + dy },
+      dragOffset: null,
+    } : null);
+
+    // Commit: delete originals + recreate moved
+    await Promise.all(toMove.map(s => strokesApi.delete(s.id)));
+    const created = await strokesApi.createBatch(newPoints.map(s => ({
+      section_id: sectionId, document_id: null, page_number: null,
+      points: s.points, color: s.color, width: s.width,
+    })));
+    setStrokes(prev => {
+      const tempIds = new Set(prev.filter(s => s.id < 0).map(s => s.id));
+      const withoutTemp = prev.filter(s => !tempIds.has(s.id));
+      return [...withoutTemp, ...created];
+    });
+    setSelection(prev => prev ? { ...prev, selectedIds: new Set(created.map(s => s.id)) } : null);
+    onBatchOperation?.({ kind: "batch-move", sectionId, deleted: toMove, created });
+  }, [selection, strokes, sectionId, onBatchOperation]);
+
+  const handleDelete = useCallback(async () => {
+    if (!selection || selection.selectedIds.size === 0) { setSelection(null); return; }
+    const toDelete = strokes.filter(s => selection.selectedIds.has(s.id));
+    setStrokes(prev => prev.filter(s => !selection.selectedIds.has(s.id)));
+    setSelection(null);
+    await Promise.all(toDelete.map(s => strokesApi.delete(s.id)));
+    onBatchOperation?.({ kind: "batch-delete", sectionId, strokes: toDelete });
+  }, [selection, strokes, sectionId, onBatchOperation]);
+
   const handleStrokeComplete = useCallback(
     async (stroke: StrokeData) => {
       const tempId = -Date.now();
@@ -119,6 +229,7 @@ export default function SectionCanvas({
     }
   }, [sectionId]);
 
+  // Single-stroke undo
   useEffect(() => {
     if (undoPending == null) return;
     setStrokes((prev) => prev.filter((s) => s.id !== undoPending));
@@ -126,6 +237,7 @@ export default function SectionCanvas({
     onUndoConsumed?.();
   }, [undoPending, onUndoConsumed]);
 
+  // Single-stroke redo
   useEffect(() => {
     if (redoPending == null) return;
     void strokesApi.create({
@@ -140,6 +252,58 @@ export default function SectionCanvas({
       onRedoConsumed?.(saved);
     });
   }, [redoPending, sectionId, onRedoConsumed]);
+
+  // Batch undo: batch-delete → recreate; batch-move → delete created + recreate deleted
+  useEffect(() => {
+    const entry = undoBatchPending;
+    if (entry == null || !("kind" in entry)) return;
+    if (entry.kind === "batch-delete") {
+      void strokesApi.createBatch(entry.strokes.map(s => ({
+        section_id: sectionId, document_id: null, page_number: null,
+        points: s.points, color: s.color, width: s.width,
+      }))).then(saved => {
+        setStrokes(prev => [...prev, ...saved]);
+        onUndoBatchConsumed?.(saved);
+      });
+    } else if (entry.kind === "batch-move") {
+      void Promise.all(entry.created.map(s => strokesApi.delete(s.id))).then(async () => {
+        const saved = await strokesApi.createBatch(entry.deleted.map(s => ({
+          section_id: sectionId, document_id: null, page_number: null,
+          points: s.points, color: s.color, width: s.width,
+        })));
+        setStrokes(prev => {
+          const ids = new Set(entry.created.map(s => s.id));
+          return [...prev.filter(s => !ids.has(s.id)), ...saved];
+        });
+        onUndoBatchConsumed?.(saved);
+      });
+    }
+  }, [undoBatchPending, sectionId, onUndoBatchConsumed]);
+
+  // Batch redo: batch-delete → delete; batch-move → delete recreated originals + recreate moved
+  useEffect(() => {
+    const entry = redoBatchPending;
+    if (entry == null || !("kind" in entry)) return;
+    if (entry.kind === "batch-delete") {
+      const ids = new Set(entry.strokes.map(s => s.id));
+      setStrokes(prev => prev.filter(s => !ids.has(s.id)));
+      void Promise.all(entry.strokes.map(s => strokesApi.delete(s.id))).then(() => {
+        onRedoBatchConsumed?.([]);
+      });
+    } else if (entry.kind === "batch-move") {
+      void Promise.all(entry.deleted.map(s => strokesApi.delete(s.id))).then(async () => {
+        const saved = await strokesApi.createBatch(entry.created.map(s => ({
+          section_id: sectionId, document_id: null, page_number: null,
+          points: s.points, color: s.color, width: s.width,
+        })));
+        setStrokes(prev => {
+          const ids = new Set(entry.deleted.map(s => s.id));
+          return [...prev.filter(s => !ids.has(s.id)), ...saved];
+        });
+        onRedoBatchConsumed?.(saved);
+      });
+    }
+  }, [redoBatchPending, sectionId, onRedoBatchConsumed]);
 
   const onResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -159,8 +323,15 @@ export default function SectionCanvas({
     window.addEventListener("pointerup", onUp);
   }, [sectionId, height]);
 
+  const drawingRect = selection?.drawingAnchor && selection.drawingCurrent
+    ? normaliseRect(selection.drawingAnchor[0], selection.drawingAnchor[1], selection.drawingCurrent[0], selection.drawingCurrent[1])
+    : null;
+
+  const hasCommittedSelection = selection !== null && selection.drawingAnchor === null;
+
   return (
     <div
+      ref={containerRef}
       data-section-id={sectionId}
       style={{
         position: "relative",
@@ -178,37 +349,77 @@ export default function SectionCanvas({
         onRegionLoaded={(dims) => setRegionDims(dims ?? false)}
       />
       {regionDims !== null && regionDims !== false && !loading && (
-        <DrawingCanvas
-          strokes={strokes.map(toDisplay)}
-          onStrokeComplete={handleStrokeComplete}
-          onEraseStroke={handleEraseStroke}
-          onSegmentErase={handleSegmentErase}
-          inputEnabled={mode !== "hand"}
-          mode={mode}
-          onHwOverrideChange={onHwOverrideChange}
-          color={pen.color}
-          penWidth={pen.width}
-          viewBox={`0 0 ${regionDims.width} ${regionDims.height}`}
-          style={{ position: "absolute", inset: 0, height: "auto" }}
-        />
+        <>
+          <DrawingCanvas
+            strokes={strokes.map(toDisplay)}
+            onStrokeComplete={handleStrokeComplete}
+            onEraseStroke={handleEraseStroke}
+            onSegmentErase={handleSegmentErase}
+            onStrokeSelectStart={handleStrokeSelectStart}
+            onStrokeSelectMove={handleStrokeSelectMove}
+            onStrokeSelectEnd={handleStrokeSelectEnd}
+            inputEnabled={mode !== "hand"}
+            mode={mode}
+            onHwOverrideChange={onHwOverrideChange}
+            color={pen.color}
+            penWidth={pen.width}
+            viewBox={`0 0 ${regionDims.width} ${regionDims.height}`}
+            style={{ position: "absolute", inset: 0, height: "auto" }}
+            selectionDragRect={drawingRect}
+            selectedStrokeIds={hasCommittedSelection ? selection!.selectedIds : null}
+            strokeMoveOffset={hasCommittedSelection ? selection!.dragOffset : null}
+          />
+          {hasCommittedSelection && (
+            <StrokeSelectionOverlay
+              rect={selection!.rect}
+              naturalWidth={regionDims.width}
+              naturalHeight={regionDims.height}
+              containerRef={containerRef as React.RefObject<HTMLElement>}
+              onRectChange={handleRectChange}
+              onMoveChange={handleMoveChange}
+              onMoveComplete={handleMoveComplete}
+              onDelete={handleDelete}
+            />
+          )}
+        </>
       )}
       {regionDims === false && (
         <>
           {loading ? (
             <div style={{ height }} />
           ) : (
-            <DrawingCanvas
-              strokes={strokes.map(toDisplay)}
-              onStrokeComplete={handleStrokeComplete}
-              onEraseStroke={handleEraseStroke}
-              onSegmentErase={handleSegmentErase}
-              inputEnabled={mode !== "hand"}
-              mode={mode}
-              onHwOverrideChange={onHwOverrideChange}
-              color={pen.color}
-              penWidth={pen.width}
-              height={height}
-            />
+            <>
+              <DrawingCanvas
+                strokes={strokes.map(toDisplay)}
+                onStrokeComplete={handleStrokeComplete}
+                onEraseStroke={handleEraseStroke}
+                onSegmentErase={handleSegmentErase}
+                onStrokeSelectStart={handleStrokeSelectStart}
+                onStrokeSelectMove={handleStrokeSelectMove}
+                onStrokeSelectEnd={handleStrokeSelectEnd}
+                inputEnabled={mode !== "hand"}
+                mode={mode}
+                onHwOverrideChange={onHwOverrideChange}
+                color={pen.color}
+                penWidth={pen.width}
+                height={height}
+                selectionDragRect={drawingRect}
+                selectedStrokeIds={hasCommittedSelection ? selection!.selectedIds : null}
+                strokeMoveOffset={hasCommittedSelection ? selection!.dragOffset : null}
+              />
+              {hasCommittedSelection && (
+                <StrokeSelectionOverlay
+                  rect={selection!.rect}
+                  naturalWidth={naturalWidth}
+                  naturalHeight={naturalHeight}
+                  containerRef={containerRef as React.RefObject<HTMLElement>}
+                  onRectChange={handleRectChange}
+                  onMoveChange={handleMoveChange}
+                  onMoveComplete={handleMoveComplete}
+                  onDelete={handleDelete}
+                />
+              )}
+            </>
           )}
           <div
             onPointerDown={onResizeStart}

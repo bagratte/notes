@@ -50,8 +50,9 @@ export default function ViewerShell({
   pen,
   isPanning,
   windowRange,
-  activeStrokes,
+  activeStrokes: _activeStrokes,
   activeRedo,
+  activeUndo,
   strokesByPage,
   regionsByPage,
   // setters
@@ -74,6 +75,8 @@ export default function ViewerShell({
   handleInlineStroke,
   handleEraseStroke,
   handleSegmentErase,
+  handleBatchDeleteInline,
+  handleBatchMoveInline,
   handleRegionComplete,
   handleRegionAddToNote,
   handleRegionUpdate,
@@ -193,14 +196,14 @@ export default function ViewerShell({
           onChange={setPen}
           tool={toolMode}
           onToolChange={setToolMode}
-          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser", "select-region", "text-select"]}
+          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser", "stroke-select", "select-region", "text-select"]}
           activeOverride={hwOverride}
         />
 
         <div className={css.toolbarSep} />
 
         <UndoRedoBar
-          canUndo={activeStrokes.length > 0}
+          canUndo={activeUndo.length > 0}
           canRedo={activeRedo.length > 0}
           onUndo={undoInline}
           onRedo={redoInline}
@@ -278,6 +281,8 @@ export default function ViewerShell({
                           onRegionClick={handleRegionClick}
                           onRegionDelete={(region) => handleRegionDelete(page, region)}
                           onHwOverrideChange={setHwOverride}
+                          onBatchDelete={(strokes) => void handleBatchDeleteInline(page, strokes)}
+                          onBatchMove={(del, cr) => void handleBatchMoveInline(page, del, cr)}
                           mode={toolMode}
                           viewBox={viewBox}
                           naturalSize={natural}

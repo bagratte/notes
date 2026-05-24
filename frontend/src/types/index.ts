@@ -1,4 +1,14 @@
-export type ToolMode = "auto" | "hand" | "pen" | "stroke-eraser" | "segment-eraser" | "select-region" | "text-select";
+export type ToolMode = "auto" | "hand" | "pen" | "stroke-eraser" | "segment-eraser" | "select-region" | "text-select" | "stroke-select";
+
+export type DocUndoEntry =
+  | { kind: "stroke";       stroke: Stroke }
+  | { kind: "batch-delete"; strokes: Stroke[] }
+  | { kind: "batch-move";   deleted: Stroke[]; created: Stroke[] };
+
+export type NoteUndoEntry =
+  | { sectionId: number; stroke: Stroke }
+  | { kind: "batch-delete"; sectionId: number; strokes: Stroke[] }
+  | { kind: "batch-move";   sectionId: number; deleted: Stroke[]; created: Stroke[] };
 
 export interface Folder {
   id: number;

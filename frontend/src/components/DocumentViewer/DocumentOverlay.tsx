@@ -2,6 +2,9 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { getStroke } from "perfect-freehand";
 import { svgPathFromStroke, flipLightness } from "@/components/Canvas/utils";
 import { useDrawing, getPenHwOverride } from "@/components/Canvas/useDrawing";
+import StrokeSelectionOverlay from "@/components/Canvas/StrokeSelectionOverlay";
+import { normaliseRect, hitTestStrokes, offsetStroke } from "@/components/Canvas/strokeSelectUtils";
+import type { NaturalRect } from "@/components/Canvas/strokeSelectUtils";
 import { useTheme } from "@/context/Theme";
 import type { StrokeData } from "@/components/Canvas";
 import type { Note, Region, ToolMode } from "@/types";
@@ -26,6 +29,14 @@ interface NaturalSize {
   height: number;
 }
 
+interface StrokeSelectionState {
+  rect: NaturalRect;
+  selectedIds: Set<number>;
+  dragOffset: { dx: number; dy: number } | null;
+  drawingAnchor: [number, number] | null;
+  drawingCurrent: [number, number] | null;
+}
+
 interface Props {
   strokes: StrokeData[];
   onStrokeComplete?: (s: StrokeData) => void;
@@ -38,6 +49,8 @@ interface Props {
   onEraseStroke?: (id: number) => void;
   onSegmentErase?: (deleted: number[], created: StrokeData[]) => void;
   onHwOverrideChange?: (o: "stroke-eraser" | "segment-eraser" | null) => void;
+  onBatchDelete?: (strokes: StrokeData[]) => void;
+  onBatchMove?: (deleted: StrokeData[], created: StrokeData[]) => void;
   mode: ToolMode;
   viewBox?: string;
   naturalSize?: NaturalSize;
@@ -172,6 +185,8 @@ export default function DocumentOverlay({
   onEraseStroke,
   onSegmentErase,
   onHwOverrideChange,
+  onBatchDelete,
+  onBatchMove,
   mode,
   viewBox,
   naturalSize,
@@ -203,6 +218,9 @@ export default function DocumentOverlay({
   const pendingResizeStateRef = useRef<PendingResizeState | null>(null);
   const suppressRegionClickRef = useRef<number | null>(null);
 
+  const [strokeSel, setStrokeSel] = useState<StrokeSelectionState | null>(null);
+  const MIN_STROKE_SEL_PX = 4;
+
   const onSelectRegionEnd = useCallback(() => {
     if (dragStart && dragCurrent) {
       const x = Math.min(dragStart[0], dragCurrent[0]);
@@ -216,6 +234,61 @@ export default function DocumentOverlay({
     setDragStart(null);
     setDragCurrent(null);
   }, [dragStart, dragCurrent]);
+
+  const onStrokeSelectStart = useCallback((pt: [number, number]) => {
+    setStrokeSel({ rect: { x: pt[0], y: pt[1], width: 0, height: 0 }, selectedIds: new Set(), dragOffset: null, drawingAnchor: pt, drawingCurrent: pt });
+  }, []);
+
+  const onStrokeSelectMove = useCallback((pt: [number, number]) => {
+    setStrokeSel(prev => prev?.drawingAnchor ? { ...prev, drawingCurrent: pt } : prev);
+  }, []);
+
+  const onStrokeSelectEnd = useCallback(() => {
+    setStrokeSel(prev => {
+      if (!prev?.drawingAnchor || !prev.drawingCurrent) return null;
+      const rect = normaliseRect(prev.drawingAnchor[0], prev.drawingAnchor[1], prev.drawingCurrent[0], prev.drawingCurrent[1]);
+      if (rect.width < MIN_STROKE_SEL_PX || rect.height < MIN_STROKE_SEL_PX) return null;
+      const selectedIds = hitTestStrokes(strokes, rect);
+      return { rect, selectedIds, dragOffset: null, drawingAnchor: null, drawingCurrent: null };
+    });
+  }, [strokes, MIN_STROKE_SEL_PX]);
+
+  const handleStrokeSelRectChange = useCallback((newRect: NaturalRect) => {
+    setStrokeSel(prev => {
+      if (!prev) return null;
+      const selectedIds = hitTestStrokes(strokes, newRect);
+      return { ...prev, rect: newRect, selectedIds, dragOffset: null };
+    });
+  }, [strokes]);
+
+  const handleStrokeSelMoveChange = useCallback((dx: number, dy: number) => {
+    setStrokeSel(prev => prev ? { ...prev, dragOffset: { dx, dy } } : null);
+  }, []);
+
+  const handleStrokeSelMoveComplete = useCallback(async (dx: number, dy: number) => {
+    if (!strokeSel || strokeSel.selectedIds.size === 0) {
+      setStrokeSel(prev => prev ? { ...prev, dragOffset: null } : null);
+      return;
+    }
+    const toMove = strokes.filter(s => s.id != null && strokeSel.selectedIds.has(s.id as number));
+    if (toMove.length === 0) {
+      setStrokeSel(prev => prev ? { ...prev, dragOffset: null } : null);
+      return;
+    }
+    const moved = toMove.map(s => offsetStroke(
+      { id: s.id!, section_id: null, document_id: null, page_number: null, points: s.points, color: s.color, width: s.width, created_at: "" },
+      dx, dy
+    ));
+    setStrokeSel(prev => prev ? { ...prev, rect: { ...prev.rect, x: prev.rect.x + dx, y: prev.rect.y + dy }, dragOffset: null } : null);
+    onBatchMove?.(toMove, moved);
+  }, [strokeSel, strokes, onBatchMove]);
+
+  const handleStrokeSelDelete = useCallback(() => {
+    if (!strokeSel || strokeSel.selectedIds.size === 0) { setStrokeSel(null); return; }
+    const toDelete = strokes.filter(s => s.id != null && strokeSel.selectedIds.has(s.id as number));
+    setStrokeSel(null);
+    onBatchDelete?.(toDelete);
+  }, [strokeSel, strokes, onBatchDelete]);
 
   const {
     svgRef,
@@ -244,6 +317,9 @@ export default function DocumentOverlay({
     onSelectRegionStart: (pt) => { setDragStart(pt); setDragCurrent(pt); },
     onSelectRegionMove: (pt) => setDragCurrent(pt),
     onSelectRegionEnd,
+    onStrokeSelectStart: mode === "stroke-select" ? onStrokeSelectStart : undefined,
+    onStrokeSelectMove:  mode === "stroke-select" ? onStrokeSelectMove  : undefined,
+    onStrokeSelectEnd:   mode === "stroke-select" ? onStrokeSelectEnd   : undefined,
   });
 
   const clearTouchPress = useCallback(() => {
@@ -310,6 +386,10 @@ export default function DocumentOverlay({
     setRegionDrafts({});
     suppressRegionClickRef.current = null;
   }, [clearTouchPress, mode]);
+
+  useEffect(() => {
+    if (mode !== "stroke-select") setStrokeSel(null);
+  }, [mode]);
 
   const handleOverlayPointerDownCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if ((mode !== "hand" && mode !== "auto") || editingRegionId === null) return;
@@ -492,6 +572,15 @@ export default function DocumentOverlay({
           height: Math.abs(dragCurrent[1] - dragStart[1]),
         }
       : null;
+
+  const strokeSelDragRect: DragRect | null =
+    strokeSel?.drawingAnchor && strokeSel.drawingCurrent
+      ? normaliseRect(strokeSel.drawingAnchor[0], strokeSel.drawingAnchor[1], strokeSel.drawingCurrent[0], strokeSel.drawingCurrent[1])
+      : null;
+
+  const hasStrokeSelection = strokeSel !== null && strokeSel.drawingAnchor === null;
+  const selectedStrokeIds = hasStrokeSelection ? strokeSel!.selectedIds : null;
+  const strokeMoveOffset = hasStrokeSelection ? strokeSel!.dragOffset : null;
 
   const active = mode !== "hand" && mode !== "text-select";
   return (
@@ -864,7 +953,7 @@ export default function DocumentOverlay({
           cursor:
             (effectiveModeRef.current === "pen" || effectiveModeRef.current === "auto")
               ? (activePointerType === "pen" ? "none" : "default")
-              : effectiveModeRef.current === "select-region"
+              : (effectiveModeRef.current === "select-region" || effectiveModeRef.current === "stroke-select")
               ? "crosshair"
               : effectiveModeRef.current === "stroke-eraser"
               ? "cell"
@@ -874,9 +963,12 @@ export default function DocumentOverlay({
         }}
         {...svgHandlers}
       >
-        {strokes
-          .filter(s => !erasePreview.has(s.id as number))
-          .map((s, i) => {
+        {(() => {
+          const visible = strokes.filter(s => !erasePreview.has(s.id as number));
+          const nonSel = selectedStrokeIds ? visible.filter(s => s.id == null || !selectedStrokeIds.has(s.id as number)) : visible;
+          const sel    = selectedStrokeIds ? visible.filter(s => s.id != null && selectedStrokeIds.has(s.id as number)) : [];
+
+          function renderPath(s: StrokeData, i: number) {
             const cacheKey: number | StrokeData = s.id ?? s;
             const cached = strokePathCache.current.get(cacheKey);
             let d: string;
@@ -894,7 +986,21 @@ export default function DocumentOverlay({
               strokePathCache.current.set(cacheKey, { points: s.points, d });
             }
             return <path key={s.id ?? i} d={d} fill={isDark ? flipLightness(s.color) : s.color} data-stroke-id={s.id} />;
-          })}
+          }
+
+          return (
+            <>
+              <g opacity={selectedStrokeIds && selectedStrokeIds.size > 0 ? 0.3 : 1}>
+                {nonSel.map((s, i) => renderPath(s, i))}
+              </g>
+              {sel.length > 0 && (
+                <g transform={strokeMoveOffset ? `translate(${strokeMoveOffset.dx},${strokeMoveOffset.dy})` : undefined}>
+                  {sel.map((s, i) => renderPath(s, i))}
+                </g>
+              )}
+            </>
+          );
+        })()}
         {erasePreview.size > 0 && [...erasePreview.values()].flat().map((frag, i) => {
           const outline = getStroke(frag.points, {
             thinning: ds.thinning,
@@ -916,6 +1022,19 @@ export default function DocumentOverlay({
             stroke="rgba(74, 108, 247, 0.7)"
             strokeWidth={1}
             strokeDasharray="5 3"
+          />
+        )}
+        {strokeSelDragRect && (
+          <rect
+            x={strokeSelDragRect.x}
+            y={strokeSelDragRect.y}
+            width={strokeSelDragRect.width}
+            height={strokeSelDragRect.height}
+            fill="rgba(74, 108, 247, 0.08)"
+            stroke="rgba(74, 108, 247, 0.7)"
+            strokeWidth={1}
+            strokeDasharray="5 3"
+            style={{ pointerEvents: "none" }}
           />
         )}
         {effectiveModeRef.current === "segment-eraser" && eraserPos && (
@@ -943,6 +1062,20 @@ export default function DocumentOverlay({
           pointerEvents: "none",
         }}
       />
+
+      {/* Stroke selection overlay */}
+      {hasStrokeSelection && naturalSize && (
+        <StrokeSelectionOverlay
+          rect={strokeSel!.rect}
+          naturalWidth={naturalSize.width}
+          naturalHeight={naturalSize.height}
+          containerRef={overlayRef as React.RefObject<HTMLElement>}
+          onRectChange={handleStrokeSelRectChange}
+          onMoveChange={handleStrokeSelMoveChange}
+          onMoveComplete={handleStrokeSelMoveComplete}
+          onDelete={handleStrokeSelDelete}
+        />
+      )}
     </div>
   );
 }
