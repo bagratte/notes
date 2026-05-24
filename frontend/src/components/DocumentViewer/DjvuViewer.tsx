@@ -11,6 +11,12 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
   const docRef = useRef<DjVuDocument | null>(null);
   const loadingRastersRef = useRef<Set<number>>(new Set());
   const renderGenRef = useRef<Map<number, number>>(new Map());
+  // Caches decoded pixel data and GPU-backed bitmaps per page to avoid re-decoding on zoom/navigation.
+  // The DjVu.js library calls reset() on the previously-accessed page whenever getPage() is called
+  // for a different page, so without these caches every zoom triggers a full re-decode of all
+  // buffered pages.
+  const imageDataCacheRef = useRef<Map<number, ImageData>>(new Map());
+  const imageBitmapCacheRef = useRef<Map<number, ImageBitmap>>(new Map());
   // Always-current ref so in-flight renders pick up the latest zoom scale
   const getPageDisplaySizeRef = useRef(hook.getPageDisplaySize);
   useEffect(() => { getPageDisplaySizeRef.current = hook.getPageDisplaySize; });
@@ -27,39 +33,44 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
     // If already decoding, the current render will pick up the new scale in its draw loop
     if (loadingRastersRef.current.has(page)) return;
 
-    loadingRastersRef.current.add(page);
-    try {
-      const djvuPage = await doc.getPage(page);
-      const imageData = djvuPage.getImageData();
-
-      // Draw loop: re-draw if zoom changed while decoding or drawing
-      let drawVersion: number;
-      do {
-        drawVersion = renderGenRef.current.get(page)!;
-
-        const canvas = hook.canvasRefs.current.get(page);
-        if (!canvas) break;
-
-        const { width, height } = getPageDisplaySizeRef.current(page);
-        canvas.width = Math.round(width);
-        canvas.height = Math.round(height);
-
-        const ctx = canvas.getContext("2d");
-        if (!ctx) break;
-
-        const offscreen = document.createElement("canvas");
-        offscreen.width = imageData.width;
-        offscreen.height = imageData.height;
-        const offscreenCtx = offscreen.getContext("2d");
-        if (!offscreenCtx) break;
-        offscreenCtx.putImageData(imageData, 0, 0);
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
-      } while (renderGenRef.current.get(page) !== drawVersion);
-    } finally {
-      loadingRastersRef.current.delete(page);
+    // Fast path: bitmap already cached — just redraw at the new zoom scale (synchronous, instant)
+    let bitmap = imageBitmapCacheRef.current.get(page);
+    if (!bitmap) {
+      loadingRastersRef.current.add(page);
+      try {
+        let imageData = imageDataCacheRef.current.get(page);
+        if (!imageData) {
+          const djvuPage = await doc.getPage(page);
+          imageData = djvuPage.getImageData();
+          imageDataCacheRef.current.set(page, imageData);
+        }
+        bitmap = await createImageBitmap(imageData);
+        imageBitmapCacheRef.current.set(page, bitmap);
+      } catch {
+        return;
+      } finally {
+        loadingRastersRef.current.delete(page);
+      }
     }
+
+    // Draw loop: re-draw if zoom changed while decoding
+    let drawVersion: number;
+    do {
+      drawVersion = renderGenRef.current.get(page)!;
+
+      const canvas = hook.canvasRefs.current.get(page);
+      if (!canvas) break;
+
+      const { width, height } = getPageDisplaySizeRef.current(page);
+      canvas.width = Math.round(width);
+      canvas.height = Math.round(height);
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) break;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    } while (renderGenRef.current.get(page) !== drawVersion);
   }, [hook.naturalSizes, hook.canvasRefs]);
 
   // Load document
@@ -68,6 +79,9 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
     hook.resetForLoad(initialPage ?? 1);
     loadingRastersRef.current.clear();
     renderGenRef.current.clear();
+    imageDataCacheRef.current.clear();
+    imageBitmapCacheRef.current.forEach((bm) => bm.close());
+    imageBitmapCacheRef.current.clear();
 
     fetch(url)
       .then((response) => {
@@ -106,6 +120,9 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
     return () => {
       cancelled = true;
       docRef.current = null;
+      imageDataCacheRef.current.clear();
+      imageBitmapCacheRef.current.forEach((bm) => bm.close());
+      imageBitmapCacheRef.current.clear();
       hook.textLayerRefs.current.forEach((div) => {
         div.innerHTML = "";
         delete div.dataset.djvuTextRendered;
