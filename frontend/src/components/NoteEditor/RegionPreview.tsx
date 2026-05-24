@@ -7,10 +7,10 @@ const PREVIEW_W = 700;
 
 interface Props {
   sectionId: number;
-  onHasRegion?: (has: boolean) => void;
+  onRegionLoaded?: (dims: { width: number; height: number } | null) => void;
 }
 
-export default function RegionPreview({ sectionId, onHasRegion }: Props) {
+export default function RegionPreview({ sectionId, onRegionLoaded }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
   const [noRegion, setNoRegion] = useState(false);
@@ -23,12 +23,12 @@ export default function RegionPreview({ sectionId, onHasRegion }: Props) {
       if (cancelled) return;
       if (results.length === 0) {
         setNoRegion(true);
-        onHasRegion?.(false);
+        onRegionLoaded?.(null);
         return;
       }
-      onHasRegion?.(true);
-
       const region: Region = results[0];
+      onRegionLoaded?.({ width: region.width, height: region.height });
+
       const doc: Document = await docsApi.get(region.document_id);
       if (cancelled) return;
 
@@ -78,7 +78,7 @@ export default function RegionPreview({ sectionId, onHasRegion }: Props) {
       setReady(true);
     }
 
-    load().catch(() => { if (!cancelled) { setNoRegion(true); onHasRegion?.(false); } });
+    load().catch(() => { if (!cancelled) { setNoRegion(true); onRegionLoaded?.(null); } });
     return () => { cancelled = true; };
   }, [sectionId]);
 

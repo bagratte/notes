@@ -44,7 +44,8 @@ export default function SectionCanvas({
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [loading, setLoading] = useState(true);
   const [hovered, setHovered] = useState(false);
-  const [hasRegion, setHasRegion] = useState<boolean | null>(null);
+  // null = not yet determined, false = no region, {w,h} = linked region dims
+  const [regionDims, setRegionDims] = useState<{ width: number; height: number } | false | null>(null);
   const [height, setHeight] = useState(initialHeight);
 
   useEffect(() => {
@@ -172,8 +173,26 @@ export default function SectionCanvas({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <RegionPreview sectionId={sectionId} onHasRegion={setHasRegion} />
-      {hasRegion === false && (
+      <RegionPreview
+        sectionId={sectionId}
+        onRegionLoaded={(dims) => setRegionDims(dims ?? false)}
+      />
+      {regionDims !== null && regionDims !== false && !loading && (
+        <DrawingCanvas
+          strokes={strokes.map(toDisplay)}
+          onStrokeComplete={handleStrokeComplete}
+          onEraseStroke={handleEraseStroke}
+          onSegmentErase={handleSegmentErase}
+          inputEnabled={mode !== "hand"}
+          mode={mode}
+          onHwOverrideChange={onHwOverrideChange}
+          color={pen.color}
+          penWidth={pen.width}
+          viewBox={`0 0 ${regionDims.width} ${regionDims.height}`}
+          style={{ position: "absolute", inset: 0, height: "auto" }}
+        />
+      )}
+      {regionDims === false && (
         <>
           {loading ? (
             <div style={{ height }} />
