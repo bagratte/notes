@@ -1,26 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { documents as docsApi } from "@/api";
-
-function RenameIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <path d="M2 4h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M6 4v8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M12 3v10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M10.5 3h3M10.5 13h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function DeleteIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <path d="M3 4h10M6 4V2.5h4V4M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 import { PdfViewer, DjvuViewer } from "@/components/DocumentViewer";
+import { PageHeader, RenameIcon, DeleteIcon, actionBtn } from "@/components/PageHeader";
 import type { Document } from "@/types";
 
 export default function DocumentPage() {
@@ -72,13 +54,15 @@ export default function DocumentPage() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>{doc.name}</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button onClick={renameDocument} style={styles.actionBtn}><RenameIcon /> Rename</button>
-          <button onClick={deleteDocument} style={styles.actionBtn}><DeleteIcon /> Delete</button>
-        </div>
-      </div>
+      <PageHeader
+        title={doc.name}
+        actions={
+          <>
+            <button onClick={renameDocument} style={actionBtn}><RenameIcon /> Rename</button>
+            <button onClick={deleteDocument} style={actionBtn}><DeleteIcon /> Delete</button>
+          </>
+        }
+      />
       <div style={styles.viewerWrap}>
         {doc.type === "pdf" ? (
           <PdfViewer
@@ -111,39 +95,6 @@ const styles = {
     height: "100vh",
     display: "flex" as const,
     flexDirection: "column" as const,
-  },
-  header: {
-    height: 50,
-    padding: "0 24px",
-    borderBottom: "1px solid var(--border-soft)",
-    background: "var(--bg-header)",
-    flexShrink: 0,
-    display: "flex" as const,
-    alignItems: "center" as const,
-    gap: 10,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: 500,
-    color: "var(--text-secondary)",
-    flex: 1,
-    overflow: "hidden" as const,
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap" as const,
-    minWidth: 0,
-  },
-  actionBtn: {
-    display: "flex" as const,
-    alignItems: "center" as const,
-    gap: 5,
-    padding: "5px 11px",
-    fontSize: 13,
-    border: "1px solid var(--border)",
-    borderRadius: 5,
-    background: "var(--bg-card)",
-    cursor: "pointer",
-    color: "var(--text-muted)",
-    flexShrink: 0,
   },
   viewerWrap: {
     flex: 1,

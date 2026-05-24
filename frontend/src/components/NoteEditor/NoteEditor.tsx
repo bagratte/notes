@@ -1,25 +1,32 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { sections as sectionsApi } from "@/api";
 import type { Section, ToolMode, Stroke, NoteUndoEntry } from "@/types";
 import SectionCanvas from "./SectionCanvas";
-import { Toolbar, DEFAULT_PEN } from "@/components/Toolbar";
 import type { PenSettings } from "@/components/Toolbar";
-import { UndoRedoBar } from "@/components/UndoRedoBar";
+
+export interface NoteEditorHandle {
+  undo: () => void;
+  redo: () => void;
+}
 
 interface Props {
   noteId: number;
+  pen: PenSettings;
+  tool: ToolMode;
+  onHwOverrideChange: (o: "stroke-eraser" | "segment-eraser" | null) => void;
+  onUndoRedoChange: (canUndo: boolean, canRedo: boolean) => void;
 }
 
 function isSingleEntry(e: NoteUndoEntry): e is { sectionId: number; stroke: Stroke } {
   return !("kind" in e);
 }
 
-export default function NoteEditor({ noteId }: Props) {
+const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
+  { noteId, pen, tool, onHwOverrideChange, onUndoRedoChange },
+  ref
+) {
   const [sectionList, setSectionList] = useState<Section[]>([]);
   const [adding, setAdding] = useState(false);
-  const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
-  const [tool, setTool] = useState<ToolMode>("auto");
-  const [hwOverride, setHwOverride] = useState<"stroke-eraser" | "segment-eraser" | null>(null);
   const [undoStack, setUndoStack] = useState<NoteUndoEntry[]>([]);
   const [redoStack, setRedoStack] = useState<NoteUndoEntry[]>([]);
   const [undoPending, setUndoPending] = useState<{ sectionId: number; strokeId: number } | null>(null);
@@ -34,6 +41,10 @@ export default function NoteEditor({ noteId }: Props) {
   useEffect(() => {
     sectionsApi.list(noteId).then(setSectionList);
   }, [noteId]);
+
+  useEffect(() => {
+    onUndoRedoChange(undoStack.length > 0, redoStack.length > 0);
+  }, [undoStack.length, redoStack.length, onUndoRedoChange]);
 
   const handleStrokeCommitted = useCallback((sectionId: number, stroke: Stroke) => {
     setUndoStack((prev) => [...prev, { sectionId, stroke }]);
@@ -70,7 +81,6 @@ export default function NoteEditor({ noteId }: Props) {
     pendingUndoBatchRef.current = null;
     setUndoBatchPending(null);
     if (!entry || !("kind" in entry)) return;
-    // Build inverse entry for redo stack
     if (entry.kind === "batch-delete") {
       setRedoStack((prev) => [...prev, { kind: "batch-delete", sectionId: entry.sectionId, strokes: newStrokes }]);
     } else if (entry.kind === "batch-move") {
@@ -110,6 +120,11 @@ export default function NoteEditor({ noteId }: Props) {
     }
   }, []);
 
+  useImperativeHandle(ref, () => ({
+    undo: handleUndo,
+    redo: handleRedo,
+  }), [handleUndo, handleRedo]);
+
   const addSection = async () => {
     setAdding(true);
     const section = await sectionsApi.create(noteId, sectionList.length);
@@ -126,25 +141,6 @@ export default function NoteEditor({ noteId }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Toolbar
-          settings={pen}
-          onChange={setPen}
-          tool={tool}
-          onToolChange={setTool}
-          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser", "stroke-select"]}
-          activeOverride={hwOverride}
-          disableCompact
-        />
-        <div style={{ width: 1, height: 18, background: "var(--border)", flexShrink: 0 }} />
-        <UndoRedoBar
-          canUndo={undoStack.length > 0}
-          canRedo={redoStack.length > 0}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
-        />
-      </div>
-
       {sectionList.length === 0 && (
         <div
           style={{
@@ -170,7 +166,7 @@ export default function NoteEditor({ noteId }: Props) {
           initialHeight={section.height}
           pen={pen}
           mode={tool}
-          onHwOverrideChange={setHwOverride}
+          onHwOverrideChange={onHwOverrideChange}
           onDelete={() => deleteSection(section.id)}
           onStrokeCommitted={(stroke) => handleStrokeCommitted(section.id, stroke)}
           undoPending={undoPending?.sectionId === section.id ? undoPending.strokeId : null}
@@ -204,4 +200,6 @@ export default function NoteEditor({ noteId }: Props) {
       </button>
     </div>
   );
-}
+});
+
+export default NoteEditor;

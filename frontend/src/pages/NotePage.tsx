@@ -1,28 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { notes as notesApi } from "@/api";
 import { NoteEditor } from "@/components/NoteEditor";
+import type { NoteEditorHandle } from "@/components/NoteEditor";
 import MergeModal from "@/components/MergeModal";
-import type { Note } from "@/types";
-
-function RenameIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <path d="M2 4h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M6 4v8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M12 3v10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M10.5 3h3M10.5 13h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function DeleteIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <path d="M3 4h10M6 4V2.5h4V4M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
+import { PageHeader, RenameIcon, DeleteIcon, actionBtn } from "@/components/PageHeader";
+import { Toolbar, DEFAULT_PEN } from "@/components/Toolbar";
+import type { PenSettings } from "@/components/Toolbar";
+import { UndoRedoBar } from "@/components/UndoRedoBar";
+import type { Note, ToolMode } from "@/types";
 
 function MergeIcon() {
   return (
@@ -40,6 +26,18 @@ export default function NotePage() {
   const [note, setNote] = useState<Note | null>(null);
   const [missing, setMissing] = useState(false);
   const [merging, setMerging] = useState(false);
+
+  const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
+  const [tool, setTool] = useState<ToolMode>("auto");
+  const [hwOverride, setHwOverride] = useState<"stroke-eraser" | "segment-eraser" | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const editorRef = useRef<NoteEditorHandle>(null);
+
+  const handleUndoRedoChange = useCallback((u: boolean, r: boolean) => {
+    setCanUndo(u);
+    setCanRedo(r);
+  }, []);
 
   useEffect(() => {
     if (!noteId) return;
@@ -77,17 +75,48 @@ export default function NotePage() {
 
   return (
     <div style={styles.page}>
-      <div style={{ ...styles.header, display: "flex", alignItems: "center" }}>
-        <h1 style={styles.title}>{note.name}</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button onClick={renameNote} style={styles.actionBtn}><RenameIcon /> Rename</button>
-          <button onClick={deleteNote} style={styles.actionBtn}><DeleteIcon /> Delete</button>
-          <button onClick={() => setMerging(true)} style={styles.actionBtn}><MergeIcon /> Merge into…</button>
-        </div>
+      <PageHeader
+        title={note.name}
+        sticky
+        actions={
+          <>
+            <button onClick={renameNote} style={actionBtn}><RenameIcon /> Rename</button>
+            <button onClick={deleteNote} style={actionBtn}><DeleteIcon /> Delete</button>
+            <button onClick={() => setMerging(true)} style={actionBtn}><MergeIcon /> Merge into…</button>
+          </>
+        }
+      />
+
+      <div style={styles.toolbar}>
+        <Toolbar
+          settings={pen}
+          onChange={setPen}
+          tool={tool}
+          onToolChange={setTool}
+          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser", "stroke-select"]}
+          activeOverride={hwOverride}
+          disableCompact
+        />
+        <div style={{ width: 1, height: 18, background: "var(--border)", flexShrink: 0 }} />
+        <UndoRedoBar
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={() => editorRef.current?.undo()}
+          onRedo={() => editorRef.current?.redo()}
+        />
       </div>
+
       <div style={styles.body}>
-        <NoteEditor noteId={note.id} />
+        <NoteEditor
+          ref={editorRef}
+          noteId={note.id}
+          pen={pen}
+          tool={tool}
+          onHwOverrideChange={setHwOverride}
+          onUndoRedoChange={handleUndoRedoChange}
+        />
       </div>
+
       {merging && (
         <MergeModal sourceNoteId={note.id} onClose={() => setMerging(false)} />
       )}
@@ -101,47 +130,25 @@ const styles = {
     display: "flex" as const,
     flexDirection: "column" as const,
   },
-  header: {
-    height: 50,
-    padding: "0 32px",
+  toolbar: {
+    display: "flex" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    padding: "6px 24px",
     borderBottom: "1px solid var(--border-soft)",
     background: "var(--bg-header)",
     position: "sticky" as const,
-    top: 0,
+    top: 50,
     zIndex: 1,
-    display: "flex" as const,
-    alignItems: "center" as const,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 500,
-    color: "var(--text-secondary)",
-    flex: 1,
-    overflow: "hidden" as const,
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap" as const,
-    minWidth: 0,
+    flexShrink: 0,
   },
   body: {
-    padding: "24px 32px",
+    padding: "24px 24px",
     paddingBottom: "80vh",
     maxWidth: 860,
     width: "100%",
     margin: "0 auto",
     flex: 1,
-  },
-  actionBtn: {
-    display: "flex" as const,
-    alignItems: "center" as const,
-    gap: 5,
-    padding: "5px 11px",
-    fontSize: 13,
-    border: "1px solid var(--border)",
-    borderRadius: 5,
-    background: "var(--bg-card)",
-    cursor: "pointer",
-    color: "var(--text-muted)",
-    flexShrink: 0,
   },
   centered: {
     height: "100%",
