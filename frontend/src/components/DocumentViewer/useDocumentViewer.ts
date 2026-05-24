@@ -284,8 +284,8 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     if (bestPage !== pageNum) setPageNum(bestPage);
   }, [numPages, pageNum]);
 
-  const prevPage = useCallback(() => scrollToPage(pageNum - 1), [pageNum, scrollToPage]);
-  const nextPage = useCallback(() => scrollToPage(pageNum + 1), [pageNum, scrollToPage]);
+  const prevPage = useCallback(() => scrollToPage(pageNum - 1, "instant"), [pageNum, scrollToPage]);
+  const nextPage = useCallback(() => scrollToPage(pageNum + 1, "instant"), [pageNum, scrollToPage]);
 
   const syncAvailable = remotePage !== null && remotePage !== pageNum && !hasPendingWrite;
   const handleSync = useCallback(() => {
