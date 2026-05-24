@@ -2,8 +2,32 @@ import { useEffect, useRef, useCallback } from "react";
 import { pdfjsLib, TextLayer } from "./pdfSetup";
 import ViewerShell from "./ViewerShell";
 import { useDocumentViewer } from "./useDocumentViewer";
-import type { ViewerProps } from "./viewerTypes";
+import type { ViewerProps, TocEntry } from "./viewerTypes";
 import { WINDOW_BUFFER } from "./viewerTypes";
+
+async function resolvePdfOutline(
+  doc: Awaited<ReturnType<typeof pdfjsLib.getDocument>["promise"]>,
+  items: any[] // eslint-disable-line @typescript-eslint/no-explicit-any
+): Promise<TocEntry[]> {
+  const result: TocEntry[] = [];
+  for (const item of items) {
+    let page: number | null = null;
+    try {
+      let dest = item.dest;
+      if (typeof dest === "string") dest = await doc.getDestination(dest);
+      if (Array.isArray(dest) && dest[0] != null) {
+        const pageIndex = await doc.getPageIndex(dest[0]);
+        page = pageIndex + 1;
+      }
+    } catch {
+      // unresolvable destination — skip entry
+    }
+    if (page === null) continue;
+    const children = item.items?.length ? await resolvePdfOutline(doc, item.items) : [];
+    result.push({ title: String(item.title ?? ""), page, children });
+  }
+  return result;
+}
 
 export default function PdfViewer({ url, documentId, folderId, initialPage, overlayEnabled = true, serverLastPage, serverLastPageUpdatedAt }: ViewerProps) {
   const hook = useDocumentViewer({ documentId, folderId, initialPage, serverLastPage, serverLastPageUpdatedAt });
@@ -70,6 +94,15 @@ export default function PdfViewer({ url, documentId, folderId, initialPage, over
         hook.setLoading(false);
         const labels = await doc.getPageLabels().catch(() => null);
         if (!destroyed) hook.setPageLabels(labels);
+
+        const outline = await doc.getOutline().catch(() => null);
+        if (!destroyed && outline?.length) {
+          const toc = await resolvePdfOutline(doc, outline);
+          if (!destroyed && toc.length) {
+            hook.setToc(toc);
+            window.dispatchEvent(new CustomEvent("document:toc-loaded", { detail: { documentId, toc } }));
+          }
+        }
       })
       .catch((err: unknown) => {
         if (destroyed) return;

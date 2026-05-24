@@ -37,6 +37,12 @@ export interface PanState {
   isActive: boolean;
 }
 
+export interface TocEntry {
+  title: string;
+  page: number;
+  children: TocEntry[];
+}
+
 export const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0];
 export const WINDOW_BUFFER = 2;
 export const PAGE_GUTTER = 16;

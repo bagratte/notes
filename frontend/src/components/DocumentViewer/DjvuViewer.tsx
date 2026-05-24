@@ -1,8 +1,21 @@
 import { useEffect, useRef, useCallback } from "react";
 import ViewerShell from "./ViewerShell";
 import { useDocumentViewer } from "./useDocumentViewer";
-import type { ViewerProps, NaturalSize } from "./viewerTypes";
+import type { ViewerProps, NaturalSize, TocEntry } from "./viewerTypes";
 import css from "./DocumentViewer.module.css";
+
+function parseDjvuContents(entries: DjVuContentsEntry[]): TocEntry[] {
+  const result: TocEntry[] = [];
+  for (const entry of entries) {
+    const match = String(entry.url ?? "").match(/^#(\d+)$/);
+    if (!match) continue;
+    const page = parseInt(match[1], 10);
+    if (isNaN(page) || page < 1) continue;
+    const children = entry.children?.length ? parseDjvuContents(entry.children) : [];
+    result.push({ title: String(entry.description ?? ""), page, children });
+  }
+  return result;
+}
 
 export default function DjvuViewer({ url, documentId, folderId, initialPage, overlayEnabled = true, serverLastPage, serverLastPageUpdatedAt }: ViewerProps) {
   const hook = useDocumentViewer({ documentId, folderId, initialPage, serverLastPage, serverLastPageUpdatedAt });
@@ -110,6 +123,19 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
         hook.setNaturalSizes(byPage);
         hook.setNumPages(count);
         hook.setLoading(false);
+
+        try {
+          const contents = doc.getContents();
+          if (contents?.length) {
+            const toc = parseDjvuContents(contents);
+            if (!cancelled && toc.length) {
+              hook.setToc(toc);
+              window.dispatchEvent(new CustomEvent("document:toc-loaded", { detail: { documentId, toc } }));
+            }
+          }
+        } catch {
+          // getContents unavailable or failed — no TOC
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {

@@ -11,11 +11,18 @@ interface DjVuPage {
   getNormalizedTextZones(): Array<{ x: number; y: number; width: number; height: number; text: string }>;
 }
 
+interface DjVuContentsEntry {
+  url: string;
+  description: string;
+  children?: DjVuContentsEntry[];
+}
+
 interface DjVuDocument {
   getPagesQuantity(): number;
   getPagesSizes(): Array<{ width: number; height: number; dpi: number }>;
   getPage(number: number): Promise<DjVuPage>;
   getPageUnsafe(number: number): DjVuPage;
+  getContents(): DjVuContentsEntry[] | null;
 }
 
 declare const DjVu: {

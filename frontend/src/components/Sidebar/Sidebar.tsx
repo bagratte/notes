@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { folders as foldersApi, notes as notesApi, documents as docsApi, strokes as strokesApi, regions as regionsApi, sections as sectionsApi } from "@/api";
 import type { Folder, Note, Document } from "@/types";
+import type { TocEntry } from "@/components/DocumentViewer/viewerTypes";
 import MergeModal from "@/components/MergeModal";
 import { useTouchMode } from "@/context/TouchMode";
 import { useTheme } from "@/context/Theme";
@@ -123,6 +124,14 @@ function DocIcon() {
   );
 }
 
+function TocIcon() {
+  return (
+    <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
+      <path d="M3 5h4M3 8h7M3 11h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // ── main component ─────────────────────────────────────────────────────────
 
 interface SidebarData {
@@ -144,6 +153,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
   const [expandedDocuments, setExpandedDocuments] = useState<Set<number>>(new Set());
   const [mergingNote, setMergingNote] = useState<Note | null>(null);
+  const [docToc, setDocToc] = useState<Record<number, TocEntry[]>>({});
 
   const load = useCallback(async () => {
     try {
@@ -193,6 +203,15 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     };
     window.addEventListener("document:page-strokes-changed", handler);
     return () => window.removeEventListener("document:page-strokes-changed", handler);
+  }, []);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { documentId, toc } = (e as CustomEvent<{ documentId: number; toc: TocEntry[] }>).detail;
+      setDocToc((prev) => ({ ...prev, [documentId]: toc }));
+      if (toc.length > 0) setExpandedDocuments((s) => new Set([...s, documentId]));
+    };
+    window.addEventListener("document:toc-loaded", handler);
+    return () => window.removeEventListener("document:toc-loaded", handler);
   }, []);
 
   // ── create operations ────────────────────────────────────────────────────
@@ -324,10 +343,29 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     );
   };
 
+  const renderTocEntry = (entry: TocEntry, docId: number, indent: number, keyPath: string): JSX.Element => {
+    const active = location.pathname === `/documents/${docId}` &&
+      new URLSearchParams(location.search).get("page") === String(entry.page);
+    return (
+      <div key={keyPath}>
+        <div
+          className={`${css.leafRow}${active ? " " + css.active : ""}`}
+          style={{ paddingLeft: `${indent}px` }}
+          onClick={() => navigate(`/documents/${docId}?page=${entry.page}`)}
+        >
+          <TocIcon />
+          <span className={css.rowLabel}>{entry.title}</span>
+        </div>
+        {entry.children.map((child, i) => renderTocEntry(child, docId, indent + 16, `${keyPath}-${i}`))}
+      </div>
+    );
+  };
+
   const renderDocument = (doc: Document, indent: number) => {
     const linked = data.docNotes[doc.id] ?? [];
     const pages = data.docAnnotatedPages[doc.id] ?? [];
-    const hasChildren = linked.length > 0 || pages.length > 0;
+    const toc = docToc[doc.id] ?? [];
+    const hasChildren = linked.length > 0 || pages.length > 0 || toc.length > 0;
     const isOpen = expandedDocuments.has(doc.id);
     const active = location.pathname.startsWith(`/documents/${doc.id}`);
     const toggleDoc = (e: React.MouseEvent) => {
@@ -354,6 +392,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         </div>
         {hasChildren && isOpen && (
           <>
+            {toc.map((entry, i) => renderTocEntry(entry, doc.id, indent + 28, String(i)))}
             {linked.map((n) => {
               const pg = data.docNotePageNums[doc.id]?.[n.id];
               return renderNote(

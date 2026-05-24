@@ -13,6 +13,7 @@ import {
   PendingRegion,
   ViewportSize,
   PanState,
+  TocEntry,
   ZOOM_STEPS,
   WINDOW_BUFFER,
   PAGE_GUTTER,
@@ -59,6 +60,8 @@ export interface UseDocumentViewerResult {
   setNumPages: React.Dispatch<React.SetStateAction<number>>;
   setNaturalSizes: React.Dispatch<React.SetStateAction<Record<number, NaturalSize>>>;
   setPageLabels: React.Dispatch<React.SetStateAction<string[] | null>>;
+  toc: TocEntry[];
+  setToc: React.Dispatch<React.SetStateAction<TocEntry[]>>;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   setWindowRange: React.Dispatch<React.SetStateAction<{ start: number; end: number }>>;
@@ -148,6 +151,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   const [numPages, setNumPages] = useState(0);
   const [pageNum, setPageNum] = useState(() => Math.max(1, initialPage ?? 1));
   const [pageLabels, setPageLabels] = useState<string[] | null>(null);
+  const [toc, setToc] = useState<TocEntry[]>([]);
   const [pageInput, setPageInput] = useState("");
   const [fitMode, setFitMode] = useState<"width" | "page" | "manual">("width");
   const [fitPopoverOpen, setFitPopoverOpen] = useState(false);
@@ -184,6 +188,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     setNumPages(0);
     setPageNum(target);
     setPageLabels(null);
+    setToc([]);
     setNaturalSizes({});
     setStrokesByPage({});
     setRedoByPage({});
@@ -926,6 +931,8 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     setNumPages,
     setNaturalSizes,
     setPageLabels,
+    toc,
+    setToc,
     setLoading,
     setError,
     setWindowRange,
