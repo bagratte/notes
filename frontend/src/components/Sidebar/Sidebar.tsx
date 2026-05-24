@@ -154,6 +154,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const [expandedDocuments, setExpandedDocuments] = useState<Set<number>>(new Set());
   const [mergingNote, setMergingNote] = useState<Note | null>(null);
   const [docToc, setDocToc] = useState<Record<number, TocEntry[]>>({});
+  const [expandedTocPaths, setExpandedTocPaths] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -346,6 +347,12 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const renderTocEntry = (entry: TocEntry, docId: number, indent: number, keyPath: string): JSX.Element => {
     const active = location.pathname === `/documents/${docId}` &&
       new URLSearchParams(location.search).get("page") === String(entry.page);
+    const hasChildren = entry.children.length > 0;
+    const isOpen = expandedTocPaths.has(keyPath);
+    const toggleToc = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setExpandedTocPaths((s) => { const n = new Set(s); n.has(keyPath) ? n.delete(keyPath) : n.add(keyPath); return n; });
+    };
     return (
       <div key={keyPath}>
         <div
@@ -353,10 +360,13 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
           style={{ paddingLeft: `${indent}px` }}
           onClick={() => navigate(`/documents/${docId}?page=${entry.page}`)}
         >
+          {hasChildren
+            ? <span onClick={toggleToc}><ChevronIcon open={isOpen} /></span>
+            : <span style={{ width: 14, display: "inline-block" }} />}
           <TocIcon />
           <span className={css.rowLabel}>{entry.title}</span>
         </div>
-        {entry.children.map((child, i) => renderTocEntry(child, docId, indent + 16, `${keyPath}-${i}`))}
+        {hasChildren && isOpen && entry.children.map((child, i) => renderTocEntry(child, docId, indent + 16, `${keyPath}-${i}`))}
       </div>
     );
   };
