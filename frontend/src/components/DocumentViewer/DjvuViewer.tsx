@@ -132,6 +132,18 @@ export default function DjvuViewer({ url, documentId, folderId, initialPage, ove
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, initialPage]);
 
+  // Evict decoded image data for pages that have scrolled outside the buffer window
+  useEffect(() => {
+    const { start, end } = hook.windowRange;
+    for (const [page, bm] of imageBitmapCacheRef.current) {
+      if (page < start || page > end) {
+        bm.close();
+        imageBitmapCacheRef.current.delete(page);
+        imageDataCacheRef.current.delete(page);
+      }
+    }
+  }, [hook.windowRange]);
+
   // Load data + render pages for buffered window
   useEffect(() => {
     if (hook.numPages === 0) return;
