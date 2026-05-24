@@ -78,9 +78,27 @@ Both drawing components read these via refs (same pattern as `colorRef`/`penWidt
 
 ### Undo / redo
 
-Document viewers maintain a per-page `Stroke[]` array with IDs (returned by `strokes.create`). Undo calls `strokesApi.delete(last.id)` and pushes to a `redoStack`; redo re-calls `strokesApi.create` and stores the new ID. A new stroke clears the redo stack.
+Document viewers maintain per-page explicit undo and redo stacks (`undoByPage`/`redoByPage`) keyed by page number, both typed as `Record<number, DocUndoEntry[]>`:
 
-Note editors use a **global cross-section stack** in `NoteEditor`: `undoStack` and `redoStack` hold `{ sectionId, stroke }` entries. `NoteEditor` passes `undoPending`/`redoPending` props down to the relevant `SectionCanvas`, which performs the actual API calls and reports the result back via `onUndoComplete`/`onRedoComplete` callbacks. This mirrors the per-page pattern in document viewers but lifted one level up so the toolbar undo/redo buttons span all sections.
+```typescript
+type DocUndoEntry =
+  | { kind: "stroke";       stroke: Stroke }
+  | { kind: "batch-delete"; strokes: Stroke[] }
+  | { kind: "batch-move";   deleted: Stroke[]; created: Stroke[] };
+```
+
+`handleInlineStroke` pushes a `stroke` entry after the API save. `handleBatchDeleteInline`/`handleBatchMoveInline` (called from `DocumentOverlay` via `onBatchDelete`/`onBatchMove`) push batch entries. `undoInline` pops from `undoByPage` and dispatches on `entry.kind`; each undo pushes a corresponding inverse entry onto `redoByPage` with fresh server-assigned IDs so subsequent redo uses correct IDs.
+
+Note editors use a **global cross-section stack** in `NoteEditor`: `undoStack` and `redoStack` hold `NoteUndoEntry[]` entries:
+
+```typescript
+type NoteUndoEntry =
+  | { sectionId: number; stroke: Stroke }
+  | { kind: "batch-delete"; sectionId: number; strokes: Stroke[] }
+  | { kind: "batch-move";   sectionId: number; deleted: Stroke[]; created: Stroke[] };
+```
+
+`NoteEditor` passes `undoPending`/`redoPending` (single-stroke) and `undoBatchPending`/`redoBatchPending` (batch) props down to the matching `SectionCanvas`, which performs the actual API calls and reports results back via consumed callbacks. Batch operations are reported up via `onBatchOperation`.
 
 ### DjVu global
 
@@ -123,13 +141,13 @@ The key design constraint: PDF preloads natural sizes asynchronously before sett
 
 ### Tool modes
 
-`ToolMode = "auto" | "hand" | "pen" | "stroke-eraser" | "segment-eraser" | "select-region" | "text-select"` (defined in `src/types/index.ts`).
+`ToolMode = "auto" | "hand" | "pen" | "stroke-eraser" | "segment-eraser" | "stroke-select" | "select-region" | "text-select"` (defined in `src/types/index.ts`).
 
-The unified `Toolbar` component (`src/components/Toolbar/`) renders tool buttons, colour swatches, and stroke-width buttons. `availableTools: ToolMode[]` controls which tools appear — notes omit `select-region` and `text-select`, document viewers include all seven. `UndoRedoBar` (`src/components/UndoRedoBar/`) is a separate component rendered alongside `Toolbar` in both contexts.
+The unified `Toolbar` component (`src/components/Toolbar/`) renders tool buttons, colour swatches, and stroke-width buttons. `availableTools: ToolMode[]` controls which tools appear — notes include all tools except `select-region` and `text-select`; document viewers include all eight. `UndoRedoBar` (`src/components/UndoRedoBar/`) is a separate component rendered alongside `Toolbar` in both contexts.
 
 Below 912px the toolbar switches to a compact layout: `hand`, `pen`, and `segment-eraser` collapse into a `⋯` overflow popup; colour swatches move into a popup triggered by the active colour swatch button; stroke-width buttons move into a popup triggered by the active width dot button. Above 912px everything renders inline as before. The breakpoint is detected via `window.matchMedia` inside the component.
 
-In `"hand"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s become clickable. In all explicit tool modes (`"pen"`, `"stroke-eraser"`, `"segment-eraser"`, `"select-region"`, `"text-select"`), the SVG captures pointer events from **all** input types — pen, finger/touch, and mouse — and region divs get `pointerEvents: none`. In `"select-region"` mode dragging produces a pending selection rectangle; a contextual menu then lets the user create a linked note. In `"text-select"` mode a transparent text layer div is rendered between the canvas and the SVG overlay: for PDFs it is populated via `pdfjsLib.TextLayer` at scale=1 (then CSS `scale()` on the container handles zoom); for DjVu it uses percentage-positioned `<span>` elements from `djvuPage.getNormalizedTextZones()`. The SVG and region divs having `pointerEvents: none` lets the browser's native selection reach the text layer.
+In `"hand"` mode the SVG overlay has `pointerEvents: none`; region `<div>`s become clickable. In all explicit tool modes (`"pen"`, `"stroke-eraser"`, `"segment-eraser"`, `"stroke-select"`, `"select-region"`, `"text-select"`), the SVG captures pointer events from **all** input types — pen, finger/touch, and mouse — and region divs get `pointerEvents: none`. In `"select-region"` mode dragging produces a pending selection rectangle; a contextual menu then lets the user create a linked note. In `"stroke-select"` mode dragging produces a selection rectangle that hit-tests strokes (any stroke with a point inside is selected); selected strokes stay full-opacity, others dim to 0.3. The `StrokeSelectionOverlay` component renders the 8-handle resize rect and the × delete button (positioned 8 px right and 22 px above the NE corner to avoid overlapping the handle); dragging inside the rect moves the selection. Resizing re-runs hit-test. Undo/redo supported for both delete and move. In `"text-select"` mode a transparent text layer div is rendered between the canvas and the SVG overlay: for PDFs it is populated via `pdfjsLib.TextLayer` at scale=1 (then CSS `scale()` on the container handles zoom); for DjVu it uses percentage-positioned `<span>` elements from `djvuPage.getNormalizedTextZones()`. The SVG and region divs having `pointerEvents: none` lets the browser's native selection reach the text layer.
 
 `"auto"` mode routes input by pointer type at the SVG level: the SVG handler returns early for any non-pen input, leaving finger/mouse events to fall through to region divs (which have `pointerEvents: auto` in auto mode). When a stylus hits a region div, `handleRegionPointerDown` transfers pointer capture to the SVG and starts a stroke directly — this avoids the race condition of updating React state before `pointermove` fires.
 
