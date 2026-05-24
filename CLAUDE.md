@@ -121,6 +121,7 @@ The strokes router has two delete endpoints that are easy to confuse:
 | POST | `/strokes/batch` | bulk create |
 | DELETE | `/strokes/{id}` | per-stroke delete |
 | DELETE | `/strokes/` | bulk delete by section or page |
+| GET | `/strokes/annotated-pages` | requires `document_id`; returns `{ pages: number[] }` — distinct page numbers with inline strokes |
 | GET | `/sections/` | requires `note_id`; ordered by `order` |
 | POST | `/sections/` | create section (`note_id`, `order`) |
 | GET/PATCH/DELETE | `/sections/{id}` | PATCH updates `height` only |
@@ -137,20 +138,6 @@ The strokes router has two delete endpoints that are easy to confuse:
 | GET/PATCH/DELETE | `/documents/{id}` | PATCH updates `name` and/or `last_page` (both optional); writing `last_page` auto-stamps `last_page_updated_at` |
 | GET | `/documents/{id}/file` | serves the raw file from disk |
 
-## Target platform
+## Frontend
 
-The app targets **touch-only devices** (tablets, iPads) as the primary platform. Consequences:
-- Minimum tap target size: 44px
-- Never rely on `:hover` for functionality — use `@media (pointer: coarse)` to show actions that would otherwise be hover-only
-- Prefer pointer events over mouse/touch events
-- Sidebar uses overlay mode on touch (position: fixed, backdrop to dismiss)
-
-## Frontend summary
-
-- Four routes under `AppLayout` (sidebar + outlet): `/notes/:noteId`, `/documents/:documentId`, `/folders/:folderId`, `/settings`
-- Three global context providers (all persisted to `localStorage`): `TouchModeProvider`, `DrawingSettingsProvider`, and `ThemeProvider` — everything else is local component state + direct API calls
-- CSS Modules for all styles
-- Drawing is SVG-based using `perfect-freehand`; strokes stored in natural page coordinates
-- DjVu.js loaded as a pre-built IIFE global (`public/djvu.js`) — not importable as a module
-
-See `frontend/CLAUDE.md` for the coordinate system, undo/redo design, tool modes, and region interaction.
+The frontend is a React + TypeScript + Vite app — see `frontend/CLAUDE.md` for architecture details.
