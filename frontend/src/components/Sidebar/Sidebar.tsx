@@ -382,7 +382,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     const toc = docToc[doc.id] ?? [];
     const hasChildren = linked.length > 0 || pages.length > 0 || toc.length > 0;
     const isOpen = expandedDocuments.has(doc.id);
-    const active = location.pathname.startsWith(`/documents/${doc.id}`);
+    const active = location.pathname === `/documents/${doc.id}`;
     const toggleDoc = (e: React.MouseEvent) => {
       e.stopPropagation();
       setExpandedDocuments((s) => { const n = new Set(s); n.has(doc.id) ? n.delete(doc.id) : n.add(doc.id); return n; });
