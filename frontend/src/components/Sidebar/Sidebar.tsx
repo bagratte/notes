@@ -492,7 +492,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
           <div className={css.rowActions} onClick={stop}>
             <button className={css.iconBtn} title="New note" onClick={() => createNote(folder.id)}><NewNoteIcon /></button>
             <button className={css.iconBtn} title="New subfolder" onClick={() => createFolder(folder.id)}><NewFolderIcon /></button>
-            <button className={css.iconBtn} title="Upload document" onClick={() => uploadDocument(folder.id)}>↑</button>
+            <button className={css.iconBtn} title="Upload document" onClick={() => uploadDocument(folder.id)}><UploadIcon /></button>
             <button className={css.iconBtn} title="Rename" onClick={() => renameFolder(folder)}><RenameIcon /></button>
             <button className={css.iconBtn} title="Delete" onClick={() => deleteFolder(folder)}>✕</button>
           </div>
