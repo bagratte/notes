@@ -151,9 +151,12 @@ export default function PdfViewer({ url, documentId, folderId, initialPage, over
       if (!canvas || !natural) continue;
 
       const { scale } = hook.getPageDisplaySize(page);
+      const dpr = window.devicePixelRatio || 1;
       const width = Math.round(natural.width * scale);
       const height = Math.round(natural.height * scale);
-      if (canvas.width === width && canvas.height === height) continue;
+      const physicalWidth = Math.round(width * dpr);
+      const physicalHeight = Math.round(height * dpr);
+      if (canvas.width === physicalWidth && canvas.height === physicalHeight) continue;
 
       const version = (renderVersionRef.current.get(page) ?? 0) + 1;
       renderVersionRef.current.set(page, version);
@@ -163,12 +166,12 @@ export default function PdfViewer({ url, documentId, folderId, initialPage, over
 
       doc.getPage(page).then((pdfPage) => {
         if (renderVersionRef.current.get(page) !== version) return;
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = physicalWidth;
+        canvas.height = physicalHeight;
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
-        ctx.clearRect(0, 0, width, height);
-        const viewportForRender = pdfPage.getViewport({ scale });
+        ctx.clearRect(0, 0, physicalWidth, physicalHeight);
+        const viewportForRender = pdfPage.getViewport({ scale: scale * dpr });
         const renderTask = pdfPage.render({ canvasContext: ctx, viewport: viewportForRender });
         renderTasksRef.current.set(page, renderTask);
         renderTask.promise
