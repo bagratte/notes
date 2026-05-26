@@ -185,7 +185,7 @@ export default function FolderPage() {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
-      const name = window.prompt("Document name:", file.name) ?? file.name;
+      const name = file.name;
       const doc = await docsApi.upload(name.trim(), file, id);
       window.dispatchEvent(new CustomEvent("sidebar:refresh"));
       navigate(`/documents/${doc.id}`);
