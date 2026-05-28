@@ -5,7 +5,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Document
-from app.schemas import DocumentUpdate, DocumentOut
+from app.schemas import DocumentUpdate, DocumentOut, DocumentReorder
 
 MEDIA_TYPES = {
     "pdf": "application/pdf",
@@ -20,7 +20,16 @@ def list_documents(folder_id: int | None = None, db: Session = Depends(get_db)):
     q = db.query(Document)
     if folder_id is not None:
         q = q.filter(Document.folder_id == folder_id)
-    return q.all()
+    return q.order_by(Document.position.nulls_last(), Document.id).all()
+
+
+@router.post("/reorder", status_code=204)
+def reorder_documents(data: DocumentReorder, db: Session = Depends(get_db)):
+    for i, document_id in enumerate(data.document_ids):
+        doc = db.get(Document, document_id)
+        if doc:
+            doc.position = i
+    db.commit()
 
 
 @router.post("/", response_model=DocumentOut, status_code=201)

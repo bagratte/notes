@@ -11,6 +11,7 @@ export const folders = {
   create: (name: string, parentFolderId?: number) =>
     api.post<Folder>("/folders/", { parent_folder_id: parentFolderId ?? null, name }),
   update: (id: number, name: string) => api.patch<Folder>(`/folders/${id}`, { name }),
+  reorder: (folderIds: number[]) => api.post<void>("/folders/reorder", { folder_ids: folderIds }),
   delete: (id: number) => api.delete(`/folders/${id}`),
 };
 
@@ -32,6 +33,7 @@ export const documents = {
   fileUrl: (id: number) => `/api/documents/${id}/file`,
   update: (id: number, name: string) => api.patch<Document>(`/documents/${id}`, { name }),
   updateLastPage: (id: number, lastPage: number) => api.patch<Document>(`/documents/${id}`, { last_page: lastPage }),
+  reorder: (documentIds: number[]) => api.post<void>("/documents/reorder", { document_ids: documentIds }),
   delete: (id: number) => api.delete(`/documents/${id}`),
 };
 

@@ -168,6 +168,12 @@
   color: var(--text-dim);
 }
 
+.folderRow.dropBefore { box-shadow: inset 0 2px 0 var(--accent); }
+.folderRow.dropAfter  { box-shadow: inset 0 -2px 0 var(--accent); }
+.leafRow.dropBefore   { box-shadow: inset 0 2px 0 var(--accent); }
+.leafRow.dropAfter    { box-shadow: inset 0 -2px 0 var(--accent); }
+.folderRow.dragging, .leafRow.dragging { opacity: 0.4; }
+
 :global(.has-touch) .notebookRow { padding-top: 11px; padding-bottom: 11px; }
 :global(.has-touch) .folderRow   { padding-top: 11px; padding-bottom: 11px; }
 :global(.has-touch) .leafRow     { padding-top: 11px; padding-bottom: 11px; }

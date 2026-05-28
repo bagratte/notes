@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import type { CSSProperties } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { folders as foldersApi, notes as notesApi, documents as docsApi, strokes as strokesApi, regions as regionsApi, sections as sectionsApi } from "@/api";
@@ -154,6 +154,10 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const [expandedDocuments, setExpandedDocuments] = useState<Set<number>>(new Set());
   const [mergingNote, setMergingNote] = useState<Note | null>(null);
   const [docToc, setDocToc] = useState<Record<number, TocEntry[]>>({});
+
+  const dragItemRef = useRef<{ type: "folder" | "document"; id: number; scope: number | null } | null>(null);
+  const [draggingId, setDraggingId] = useState<{ type: "folder" | "document"; id: number } | null>(null);
+  const [dragOverId, setDragOverId] = useState<{ id: number; pos: "before" | "after" } | null>(null);
   const [expandedTocPaths, setExpandedTocPaths] = useState<Set<string>>(new Set());
   const [expandedTocRoots, setExpandedTocRoots] = useState<Set<number>>(new Set());
   const [expandedNotesRoots, setExpandedNotesRoots] = useState<Set<number>>(new Set());
@@ -309,6 +313,50 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const toggleFolder = (id: number) =>
     setExpandedFolders((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
+  const handleFolderDrop = (targetFolder: Folder) => {
+    const item = dragItemRef.current;
+    const over = dragOverId;
+    if (!item || item.type !== "folder" || item.id === targetFolder.id) return;
+    if (item.scope !== targetFolder.parent_folder_id) return;
+    const scope = item.scope;
+    const siblings = data.folders.filter((f) => f.parent_folder_id === scope);
+    const fromIdx = siblings.findIndex((f) => f.id === item.id);
+    const toIdx = siblings.findIndex((f) => f.id === targetFolder.id);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const reordered = [...siblings];
+    const [moved] = reordered.splice(fromIdx, 1);
+    const adjustedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+    const insertIdx = over?.pos === "before" ? adjustedToIdx : adjustedToIdx + 1;
+    reordered.splice(insertIdx, 0, moved);
+    setData((d) => ({ ...d, folders: [...d.folders.filter((f) => f.parent_folder_id !== scope), ...reordered] }));
+    foldersApi.reorder(reordered.map((f) => f.id)).catch(() => load());
+    dragItemRef.current = null;
+    setDraggingId(null);
+    setDragOverId(null);
+  };
+
+  const handleDocumentDrop = (targetDoc: Document) => {
+    const item = dragItemRef.current;
+    const over = dragOverId;
+    if (!item || item.type !== "document" || item.id === targetDoc.id) return;
+    if (item.scope !== targetDoc.folder_id) return;
+    const scope = item.scope;
+    const siblings = data.documents.filter((d) => d.folder_id === scope);
+    const fromIdx = siblings.findIndex((d) => d.id === item.id);
+    const toIdx = siblings.findIndex((d) => d.id === targetDoc.id);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const reordered = [...siblings];
+    const [moved] = reordered.splice(fromIdx, 1);
+    const adjustedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+    const insertIdx = over?.pos === "before" ? adjustedToIdx : adjustedToIdx + 1;
+    reordered.splice(insertIdx, 0, moved);
+    setData((d) => ({ ...d, documents: [...d.documents.filter((d2) => d2.folder_id !== scope), ...reordered] }));
+    docsApi.reorder(reordered.map((d) => d.id)).catch(() => load());
+    dragItemRef.current = null;
+    setDraggingId(null);
+    setDragOverId(null);
+  };
+
   // ── render ───────────────────────────────────────────────────────────────
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
@@ -388,11 +436,31 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
       setExpandedDocuments((s) => { const n = new Set(s); n.has(doc.id) ? n.delete(doc.id) : n.add(doc.id); return n; });
     };
 
+    const isDragging = draggingId?.type === "document" && draggingId.id === doc.id;
+    const dropPos = dragOverId?.id === doc.id && dragItemRef.current?.type === "document" ? dragOverId.pos : null;
+
     return (
       <div key={doc.id}>
         <div
-          className={`${css.leafRow}${active ? " " + css.active : ""}`}
+          className={`${css.leafRow}${active ? " " + css.active : ""}${isDragging ? " " + css.dragging : ""}${dropPos === "before" ? " " + css.dropBefore : ""}${dropPos === "after" ? " " + css.dropAfter : ""}`}
           style={{ paddingLeft: `${indent}px` }}
+          draggable
+          onDragStart={(e) => {
+            e.stopPropagation();
+            dragItemRef.current = { type: "document", id: doc.id, scope: doc.folder_id };
+            setDraggingId({ type: "document", id: doc.id });
+            e.dataTransfer.effectAllowed = "move";
+          }}
+          onDragOver={(e) => {
+            if (dragItemRef.current?.type !== "document" || dragItemRef.current.scope !== doc.folder_id) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pos = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+            setDragOverId((prev) => prev?.id === doc.id && prev.pos === pos ? prev : { id: doc.id, pos });
+          }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDocumentDrop(doc); }}
+          onDragEnd={() => { dragItemRef.current = null; setDraggingId(null); setDragOverId(null); }}
           onClick={() => navigate(`/documents/${doc.id}`)}
         >
           {hasChildren
@@ -482,9 +550,33 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     const isOpen = expandedFolders.has(folder.id);
     const active = location.pathname === `/folders/${folder.id}`;
 
+    const isDragging = draggingId?.type === "folder" && draggingId.id === folder.id;
+    const dropPos = dragOverId?.id === folder.id && dragItemRef.current?.type === "folder" ? dragOverId.pos : null;
+
     return (
       <div key={folder.id}>
-        <div className={`${css.folderRow}${active ? " " + css.active : ""}`} style={{ paddingLeft: `${indent}px` }} onClick={() => navigate(`/folders/${folder.id}`)}>
+        <div
+          className={`${css.folderRow}${active ? " " + css.active : ""}${isDragging ? " " + css.dragging : ""}${dropPos === "before" ? " " + css.dropBefore : ""}${dropPos === "after" ? " " + css.dropAfter : ""}`}
+          style={{ paddingLeft: `${indent}px` }}
+          draggable
+          onDragStart={(e) => {
+            e.stopPropagation();
+            dragItemRef.current = { type: "folder", id: folder.id, scope: folder.parent_folder_id };
+            setDraggingId({ type: "folder", id: folder.id });
+            e.dataTransfer.effectAllowed = "move";
+          }}
+          onDragOver={(e) => {
+            if (dragItemRef.current?.type !== "folder" || dragItemRef.current.scope !== folder.parent_folder_id) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pos = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+            setDragOverId((prev) => prev?.id === folder.id && prev.pos === pos ? prev : { id: folder.id, pos });
+          }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFolderDrop(folder); }}
+          onDragEnd={() => { dragItemRef.current = null; setDraggingId(null); setDragOverId(null); }}
+          onClick={() => navigate(`/folders/${folder.id}`)}
+        >
           <span onClick={(e) => { e.stopPropagation(); toggleFolder(folder.id); }} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
             <ChevronIcon open={isOpen} />
           </span>

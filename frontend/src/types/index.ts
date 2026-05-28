@@ -14,6 +14,7 @@ export interface Folder {
   id: number;
   parent_folder_id: number | null;
   name: string;
+  position: number | null;
   created_at: string;
 }
 
@@ -22,6 +23,7 @@ export interface Document {
   folder_id: number | null;
   name: string;
   type: "pdf" | "djvu";
+  position: number | null;
   created_at: string;
   last_page: number | null;
   last_page_updated_at: string | null;

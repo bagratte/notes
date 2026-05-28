@@ -8,11 +8,16 @@ class DocumentUpdate(BaseModel):
     last_page: Optional[int] = None
 
 
+class DocumentReorder(BaseModel):
+    document_ids: list[int]
+
+
 class DocumentOut(BaseModel):
     id: int
     folder_id: Optional[int]
     name: str
     type: str
+    position: Optional[int]
     created_at: datetime
     last_page: Optional[int]
     last_page_updated_at: Optional[datetime]

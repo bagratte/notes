@@ -11,6 +11,7 @@ class Folder(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     parent_folder_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("folders.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(255))
+    position: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
