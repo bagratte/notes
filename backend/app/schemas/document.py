@@ -12,7 +12,6 @@ class DocumentOut(BaseModel):
     id: int
     folder_id: Optional[int]
     name: str
-    file_path: str
     type: str
     created_at: datetime
     last_page: Optional[int]

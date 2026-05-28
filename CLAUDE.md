@@ -19,11 +19,11 @@ See `frontend/CLAUDE.md` for frontend-specific guidance.
 python -m venv .venv          # first time only
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env          # then set DATABASE_URL and DOCUMENT_ROOT
+cp .env.example .env          # then set DATABASE_URL
 uvicorn app.main:app --reload --port 8000
 ```
 
-Both env vars have defaults if unset: `DATABASE_URL` falls back to `backend/notes.db`; `DOCUMENT_ROOT` falls back to `backend/uploads/`.
+`DATABASE_URL` has a default if unset: `backend/notes.db`.
 
 **Frontend** — from `frontend/`:
 ```sh
@@ -100,7 +100,7 @@ Folders are arbitrarily nested. Top-level folders have `parent_folder_id = NULL`
 
 `Stroke.points` is stored as JSON (`[[x, y, pressure], ...]`) in natural page coordinates (scale 1.0).
 
-`Document.type` (`"pdf"` or `"djvu"`) is derived from the uploaded file's extension — the client never sends it. Uploaded files land in `backend/uploads/`; the absolute path is stored in `Document.file_path`.
+`Document.type` (`"pdf"` or `"djvu"`) is derived from the uploaded file's extension — the client never sends it. File contents are stored as a `BLOB` in `Document.file_data`; there is no filesystem upload directory.
 
 `Document.last_page` (nullable int) and `Document.last_page_updated_at` (nullable datetime) track the last-read page for cross-device sync. `last_page_updated_at` is stamped server-side whenever `last_page` is written. SQLite stores datetimes without timezone info, so the frontend must treat them as UTC (append `Z` before parsing).
 

@@ -52,7 +52,7 @@ Copy `.env.example` to `.env` and set `DATABASE_URL` to the SQLite path for your
 alembic upgrade head
 ```
 
-Uploaded files (`uploads/`) are created automatically on first run.
+Document file contents are stored as BLOBs in the database — no upload directory needed.
 
 ### Frontend
 

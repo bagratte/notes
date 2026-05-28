@@ -1,16 +1,16 @@
 import os
-import shutil
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Document
 from app.schemas import DocumentUpdate, DocumentOut
 
-UPLOADS_DIR = os.environ.get("DOCUMENT_ROOT") or os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../uploads")
-)
+MEDIA_TYPES = {
+    "pdf": "application/pdf",
+    "djvu": "image/vnd.djvu",
+}
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -24,7 +24,7 @@ def list_documents(folder_id: int | None = None, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=DocumentOut, status_code=201)
-def upload_document(
+async def upload_document(
     folder_id: int | None = Form(None),
     name: str = Form(...),
     file: UploadFile = File(...),
@@ -34,12 +34,8 @@ def upload_document(
     if ext not in ("pdf", "djvu"):
         raise HTTPException(400, "Only PDF and DjVu files are supported")
 
-    os.makedirs(UPLOADS_DIR, exist_ok=True)
-    dest = os.path.join(UPLOADS_DIR, file.filename or f"upload.{ext}")
-    with open(dest, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    doc = Document(folder_id=folder_id, name=name, file_path=dest, type=ext)
+    content = await file.read()
+    doc = Document(folder_id=folder_id, name=name, file_data=content, type=ext)
     db.add(doc)
     db.commit()
     db.refresh(doc)
@@ -59,9 +55,12 @@ def serve_document(document_id: int, db: Session = Depends(get_db)):
     doc = db.get(Document, document_id)
     if not doc:
         raise HTTPException(404)
-    if not os.path.exists(doc.file_path):
-        raise HTTPException(404, "File not found on disk")
-    return FileResponse(doc.file_path)
+    media_type = MEDIA_TYPES.get(doc.type, "application/octet-stream")
+    return Response(
+        content=doc.file_data,
+        media_type=media_type,
+        headers={"Content-Disposition": f'inline; filename="{doc.name}.{doc.type}"'},
+    )
 
 
 @router.patch("/{document_id}", response_model=DocumentOut)
@@ -84,7 +83,5 @@ def delete_document(document_id: int, db: Session = Depends(get_db)):
     doc = db.get(Document, document_id)
     if not doc:
         raise HTTPException(404)
-    if os.path.exists(doc.file_path):
-        os.remove(doc.file_path)
     db.delete(doc)
     db.commit()

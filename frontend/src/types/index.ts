@@ -21,7 +21,6 @@ export interface Document {
   id: number;
   folder_id: number | null;
   name: string;
-  file_path: string;
   type: "pdf" | "djvu";
   created_at: string;
   last_page: number | null;
