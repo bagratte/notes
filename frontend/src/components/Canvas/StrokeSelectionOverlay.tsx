@@ -8,6 +8,8 @@ import {
 } from "./strokeSelectUtils";
 
 const HANDLE_SIZE_PX = 28;
+const LONG_PRESS_MS = 450;
+const MOVE_DEADZONE_PX = 8;
 
 interface Props {
   rect: NaturalRect;
@@ -33,13 +35,23 @@ export default function StrokeSelectionOverlay({
   onDuplicate,
 }: Props) {
   const [localRect, setLocalRect] = useState<NaturalRect>(rect);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const activeGestureRef = useRef<"resize" | "move" | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
 
   useEffect(() => {
     if (!activeGestureRef.current) {
       setLocalRect(rect);
     }
   }, [rect]);
+
+  function clearLongPress() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
 
   function toNaturalDelta(clientDx: number, clientDy: number): { dx: number; dy: number } {
     const container = containerRef.current;
@@ -53,6 +65,7 @@ export default function StrokeSelectionOverlay({
   }
 
   function startResizeDrag(handle: SelectionResizeHandle, startClientX: number, startClientY: number, startRect: NaturalRect) {
+    clearLongPress();
     activeGestureRef.current = "resize";
 
     function onMove(ev: PointerEvent) {
@@ -75,9 +88,22 @@ export default function StrokeSelectionOverlay({
   }
 
   function startMoveDrag(startClientX: number, startClientY: number, startRect: NaturalRect) {
+    longPressFiredRef.current = false;
     activeGestureRef.current = "move";
 
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      longPressFiredRef.current = true;
+      onMoveChange?.(0, 0);
+      setLocalRect(startRect);
+      setMenu({ x: startClientX, y: startClientY });
+    }, LONG_PRESS_MS);
+
     function onMove(ev: PointerEvent) {
+      if (Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY) > MOVE_DEADZONE_PX) {
+        clearLongPress();
+      }
+      if (longPressFiredRef.current) return;
       const { dx, dy } = toNaturalDelta(ev.clientX - startClientX, ev.clientY - startClientY);
       const clampedDx = Math.max(-startRect.x, Math.min(naturalWidth  - startRect.x - startRect.width,  dx));
       const clampedDy = Math.max(-startRect.y, Math.min(naturalHeight - startRect.y - startRect.height, dy));
@@ -89,6 +115,8 @@ export default function StrokeSelectionOverlay({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       activeGestureRef.current = null;
+      clearLongPress();
+      if (longPressFiredRef.current) return;
       const { dx, dy } = toNaturalDelta(ev.clientX - startClientX, ev.clientY - startClientY);
       const clampedDx = Math.max(-startRect.x, Math.min(naturalWidth  - startRect.x - startRect.width,  dx));
       const clampedDy = Math.max(-startRect.y, Math.min(naturalHeight - startRect.y - startRect.height, dy));
@@ -125,7 +153,12 @@ export default function StrokeSelectionOverlay({
         onPointerDown={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          if (e.button !== 0) return;
           startMoveDrag(e.clientX, e.clientY, localRect);
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY });
         }}
       >
         {SELECTION_HANDLE_DESCRIPTORS.map((h) => (
@@ -197,47 +230,56 @@ export default function StrokeSelectionOverlay({
         </div>
       </div>
 
-      {/* Duplicate button — below the delete button */}
-      {onDuplicate && (
-        <div
-          style={{
-            position: "absolute",
-            left: `calc(${leftPct + widthPct}% + 8px)`,
-            top: `calc(${topPct}% + 22px)`,
-            width: 44,
-            height: 44,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            touchAction: "none",
-            zIndex: 11,
-          }}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onDuplicate();
-          }}
-        >
+      {/* Context menu — long-press (touch) or right-click */}
+      {menu && (
+        <>
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 200 }}
+            onPointerDown={() => setMenu(null)}
+          />
           <div
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: "50%",
-              background: "#2980b9",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "white",
-              fontSize: 15,
-              lineHeight: 1,
-              boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
-              userSelect: "none",
+              position: "fixed",
+              left: menu.x,
+              top: menu.y,
+              zIndex: 201,
+              background: "#fff",
+              border: "1px solid #e0dbd3",
+              borderRadius: 8,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              overflow: "hidden",
+              minWidth: 140,
             }}
+            onPointerDown={(e) => e.stopPropagation()}
           >
-            ⧉
+            {onDuplicate && (
+              <button
+                style={{
+                  display: "block", width: "100%", padding: "10px 16px",
+                  background: "none", border: "none", textAlign: "left",
+                  fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
+                }}
+                onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+                onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                onClick={() => { setMenu(null); onDuplicate(); }}
+              >
+                Duplicate
+              </button>
+            )}
+            <button
+              style={{
+                display: "block", width: "100%", padding: "10px 16px",
+                background: "none", border: "none", textAlign: "left",
+                fontSize: 13, cursor: "pointer", color: "#c0392b", whiteSpace: "nowrap",
+              }}
+              onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fdf0ef"; }}
+              onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+              onClick={() => { setMenu(null); onDelete(); }}
+            >
+              Delete
+            </button>
           </div>
-        </div>
+        </>
       )}
     </>
   );
