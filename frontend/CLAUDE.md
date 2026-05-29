@@ -106,6 +106,8 @@ type NoteUndoEntry =
 
 `NoteEditor` passes `undoPending`/`redoPending` (single-stroke) and `undoBatchPending`/`redoBatchPending` (batch) props down to the matching `SectionCanvas`, which performs the actual API calls and reports results back via consumed callbacks. Batch operations are reported up via `onBatchOperation`.
 
+**Keyboard shortcuts**: `Ctrl+Z` triggers undo and `Ctrl+Shift+Z` triggers redo in both contexts. In `NotePage` a `keydown` listener on `document` calls `editorRef.current?.undo()/redo()`. In `ViewerShell` the same shortcuts are handled in the existing arrow-key `keydown` listener, calling `undoInline`/`redoInline`. Both handlers skip `INPUT`/`TEXTAREA`/`contentEditable` targets.
+
 ### DjVu global
 
 `DjVu.js` is not an ES module. `public/djvu.js` is a pre-built IIFE that sets `window.DjVu`. It is loaded via a plain `<script>` tag in `index.html` before the React bundle. Type declarations are in `src/types/djvu.d.ts`. Do not attempt to `import` it.

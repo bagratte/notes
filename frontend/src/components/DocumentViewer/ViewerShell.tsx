@@ -109,12 +109,15 @@ export default function ViewerShell({
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
-      if (e.key === "ArrowLeft") { e.preventDefault(); prevPage(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redoInline(); else undoInline();
+      } else if (e.key === "ArrowLeft") { e.preventDefault(); prevPage(); }
       else if (e.key === "ArrowRight") { e.preventDefault(); nextPage(); }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [prevPage, nextPage]);
+  }, [prevPage, nextPage, undoInline, redoInline]);
 
   const handleSyncClick = useCallback(() => {
     if (!syncAvailable || remotePage === null) return;
