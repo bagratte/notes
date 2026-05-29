@@ -48,6 +48,9 @@ interface Props {
   pastePending?: { strokes: ClipboardStroke[]; target?: { nx: number; ny: number }; useDuplicateShift?: boolean } | null;
   onPasteConsumed?: (created: Stroke[]) => void;
   onFocused?: () => void;
+  onSelectionActive?: () => void;
+  onSelectionCleared?: () => void;
+  clearSelectionPending?: boolean;
 }
 
 function toDisplay(s: Stroke): StrokeData {
@@ -77,6 +80,9 @@ export default function SectionCanvas({
   pastePending,
   onPasteConsumed,
   onFocused,
+  onSelectionActive,
+  onSelectionCleared,
+  clearSelectionPending,
 }: Props) {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,6 +112,21 @@ export default function SectionCanvas({
   useEffect(() => {
     if (mode !== "stroke-select") setSelection(null);
   }, [mode]);
+
+  // Notify parent when this section transitions into/out of a committed selection
+  const wasCommittedRef = useRef(false);
+  useEffect(() => {
+    const committed = selection !== null && selection.drawingAnchor === null;
+    if (committed === wasCommittedRef.current) return;
+    wasCommittedRef.current = committed;
+    if (committed) onSelectionActive?.();
+    else onSelectionCleared?.();
+  }, [selection, onSelectionActive, onSelectionCleared]);
+
+  // Clear our selection when another section has taken ownership
+  useEffect(() => {
+    if (clearSelectionPending) setSelection(null);
+  }, [clearSelectionPending]);
 
   const naturalWidth = regionDims ? regionDims.width : (containerRef.current?.clientWidth ?? 800);
   const naturalHeight = regionDims ? regionDims.height : height;

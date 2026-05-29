@@ -40,6 +40,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
   const pendingUndoBatchRef = useRef<NoteUndoEntry | null>(null);
   const pendingRedoBatchRef = useRef<NoteUndoEntry | null>(null);
   const [clipboard, setClipboard] = useState<{ strokes: ClipboardStroke[]; sourceSectionId: number } | null>(null);
+  const [selectionOwner, setSelectionOwner] = useState<number | null>(null);
   const [focusedSectionId, setFocusedSectionId] = useState<number | null>(null);
   const [pastePending, setPastePending] = useState<{ sectionId: number; strokes: ClipboardStroke[]; target?: { nx: number; ny: number }; useDuplicateShift?: boolean } | null>(null);
   const pendingPasteSectionIdRef = useRef<number | null>(null);
@@ -233,6 +234,9 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
           pastePending={pastePending?.sectionId === section.id ? { strokes: pastePending.strokes, target: pastePending.target, useDuplicateShift: pastePending.useDuplicateShift } : null}
           onPasteConsumed={handlePasteConsumed}
           onFocused={() => setFocusedSectionId(section.id)}
+          onSelectionActive={() => setSelectionOwner(section.id)}
+          onSelectionCleared={() => setSelectionOwner(prev => prev === section.id ? null : prev)}
+          clearSelectionPending={selectionOwner !== null && selectionOwner !== section.id}
         />
       ))}
 
