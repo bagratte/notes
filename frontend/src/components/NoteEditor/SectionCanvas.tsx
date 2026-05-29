@@ -242,17 +242,16 @@ export default function SectionCanvas({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const hasCommitted = selection !== null && selection.drawingAnchor === null && selection.selectedIds.size > 0;
       if ((e.ctrlKey || e.metaKey) && e.key === "c") {
-        const hasCommitted = selection !== null && selection.drawingAnchor === null && selection.selectedIds.size > 0;
-        if (hasCommitted) {
-          e.preventDefault();
-          handleCopy();
-        }
+        if (hasCommitted) { e.preventDefault(); handleCopy(); }
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        if (hasCommitted) { e.preventDefault(); void handleDelete(); }
       }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [selection, handleCopy]);
+  }, [selection, handleCopy, handleDelete]);
 
   const handleStrokeComplete = useCallback(
     async (stroke: StrokeData) => {

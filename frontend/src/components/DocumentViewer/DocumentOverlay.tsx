@@ -290,6 +290,16 @@ export default function DocumentOverlay({
     onBatchDelete?.(toDelete);
   }, [strokeSel, strokes, onBatchDelete]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const hasCommitted = strokeSel !== null && strokeSel.drawingAnchor === null && strokeSel.selectedIds.size > 0;
+      if (hasCommitted) { e.preventDefault(); handleStrokeSelDelete(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [strokeSel, handleStrokeSelDelete]);
+
   const {
     svgRef,
     liveCanvasRef,
