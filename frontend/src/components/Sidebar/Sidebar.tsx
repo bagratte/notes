@@ -250,7 +250,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
-      const name = file.name;
+      const name = window.prompt("Document name:", file.name) ?? file.name;
       const doc = await docsApi.upload(name.trim(), file, folderId);
       setData((d) => ({ ...d, documents: [...d.documents, doc] }));
       navigate(`/documents/${doc.id}`);
