@@ -496,6 +496,7 @@ export default function SectionCanvas({
       onPointerDownCapture={(e) => {
         onFocused?.();
         if (mode !== "stroke-select" || e.button !== 0 || (e.pointerType !== "touch" && e.pointerType !== "pen")) return;
+        if (hasCommittedSelection) return;
         const { clientX, clientY, pointerId } = e;
         longPressPosRef.current = { clientX, clientY, pointerId };
         longPressTimerRef.current = setTimeout(() => {
