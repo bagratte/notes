@@ -23,7 +23,12 @@ export function svgPathFromStroke(points: number[][]): string {
 // Flips the HSL lightness of a hex color (L → 100 - L), preserving hue and saturation.
 // Used for dark mode stroke rendering so stored colors remain unchanged.
 export function flipLightness(hex: string): string {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  let src = hex;
+  let alpha = "";
+  const m8 = /^#([0-9a-f]{6})([0-9a-f]{2})$/i.exec(hex);
+  if (m8) { src = "#" + m8[1]; alpha = m8[2]; }
+
+  const m = /^#([0-9a-f]{6})$/i.exec(src);
   if (!m) return hex;
 
   const r = parseInt(m[1].slice(0, 2), 16) / 255;
@@ -54,5 +59,5 @@ export function flipLightness(hex: string): string {
     return p;
   };
   const toHex = (x: number) => Math.round(x * 255).toString(16).padStart(2, "0");
-  return `#${toHex(hue2rgb(h + 1 / 3))}${toHex(hue2rgb(h))}${toHex(hue2rgb(h - 1 / 3))}`;
+  return `#${toHex(hue2rgb(h + 1 / 3))}${toHex(hue2rgb(h))}${toHex(hue2rgb(h - 1 / 3))}${alpha}`;
 }

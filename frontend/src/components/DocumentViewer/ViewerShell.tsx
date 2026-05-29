@@ -196,7 +196,7 @@ export default function ViewerShell({
           onChange={setPen}
           tool={toolMode}
           onToolChange={setToolMode}
-          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser", "stroke-select", "select-region", "text-select"]}
+          availableTools={["auto", "hand", "pen", "highlighter", "stroke-eraser", "segment-eraser", "stroke-select", "select-region", "text-select"]}
           activeOverride={hwOverride}
         />
 

@@ -127,11 +127,12 @@ export default function DrawingCanvas({
             if (cached && cached.points === s.points) {
               d = cached.d;
             } else {
+              const isHighlighter = s.color.length === 9;
               const outline = getStroke(s.points, {
-                thinning: ds.thinning,
+                thinning: isHighlighter ? 0 : ds.thinning,
                 smoothing: ds.smoothing,
                 streamline: ds.streamline,
-                simulatePressure: ds.simulatePressure,
+                simulatePressure: isHighlighter ? false : ds.simulatePressure,
                 size: s.width,
               });
               d = svgPathFromStroke(outline);
@@ -154,11 +155,12 @@ export default function DrawingCanvas({
           );
         })()}
         {erasePreview.size > 0 && [...erasePreview.values()].flat().map((frag, i) => {
+          const isHighlighter = frag.color.length === 9;
           const outline = getStroke(frag.points, {
-            thinning: ds.thinning,
+            thinning: isHighlighter ? 0 : ds.thinning,
             smoothing: ds.smoothing,
             streamline: ds.streamline,
-            simulatePressure: ds.simulatePressure,
+            simulatePressure: isHighlighter ? false : ds.simulatePressure,
             size: frag.width,
           });
           return <path key={`ef-${i}`} d={svgPathFromStroke(outline)} fill={isDark ? flipLightness(frag.color) : frag.color} />;

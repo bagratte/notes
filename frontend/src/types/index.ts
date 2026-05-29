@@ -1,4 +1,4 @@
-export type ToolMode = "auto" | "hand" | "pen" | "stroke-eraser" | "segment-eraser" | "select-region" | "text-select" | "stroke-select";
+export type ToolMode = "auto" | "hand" | "pen" | "highlighter" | "stroke-eraser" | "segment-eraser" | "select-region" | "text-select" | "stroke-select";
 
 export type DocUndoEntry =
   | { kind: "stroke";       stroke: Stroke }

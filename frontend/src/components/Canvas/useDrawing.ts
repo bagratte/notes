@@ -193,12 +193,14 @@ export function useDrawing({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (pts.length === 0) return;
+    const isHighlighter = effectiveModeRef.current === "highlighter";
+    const activeColor = isHighlighter ? colorRef.current + "80" : colorRef.current;
     const outline = getStroke(pts, {
-      thinning: thinningRef.current,
+      thinning: isHighlighter ? 0 : thinningRef.current,
       smoothing: smoothingRef.current,
       streamline: streamlineRef.current,
-      simulatePressure: simulatePressureRef.current,
-      size: penWidthRef.current,
+      simulatePressure: isHighlighter ? false : simulatePressureRef.current,
+      size: isHighlighter ? penWidthRef.current * 3 : penWidthRef.current,
     });
     if (outline.length < 2) return;
     const scaleX = vb && vb.width > 0 ? physW / vb.width : dpr;
@@ -213,7 +215,7 @@ export function useDrawing({
       ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
     }
     ctx.closePath();
-    ctx.fillStyle = isDarkRef.current ? flipLightness(colorRef.current) : colorRef.current;
+    ctx.fillStyle = isDarkRef.current ? flipLightness(activeColor) : activeColor;
     ctx.fill();
     ctx.restore();
   }, []);
@@ -314,7 +316,12 @@ export function useDrawing({
     }
     const pts = livePointsRef.current;
     if (pts.length > 0) {
-      onStrokeCompleteRef.current?.({ points: [...pts], color: colorRef.current, width: penWidthRef.current });
+      const isHighlighter = em === "highlighter";
+      onStrokeCompleteRef.current?.({
+        points: [...pts],
+        color: isHighlighter ? colorRef.current + "80" : colorRef.current,
+        width: isHighlighter ? penWidthRef.current * 3 : penWidthRef.current,
+      });
     }
     livePointsRef.current = [];
     clearLiveCanvas();
@@ -323,7 +330,7 @@ export function useDrawing({
   // Called by both handlePointerDown and transferPointerToSvg to start a drawing gesture.
   const beginDrawing = useCallback((e: React.PointerEvent, resolvedMode: ToolMode) => {
     effectiveModeRef.current = resolvedMode;
-    if (resolvedMode === "pen" || resolvedMode === "auto") {
+    if (resolvedMode === "pen" || resolvedMode === "auto" || resolvedMode === "highlighter") {
       const toSvgCoords = getSvgTransform();
       const pt = toSvgCoords(e.clientX, e.clientY, normalizePressure(e.pressure, e.pointerType, pressureMultiplierRef.current, pressureGammaRef.current));
       livePointsRef.current = [pt];
@@ -390,7 +397,7 @@ export function useDrawing({
     if (!drawing.current) return;
     e.preventDefault();
 
-    if (resolvedMode === "pen" || resolvedMode === "auto") {
+    if (resolvedMode === "pen" || resolvedMode === "auto" || resolvedMode === "highlighter") {
       const coalescedEvents = (e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? [e.nativeEvent as PointerEvent];
       const toSvgCoords = getSvgTransform();
       const pts = livePointsRef.current;

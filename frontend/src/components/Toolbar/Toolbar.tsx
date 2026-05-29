@@ -31,6 +31,7 @@ const TOOL_TITLES: Record<ToolMode, string> = {
   auto: "Auto — stylus draws, finger scrolls",
   hand: "Hand / Pan",
   pen: "Pen",
+  highlighter: "Highlighter",
   "stroke-eraser": "Stroke eraser",
   "segment-eraser": "Precision eraser",
   "select-region": "Select region",
@@ -38,7 +39,7 @@ const TOOL_TITLES: Record<ToolMode, string> = {
   "stroke-select": "Select strokes",
 };
 
-const OVERFLOW_TOOLS = new Set<ToolMode>(["hand", "pen", "segment-eraser", "stroke-select"]);
+const OVERFLOW_TOOLS = new Set<ToolMode>(["hand", "pen", "highlighter", "segment-eraser", "stroke-select"]);
 
 function useCompact(): boolean {
   const [compact, setCompact] = useState(
@@ -74,6 +75,15 @@ function PenIcon() {
     <>
       <path d="M10 2l2 2-7 7.5-2.5.5.5-2.5L10 2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill="none"/>
       <path d="M8.5 3.5l2 2" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+    </>
+  );
+}
+
+function HighlighterIcon() {
+  return (
+    <>
+      <rect x="3" y="3" width="8" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" fill="currentColor" fillOpacity="0.2"/>
+      <path d="M5 8h4l-1 3H6L5 8z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" fill="currentColor" fillOpacity="0.4"/>
     </>
   );
 }
@@ -135,6 +145,7 @@ const TOOL_ICONS: Record<ToolMode, () => ReactElement> = {
   auto: AutoIcon,
   hand: HandIcon,
   pen: PenIcon,
+  highlighter: HighlighterIcon,
   "stroke-eraser": StrokeEraserIcon,
   "segment-eraser": SegmentEraserIcon,
   "select-region": SelectRegionIcon,
@@ -162,7 +173,7 @@ export default function Toolbar({
   disableCompact = false,
 }: Props) {
   const compact = useCompact() && !disableCompact;
-  const showPenSettings = availableTools.includes("pen");
+  const showPenSettings = availableTools.includes("pen") || availableTools.includes("highlighter");
   const [moreOpen, setMoreOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [widthOpen, setWidthOpen] = useState(false);

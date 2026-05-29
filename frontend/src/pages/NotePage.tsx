@@ -93,7 +93,7 @@ export default function NotePage() {
           onChange={setPen}
           tool={tool}
           onToolChange={setTool}
-          availableTools={["auto", "hand", "pen", "stroke-eraser", "segment-eraser", "stroke-select"]}
+          availableTools={["auto", "hand", "pen", "highlighter", "stroke-eraser", "segment-eraser", "stroke-select"]}
           activeOverride={hwOverride}
           disableCompact
         />
