@@ -35,6 +35,10 @@ The frontend proxies `/api` → `http://localhost:8000` (Vite config). There is 
 
 The backend allows CORS only from `http://localhost:5173` — direct browser requests from any other origin will be blocked.
 
+## Development workflow
+
+Before committing, check whether any `CLAUDE.md` or `README` file needs updating to reflect the change — API routes, data model, architecture, commands, env vars, or any other documented behavior.
+
 ## Backend commands
 
 There is no test suite or linter configured.
@@ -135,6 +139,7 @@ The strokes router has two delete endpoints that are easy to confuse:
 | GET/PATCH/DELETE | `/notes/{id}` | PATCH updates `name` only |
 | POST | `/notes/{id}/merge` | body: `{ target_note_id }` — moves all sections, deletes source note |
 | GET/POST | `/documents/` | POST is multipart: optional `folder_id` + `name` + `file` |
+| POST | `/documents/from-url` | JSON body: `{ url, name, folder_id? }` — server fetches the URL and stores the file as a BLOB; detects type from URL extension, falls back to `Content-Type` |
 | GET/PATCH/DELETE | `/documents/{id}` | PATCH updates `name` and/or `last_page` (both optional); writing `last_page` auto-stamps `last_page_updated_at` |
 | GET | `/documents/{id}/file` | serves the raw file from disk |
 

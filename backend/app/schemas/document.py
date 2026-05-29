@@ -3,6 +3,12 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+class DocumentFromUrl(BaseModel):
+    url: str
+    name: str
+    folder_id: Optional[int] = None
+
+
 class DocumentUpdate(BaseModel):
     name: Optional[str] = None
     last_page: Optional[int] = None

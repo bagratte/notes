@@ -1,11 +1,13 @@
 import os
 from datetime import datetime, timezone
+from urllib.parse import urlparse
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Document
-from app.schemas import DocumentUpdate, DocumentOut, DocumentReorder
+from app.schemas import DocumentFromUrl, DocumentUpdate, DocumentOut, DocumentReorder
 
 MEDIA_TYPES = {
     "pdf": "application/pdf",
@@ -45,6 +47,43 @@ async def upload_document(
 
     content = await file.read()
     doc = Document(folder_id=folder_id, name=name, file_data=content, type=ext)
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+
+CONTENT_TYPE_EXT = {
+    "application/pdf": "pdf",
+    "image/vnd.djvu": "djvu",
+    "image/x-djvu": "djvu",
+}
+
+
+@router.post("/from-url", response_model=DocumentOut, status_code=201)
+async def upload_document_from_url(data: DocumentFromUrl, db: Session = Depends(get_db)):
+    # Derive extension from URL path first, then fall back to Content-Type
+    path = urlparse(data.url).path
+    ext = os.path.splitext(path)[-1].lower().lstrip(".")
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+            response = await client.get(data.url)
+            response.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(502, f"Remote server returned {e.response.status_code}")
+    except httpx.RequestError as e:
+        raise HTTPException(502, f"Failed to fetch URL: {e}")
+
+    if ext not in ("pdf", "djvu"):
+        ct = response.headers.get("content-type", "").split(";")[0].strip()
+        ext = CONTENT_TYPE_EXT.get(ct, "")
+
+    if ext not in ("pdf", "djvu"):
+        raise HTTPException(400, "URL does not point to a PDF or DjVu file")
+
+    content = response.content
+    doc = Document(folder_id=data.folder_id, name=data.name, file_data=content, type=ext)
     db.add(doc)
     db.commit()
     db.refresh(doc)

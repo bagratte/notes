@@ -30,6 +30,8 @@ export const documents = {
     form.append("file", file);
     return api.postForm<Document>("/documents/", form);
   },
+  uploadFromUrl: (name: string, url: string, folderId?: number) =>
+    api.post<Document>("/documents/from-url", { name, url, folder_id: folderId ?? null }),
   fileUrl: (id: number) => `/api/documents/${id}/file`,
   update: (id: number, name: string) => api.patch<Document>(`/documents/${id}`, { name }),
   updateLastPage: (id: number, lastPage: number) => api.patch<Document>(`/documents/${id}`, { last_page: lastPage }),

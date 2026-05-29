@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { folders as foldersApi, notes as notesApi, documents as docsApi } from "@/api";
 import type { Folder, Note, Document } from "@/types";
+import UploadDocumentModal from "@/components/UploadDocumentModal";
 
 function RenameIcon() {
   return (
@@ -116,6 +117,7 @@ export default function FolderPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [docs, setDocs] = useState<Document[]>([]);
   const [missing, setMissing] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   useEffect(() => {
     if (!folderId) return;
@@ -180,19 +182,6 @@ export default function FolderPage() {
     setSubfolders(subs);
   };
 
-  const uploadDocument = async () => {
-    const input = Object.assign(document.createElement("input"), { type: "file", accept: ".pdf,.djvu" });
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      const name = window.prompt("Document name:", file.name) ?? file.name;
-      const doc = await docsApi.upload(name.trim(), file, id);
-      window.dispatchEvent(new CustomEvent("sidebar:refresh"));
-      navigate(`/documents/${doc.id}`);
-    };
-    input.click();
-  };
-
   const isEmpty = subfolders.length === 0 && notes.length === 0 && docs.length === 0;
 
   return (
@@ -202,7 +191,7 @@ export default function FolderPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button onClick={createNote} style={styles.actionBtn}><NewNoteIcon /> New Note</button>
           <button onClick={createSubfolder} style={styles.actionBtn}><NewFolderIcon /> New Folder</button>
-          <button onClick={uploadDocument} style={styles.actionBtn}><UploadIcon /> Upload</button>
+          <button onClick={() => setShowUploadModal(true)} style={styles.actionBtn}><UploadIcon /> Upload</button>
           <button onClick={renameFolder} style={styles.actionBtn}><RenameIcon /> Rename</button>
           <button onClick={deleteFolder} style={styles.actionBtn}><DeleteIcon /> Delete</button>
         </div>
@@ -239,6 +228,18 @@ export default function FolderPage() {
           </>
         )}
       </div>
+      {showUploadModal && (
+        <UploadDocumentModal
+          folderId={id}
+          onClose={() => setShowUploadModal(false)}
+          onUploaded={(doc) => {
+            setDocs((d) => [...d, doc]);
+            window.dispatchEvent(new CustomEvent("sidebar:refresh"));
+            setShowUploadModal(false);
+            navigate(`/documents/${doc.id}`);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { folders as foldersApi, notes as notesApi, documents as docsApi, strokes
 import type { Folder, Note, Document } from "@/types";
 import type { TocEntry } from "@/components/DocumentViewer/viewerTypes";
 import MergeModal from "@/components/MergeModal";
+import UploadDocumentModal from "@/components/UploadDocumentModal";
 import { useTouchMode } from "@/context/TouchMode";
 import { useTheme } from "@/context/Theme";
 import css from "./Sidebar.module.css";
@@ -161,6 +162,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const [expandedTocPaths, setExpandedTocPaths] = useState<Set<string>>(new Set());
   const [expandedTocRoots, setExpandedTocRoots] = useState<Set<number>>(new Set());
   const [expandedNotesRoots, setExpandedNotesRoots] = useState<Set<number>>(new Set());
+  const [uploadModal, setUploadModal] = useState<{ folderId?: number } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -242,21 +244,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     navigate(`/notes/${note.id}`);
   };
 
-  const uploadDocument = async (folderId?: number) => {
-    const input = Object.assign(document.createElement("input"), {
-      type: "file",
-      accept: ".pdf,.djvu",
-    });
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      const name = window.prompt("Document name:", file.name) ?? file.name;
-      const doc = await docsApi.upload(name.trim(), file, folderId);
-      setData((d) => ({ ...d, documents: [...d.documents, doc] }));
-      navigate(`/documents/${doc.id}`);
-    };
-    input.click();
-  };
+  const uploadDocument = (folderId?: number) => setUploadModal({ folderId });
 
   // ── rename / delete ──────────────────────────────────────────────────────
 
@@ -671,6 +659,17 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
 
       {mergingNote && (
         <MergeModal sourceNoteId={mergingNote.id} onClose={() => setMergingNote(null)} />
+      )}
+      {uploadModal && (
+        <UploadDocumentModal
+          folderId={uploadModal.folderId}
+          onClose={() => setUploadModal(null)}
+          onUploaded={(doc) => {
+            setData((d) => ({ ...d, documents: [...d.documents, doc] }));
+            setUploadModal(null);
+            navigate(`/documents/${doc.id}`);
+          }}
+        />
       )}
     </nav>
   );

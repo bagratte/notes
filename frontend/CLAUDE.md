@@ -177,6 +177,10 @@ Ink strokes store colors in their original form. In dark mode, `flipLightness(he
 
 `MergeModal` (`src/components/MergeModal.tsx`) lets the user merge all sections of the current note into another note. It is opened from the note title bar. On confirm it calls the merge API, navigates to the target note, and fires `sidebar:refresh` so the sidebar removes the now-deleted source note.
 
+### UploadDocumentModal
+
+`UploadDocumentModal` (`src/components/UploadDocumentModal.tsx`) is the entry point for adding a document. It presents a URL input field and a "Browse file…" button. Entering a URL and confirming calls `POST /documents/from-url`; Browse opens the OS file picker and calls `POST /documents/` (multipart). In both paths the user is prompted for a name (via `window.prompt`) before the upload fires. The modal is used in both `Sidebar` and `FolderPage`, accepting `folderId?`, `onClose`, and `onUploaded` props.
+
 ### Cross-component events
 
 Two `window` custom events keep the sidebar and document viewers in sync without a shared store:
