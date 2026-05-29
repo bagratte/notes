@@ -21,6 +21,9 @@ interface Props {
   onMoveComplete: (dx: number, dy: number) => void;
   onDelete: () => void;
   onDuplicate?: () => void;
+  onCopy?: () => void;
+  onPasteRequest?: () => void;
+  hasClipboard?: boolean;
 }
 
 export default function StrokeSelectionOverlay({
@@ -33,6 +36,9 @@ export default function StrokeSelectionOverlay({
   onMoveComplete,
   onDelete,
   onDuplicate,
+  onCopy,
+  onPasteRequest,
+  hasClipboard,
 }: Props) {
   const [localRect, setLocalRect] = useState<NaturalRect>(rect);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -264,6 +270,34 @@ export default function StrokeSelectionOverlay({
                 onClick={() => { setMenu(null); onDuplicate(); }}
               >
                 Duplicate
+              </button>
+            )}
+            {onCopy && (
+              <button
+                style={{
+                  display: "block", width: "100%", padding: "10px 16px",
+                  background: "none", border: "none", textAlign: "left",
+                  fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
+                }}
+                onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+                onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                onClick={() => { setMenu(null); onCopy(); }}
+              >
+                Copy
+              </button>
+            )}
+            {onPasteRequest && hasClipboard && (
+              <button
+                style={{
+                  display: "block", width: "100%", padding: "10px 16px",
+                  background: "none", border: "none", textAlign: "left",
+                  fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
+                }}
+                onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+                onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                onClick={() => { setMenu(null); onPasteRequest(); }}
+              >
+                Paste
               </button>
             )}
             <button

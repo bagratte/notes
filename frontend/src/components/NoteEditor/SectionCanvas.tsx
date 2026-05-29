@@ -22,6 +22,8 @@ interface SelectionState {
   drawingCurrent: [number, number] | null;
 }
 
+type ClipboardStroke = { points: [number, number, number][]; color: string; width: number };
+
 interface Props {
   sectionId: number;
   initialHeight?: number;
@@ -39,6 +41,12 @@ interface Props {
   redoBatchPending?: NoteUndoEntry | null;
   onRedoBatchConsumed?: (newStrokes: Stroke[]) => void;
   onBatchOperation?: (entry: NoteUndoEntry) => void;
+  onCopy?: (strokes: Stroke[]) => void;
+  onPasteRequest?: () => void;
+  hasClipboard?: boolean;
+  pastePending?: ClipboardStroke[] | null;
+  onPasteConsumed?: (created: Stroke[]) => void;
+  onFocused?: () => void;
 }
 
 function toDisplay(s: Stroke): StrokeData {
@@ -62,6 +70,12 @@ export default function SectionCanvas({
   redoBatchPending,
   onRedoBatchConsumed,
   onBatchOperation,
+  onCopy,
+  onPasteRequest,
+  hasClipboard,
+  pastePending,
+  onPasteConsumed,
+  onFocused,
 }: Props) {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,6 +206,26 @@ export default function SectionCanvas({
     onBatchOperation?.({ kind: "batch-duplicate", sectionId, created });
   }, [selection, strokes, sectionId, onBatchOperation]);
 
+  const handleCopy = useCallback(() => {
+    if (!selection || selection.selectedIds.size === 0) return;
+    const toCopy = strokes.filter(s => selection.selectedIds.has(s.id));
+    onCopy?.(toCopy);
+  }, [selection, strokes, onCopy]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "c") {
+        const hasCommitted = selection !== null && selection.drawingAnchor === null && selection.selectedIds.size > 0;
+        if (hasCommitted) {
+          e.preventDefault();
+          handleCopy();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [selection, handleCopy]);
+
   const handleStrokeComplete = useCallback(
     async (stroke: StrokeData) => {
       const tempId = -Date.now();
@@ -308,6 +342,12 @@ export default function SectionCanvas({
       void Promise.all(entry.created.map(s => strokesApi.delete(s.id))).then(() => {
         onUndoBatchConsumed?.([]);
       });
+    } else if (entry.kind === "batch-paste") {
+      const ids = new Set(entry.created.map(s => s.id));
+      setStrokes(prev => prev.filter(s => !ids.has(s.id)));
+      void Promise.all(entry.created.map(s => strokesApi.delete(s.id))).then(() => {
+        onUndoBatchConsumed?.([]);
+      });
     }
   }, [undoBatchPending, sectionId, onUndoBatchConsumed]);
 
@@ -341,8 +381,44 @@ export default function SectionCanvas({
         setStrokes(prev => [...prev, ...saved]);
         onRedoBatchConsumed?.(saved);
       });
+    } else if (entry.kind === "batch-paste") {
+      void strokesApi.createBatch(entry.created.map(s => ({
+        section_id: sectionId, document_id: null, page_number: null,
+        points: s.points, color: s.color, width: s.width,
+      }))).then(saved => {
+        setStrokes(prev => [...prev, ...saved]);
+        onRedoBatchConsumed?.(saved);
+      });
     }
   }, [redoBatchPending, sectionId, onRedoBatchConsumed]);
+
+  // Paste: optimistically add strokes, activate selection so user can move immediately
+  useEffect(() => {
+    if (!pastePending || pastePending.length === 0) return;
+    const tempStrokes: Stroke[] = pastePending.map((s, i) => ({
+      id: -(Date.now() + i),
+      section_id: sectionId, document_id: null, page_number: null,
+      points: s.points, color: s.color, width: s.width,
+      created_at: new Date().toISOString(),
+    }));
+    const allPts = pastePending.flatMap(s => s.points);
+    const minX = Math.min(...allPts.map(([x]) => x));
+    const maxX = Math.max(...allPts.map(([x]) => x));
+    const minY = Math.min(...allPts.map(([, y]) => y));
+    const maxY = Math.max(...allPts.map(([, y]) => y));
+    const rect: NaturalRect = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    setStrokes(prev => [...prev, ...tempStrokes]);
+    setSelection({ rect, selectedIds: new Set(tempStrokes.map(s => s.id)), dragOffset: null, drawingAnchor: null, drawingCurrent: null });
+    void strokesApi.createBatch(pastePending.map(s => ({
+      section_id: sectionId, document_id: null, page_number: null,
+      points: s.points, color: s.color, width: s.width,
+    }))).then(created => {
+      const tempIds = new Set(tempStrokes.map(s => s.id));
+      setStrokes(prev => [...prev.filter(s => !tempIds.has(s.id)), ...created]);
+      setSelection(prev => prev ? { ...prev, selectedIds: new Set(created.map(s => s.id)) } : null);
+      onPasteConsumed?.(created);
+    });
+  }, [pastePending, sectionId, onPasteConsumed]);
 
   const onResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -382,6 +458,7 @@ export default function SectionCanvas({
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onPointerDownCapture={() => onFocused?.()}
     >
       <RegionPreview
         sectionId={sectionId}
@@ -419,6 +496,9 @@ export default function SectionCanvas({
               onMoveComplete={handleMoveComplete}
               onDelete={handleDelete}
               onDuplicate={handleDuplicate}
+              onCopy={handleCopy}
+              onPasteRequest={onPasteRequest}
+              hasClipboard={hasClipboard}
             />
           )}
         </>
@@ -458,6 +538,9 @@ export default function SectionCanvas({
                   onMoveComplete={handleMoveComplete}
                   onDelete={handleDelete}
                   onDuplicate={handleDuplicate}
+                  onCopy={handleCopy}
+                  onPasteRequest={onPasteRequest}
+                  hasClipboard={hasClipboard}
                 />
               )}
             </div>
@@ -477,6 +560,27 @@ export default function SectionCanvas({
             <div style={{ width: 40, height: 4, borderRadius: 2, background: "var(--resize-handle)" }} />
           </div>
         </>
+      )}
+      {hasClipboard && mode === "stroke-select" && (
+        <button
+          onClick={() => onPasteRequest?.()}
+          title="Paste strokes"
+          style={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            padding: "4px 10px",
+            borderRadius: 4,
+            border: "1px solid var(--border)",
+            background: "var(--bg-card)",
+            cursor: "pointer",
+            fontSize: 12,
+            color: "var(--text-muted)",
+            zIndex: 10,
+          }}
+        >
+          Paste
+        </button>
       )}
       <button
         onClick={onDelete}

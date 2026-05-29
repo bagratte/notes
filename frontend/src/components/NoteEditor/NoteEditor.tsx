@@ -17,6 +17,8 @@ interface Props {
   onUndoRedoChange: (canUndo: boolean, canRedo: boolean) => void;
 }
 
+type ClipboardStroke = { points: [number, number, number][]; color: string; width: number };
+
 function isSingleEntry(e: NoteUndoEntry): e is { sectionId: number; stroke: Stroke } {
   return !("kind" in e);
 }
@@ -37,6 +39,10 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
   const pendingRedoSectionIdRef = useRef<number | null>(null);
   const pendingUndoBatchRef = useRef<NoteUndoEntry | null>(null);
   const pendingRedoBatchRef = useRef<NoteUndoEntry | null>(null);
+  const [clipboard, setClipboard] = useState<ClipboardStroke[] | null>(null);
+  const [focusedSectionId, setFocusedSectionId] = useState<number | null>(null);
+  const [pastePending, setPastePending] = useState<{ sectionId: number; strokes: ClipboardStroke[] } | null>(null);
+  const pendingPasteSectionIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     sectionsApi.list(noteId).then(setSectionList);
@@ -54,6 +60,26 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
   const handleBatchOperation = useCallback((entry: NoteUndoEntry) => {
     setUndoStack((prev) => [...prev, entry]);
     setRedoStack([]);
+  }, []);
+
+  const handleCopy = useCallback((strokes: Stroke[]) => {
+    setClipboard(strokes.map(s => ({ points: s.points, color: s.color, width: s.width })));
+  }, []);
+
+  const handlePasteRequest = useCallback((sectionId: number) => {
+    if (!clipboard || clipboard.length === 0) return;
+    pendingPasteSectionIdRef.current = sectionId;
+    setPastePending({ sectionId, strokes: clipboard });
+  }, [clipboard]);
+
+  const handlePasteConsumed = useCallback((created: Stroke[]) => {
+    const sectionId = pendingPasteSectionIdRef.current;
+    pendingPasteSectionIdRef.current = null;
+    setPastePending(null);
+    if (sectionId != null) {
+      setUndoStack(prev => [...prev, { kind: "batch-paste", sectionId, created }]);
+      setRedoStack([]);
+    }
   }, []);
 
   const handleUndo = useCallback(() => {
@@ -87,6 +113,8 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
       setRedoStack((prev) => [...prev, { kind: "batch-move", sectionId: entry.sectionId, deleted: newStrokes, created: entry.created }]);
     } else if (entry.kind === "batch-duplicate") {
       setRedoStack((prev) => [...prev, { kind: "batch-duplicate", sectionId: entry.sectionId, created: entry.created }]);
+    } else if (entry.kind === "batch-paste") {
+      setRedoStack((prev) => [...prev, { kind: "batch-paste", sectionId: entry.sectionId, created: entry.created }]);
     }
   }, []);
 
@@ -121,6 +149,8 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
       setUndoStack((prev) => [...prev, { kind: "batch-move", sectionId: entry.sectionId, deleted: entry.deleted, created: newStrokes }]);
     } else if (entry.kind === "batch-duplicate") {
       setUndoStack((prev) => [...prev, { kind: "batch-duplicate", sectionId: entry.sectionId, created: newStrokes }]);
+    } else if (entry.kind === "batch-paste") {
+      setUndoStack((prev) => [...prev, { kind: "batch-paste", sectionId: entry.sectionId, created: newStrokes }]);
     }
   }, []);
 
@@ -128,6 +158,17 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
     undo: handleUndo,
     redo: handleRedo,
   }), [handleUndo, handleRedo]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "v" && focusedSectionId != null) {
+        e.preventDefault();
+        handlePasteRequest(focusedSectionId);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [focusedSectionId, handlePasteRequest]);
 
   const addSection = async () => {
     setAdding(true);
@@ -182,6 +223,12 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
           redoBatchPending={redoBatchPending && "kind" in redoBatchPending && redoBatchPending.sectionId === section.id ? redoBatchPending : null}
           onRedoBatchConsumed={handleRedoBatchConsumed}
           onBatchOperation={handleBatchOperation}
+          onCopy={handleCopy}
+          onPasteRequest={() => handlePasteRequest(section.id)}
+          hasClipboard={clipboard !== null && clipboard.length > 0}
+          pastePending={pastePending?.sectionId === section.id ? pastePending.strokes : null}
+          onPasteConsumed={handlePasteConsumed}
+          onFocused={() => setFocusedSectionId(section.id)}
         />
       ))}
 
