@@ -231,7 +231,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
           onCopy={(sourceSectionId, strokes) => handleCopy(sourceSectionId, strokes)}
           onPasteRequest={(target) => handlePasteRequest(section.id, target)}
           hasClipboard={clipboard !== null && clipboard.strokes.length > 0}
-          pastePending={pastePending?.sectionId === section.id ? { strokes: pastePending.strokes, target: pastePending.target, useDuplicateShift: pastePending.useDuplicateShift } : null}
+          pastePending={pastePending?.sectionId === section.id ? pastePending : null}
           onPasteConsumed={handlePasteConsumed}
           onFocused={() => setFocusedSectionId(section.id)}
           onSelectionActive={() => setSelectionOwner(section.id)}
