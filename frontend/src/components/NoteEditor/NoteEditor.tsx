@@ -85,6 +85,8 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
       setRedoStack((prev) => [...prev, { kind: "batch-delete", sectionId: entry.sectionId, strokes: newStrokes }]);
     } else if (entry.kind === "batch-move") {
       setRedoStack((prev) => [...prev, { kind: "batch-move", sectionId: entry.sectionId, deleted: newStrokes, created: entry.created }]);
+    } else if (entry.kind === "batch-duplicate") {
+      setRedoStack((prev) => [...prev, { kind: "batch-duplicate", sectionId: entry.sectionId, created: entry.created }]);
     }
   }, []);
 
@@ -117,6 +119,8 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
       setUndoStack((prev) => [...prev, { kind: "batch-delete", sectionId: entry.sectionId, strokes: entry.strokes }]);
     } else if (entry.kind === "batch-move") {
       setUndoStack((prev) => [...prev, { kind: "batch-move", sectionId: entry.sectionId, deleted: entry.deleted, created: newStrokes }]);
+    } else if (entry.kind === "batch-duplicate") {
+      setUndoStack((prev) => [...prev, { kind: "batch-duplicate", sectionId: entry.sectionId, created: newStrokes }]);
     }
   }, []);
 

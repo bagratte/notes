@@ -168,6 +168,30 @@ export default function SectionCanvas({
     onBatchOperation?.({ kind: "batch-delete", sectionId, strokes: toDelete });
   }, [selection, strokes, sectionId, onBatchOperation]);
 
+  const DUPLICATE_SHIFT = 20;
+
+  const handleDuplicate = useCallback(async () => {
+    if (!selection || selection.selectedIds.size === 0) return;
+    const toDup = strokes.filter(s => selection.selectedIds.has(s.id));
+    if (toDup.length === 0) return;
+    const shifted = toDup.map(s => offsetStroke(s, DUPLICATE_SHIFT, DUPLICATE_SHIFT));
+    const tempStrokes: typeof strokes = shifted.map((s, i) => ({ ...s, id: -(Date.now() + i) }));
+    setStrokes(prev => [...prev, ...tempStrokes]);
+    setSelection(prev => prev ? {
+      ...prev,
+      rect: { ...prev.rect, x: prev.rect.x + DUPLICATE_SHIFT, y: prev.rect.y + DUPLICATE_SHIFT },
+      selectedIds: new Set(tempStrokes.map(s => s.id)),
+    } : null);
+    const created = await strokesApi.createBatch(shifted.map(s => ({
+      section_id: sectionId, document_id: null, page_number: null,
+      points: s.points, color: s.color, width: s.width,
+    })));
+    const tempIds = new Set(tempStrokes.map(s => s.id));
+    setStrokes(prev => [...prev.filter(s => !tempIds.has(s.id)), ...created]);
+    setSelection(prev => prev ? { ...prev, selectedIds: new Set(created.map(s => s.id)) } : null);
+    onBatchOperation?.({ kind: "batch-duplicate", sectionId, created });
+  }, [selection, strokes, sectionId, onBatchOperation]);
+
   const handleStrokeComplete = useCallback(
     async (stroke: StrokeData) => {
       const tempId = -Date.now();
@@ -278,6 +302,12 @@ export default function SectionCanvas({
         });
         onUndoBatchConsumed?.(saved);
       });
+    } else if (entry.kind === "batch-duplicate") {
+      const ids = new Set(entry.created.map(s => s.id));
+      setStrokes(prev => prev.filter(s => !ids.has(s.id)));
+      void Promise.all(entry.created.map(s => strokesApi.delete(s.id))).then(() => {
+        onUndoBatchConsumed?.([]);
+      });
     }
   }, [undoBatchPending, sectionId, onUndoBatchConsumed]);
 
@@ -301,6 +331,14 @@ export default function SectionCanvas({
           const ids = new Set(entry.deleted.map(s => s.id));
           return [...prev.filter(s => !ids.has(s.id)), ...saved];
         });
+        onRedoBatchConsumed?.(saved);
+      });
+    } else if (entry.kind === "batch-duplicate") {
+      void strokesApi.createBatch(entry.created.map(s => ({
+        section_id: sectionId, document_id: null, page_number: null,
+        points: s.points, color: s.color, width: s.width,
+      }))).then(saved => {
+        setStrokes(prev => [...prev, ...saved]);
         onRedoBatchConsumed?.(saved);
       });
     }
@@ -380,6 +418,7 @@ export default function SectionCanvas({
               onMoveChange={handleMoveChange}
               onMoveComplete={handleMoveComplete}
               onDelete={handleDelete}
+              onDuplicate={handleDuplicate}
             />
           )}
         </>
@@ -418,6 +457,7 @@ export default function SectionCanvas({
                   onMoveChange={handleMoveChange}
                   onMoveComplete={handleMoveComplete}
                   onDelete={handleDelete}
+                  onDuplicate={handleDuplicate}
                 />
               )}
             </div>

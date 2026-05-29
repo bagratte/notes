@@ -7,8 +7,9 @@ export type DocUndoEntry =
 
 export type NoteUndoEntry =
   | { sectionId: number; stroke: Stroke }
-  | { kind: "batch-delete"; sectionId: number; strokes: Stroke[] }
-  | { kind: "batch-move";   sectionId: number; deleted: Stroke[]; created: Stroke[] };
+  | { kind: "batch-delete";    sectionId: number; strokes: Stroke[] }
+  | { kind: "batch-move";      sectionId: number; deleted: Stroke[]; created: Stroke[] }
+  | { kind: "batch-duplicate"; sectionId: number; created: Stroke[] };
 
 export interface Folder {
   id: number;

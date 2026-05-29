@@ -18,6 +18,7 @@ interface Props {
   onMoveChange?: (dx: number, dy: number) => void;
   onMoveComplete: (dx: number, dy: number) => void;
   onDelete: () => void;
+  onDuplicate?: () => void;
 }
 
 export default function StrokeSelectionOverlay({
@@ -29,6 +30,7 @@ export default function StrokeSelectionOverlay({
   onMoveChange,
   onMoveComplete,
   onDelete,
+  onDuplicate,
 }: Props) {
   const [localRect, setLocalRect] = useState<NaturalRect>(rect);
   const activeGestureRef = useRef<"resize" | "move" | null>(null);
@@ -194,6 +196,49 @@ export default function StrokeSelectionOverlay({
           ×
         </div>
       </div>
+
+      {/* Duplicate button — below the delete button */}
+      {onDuplicate && (
+        <div
+          style={{
+            position: "absolute",
+            left: `calc(${leftPct + widthPct}% + 8px)`,
+            top: `calc(${topPct}% + 22px)`,
+            width: 44,
+            height: 44,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            touchAction: "none",
+            zIndex: 11,
+          }}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDuplicate();
+          }}
+        >
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              background: "#2980b9",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "white",
+              fontSize: 15,
+              lineHeight: 1,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+              userSelect: "none",
+            }}
+          >
+            ⧉
+          </div>
+        </div>
+      )}
     </>
   );
 }
