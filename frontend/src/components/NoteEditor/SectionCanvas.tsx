@@ -70,6 +70,7 @@ export default function SectionCanvas({
   const [height, setHeight] = useState(initialHeight);
   const [selection, setSelection] = useState<SelectionState | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     strokesApi.listForSection(sectionId).then((data) => {
@@ -388,7 +389,7 @@ export default function SectionCanvas({
           {loading ? (
             <div style={{ height }} />
           ) : (
-            <>
+            <div ref={canvasWrapperRef} style={{ position: "relative" }}>
               <DrawingCanvas
                 strokes={strokes.map(toDisplay)}
                 onStrokeComplete={handleStrokeComplete}
@@ -412,14 +413,14 @@ export default function SectionCanvas({
                   rect={selection!.rect}
                   naturalWidth={naturalWidth}
                   naturalHeight={naturalHeight}
-                  containerRef={containerRef as React.RefObject<HTMLElement>}
+                  containerRef={canvasWrapperRef as React.RefObject<HTMLElement>}
                   onRectChange={handleRectChange}
                   onMoveChange={handleMoveChange}
                   onMoveComplete={handleMoveComplete}
                   onDelete={handleDelete}
                 />
               )}
-            </>
+            </div>
           )}
           <div
             onPointerDown={onResizeStart}
