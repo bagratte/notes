@@ -39,9 +39,9 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
   const pendingRedoSectionIdRef = useRef<number | null>(null);
   const pendingUndoBatchRef = useRef<NoteUndoEntry | null>(null);
   const pendingRedoBatchRef = useRef<NoteUndoEntry | null>(null);
-  const [clipboard, setClipboard] = useState<ClipboardStroke[] | null>(null);
+  const [clipboard, setClipboard] = useState<{ strokes: ClipboardStroke[]; sourceSectionId: number } | null>(null);
   const [focusedSectionId, setFocusedSectionId] = useState<number | null>(null);
-  const [pastePending, setPastePending] = useState<{ sectionId: number; strokes: ClipboardStroke[] } | null>(null);
+  const [pastePending, setPastePending] = useState<{ sectionId: number; strokes: ClipboardStroke[]; target?: { nx: number; ny: number }; useDuplicateShift?: boolean } | null>(null);
   const pendingPasteSectionIdRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -62,14 +62,14 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
     setRedoStack([]);
   }, []);
 
-  const handleCopy = useCallback((strokes: Stroke[]) => {
-    setClipboard(strokes.map(s => ({ points: s.points, color: s.color, width: s.width })));
+  const handleCopy = useCallback((sourceSectionId: number, strokes: Stroke[]) => {
+    setClipboard({ strokes: strokes.map(s => ({ points: s.points, color: s.color, width: s.width })), sourceSectionId });
   }, []);
 
-  const handlePasteRequest = useCallback((sectionId: number) => {
-    if (!clipboard || clipboard.length === 0) return;
+  const handlePasteRequest = useCallback((sectionId: number, target?: { nx: number; ny: number }, useDuplicateShift?: boolean) => {
+    if (!clipboard || clipboard.strokes.length === 0) return;
     pendingPasteSectionIdRef.current = sectionId;
-    setPastePending({ sectionId, strokes: clipboard });
+    setPastePending({ sectionId, strokes: clipboard.strokes, target, useDuplicateShift });
   }, [clipboard]);
 
   const handlePasteConsumed = useCallback((created: Stroke[]) => {
@@ -163,7 +163,11 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "v" && focusedSectionId != null) {
         e.preventDefault();
-        handlePasteRequest(focusedSectionId);
+        if (clipboard?.sourceSectionId === focusedSectionId) {
+          handlePasteRequest(focusedSectionId, undefined, true);
+        } else {
+          handlePasteRequest(focusedSectionId, { nx: 0, ny: 0 });
+        }
       }
     };
     document.addEventListener("keydown", onKeyDown);
@@ -223,10 +227,10 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
           redoBatchPending={redoBatchPending && "kind" in redoBatchPending && redoBatchPending.sectionId === section.id ? redoBatchPending : null}
           onRedoBatchConsumed={handleRedoBatchConsumed}
           onBatchOperation={handleBatchOperation}
-          onCopy={handleCopy}
-          onPasteRequest={() => handlePasteRequest(section.id)}
-          hasClipboard={clipboard !== null && clipboard.length > 0}
-          pastePending={pastePending?.sectionId === section.id ? pastePending.strokes : null}
+          onCopy={(sourceSectionId, strokes) => handleCopy(sourceSectionId, strokes)}
+          onPasteRequest={(target) => handlePasteRequest(section.id, target)}
+          hasClipboard={clipboard !== null && clipboard.strokes.length > 0}
+          pastePending={pastePending?.sectionId === section.id ? { strokes: pastePending.strokes, target: pastePending.target, useDuplicateShift: pastePending.useDuplicateShift } : null}
           onPasteConsumed={handlePasteConsumed}
           onFocused={() => setFocusedSectionId(section.id)}
         />

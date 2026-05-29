@@ -13,6 +13,7 @@ import RegionPreview from "./RegionPreview";
 const MIN_H = 80;
 const MAX_H = 3000;
 const MIN_SEL_W = 4;
+const DUPLICATE_SHIFT = 20;
 
 interface SelectionState {
   rect: NaturalRect;
@@ -41,10 +42,10 @@ interface Props {
   redoBatchPending?: NoteUndoEntry | null;
   onRedoBatchConsumed?: (newStrokes: Stroke[]) => void;
   onBatchOperation?: (entry: NoteUndoEntry) => void;
-  onCopy?: (strokes: Stroke[]) => void;
-  onPasteRequest?: () => void;
+  onCopy?: (sectionId: number, strokes: Stroke[]) => void;
+  onPasteRequest?: (target?: { nx: number; ny: number }) => void;
   hasClipboard?: boolean;
-  pastePending?: ClipboardStroke[] | null;
+  pastePending?: { strokes: ClipboardStroke[]; target?: { nx: number; ny: number }; useDuplicateShift?: boolean } | null;
   onPasteConsumed?: (created: Stroke[]) => void;
   onFocused?: () => void;
 }
@@ -83,8 +84,16 @@ export default function SectionCanvas({
   const [regionDims, setRegionDims] = useState<{ width: number; height: number } | false | null>(null);
   const [height, setHeight] = useState(initialHeight);
   const [selection, setSelection] = useState<SelectionState | null>(null);
+  const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressPosRef = useRef<{ clientX: number; clientY: number; pointerId: number } | null>(null);
+
+  function clearLongPress() {
+    if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
+    longPressPosRef.current = null;
+  }
 
   useEffect(() => {
     strokesApi.listForSection(sectionId).then((data) => {
@@ -182,8 +191,6 @@ export default function SectionCanvas({
     onBatchOperation?.({ kind: "batch-delete", sectionId, strokes: toDelete });
   }, [selection, strokes, sectionId, onBatchOperation]);
 
-  const DUPLICATE_SHIFT = 20;
-
   const handleDuplicate = useCallback(async () => {
     if (!selection || selection.selectedIds.size === 0) return;
     const toDup = strokes.filter(s => selection.selectedIds.has(s.id));
@@ -209,8 +216,8 @@ export default function SectionCanvas({
   const handleCopy = useCallback(() => {
     if (!selection || selection.selectedIds.size === 0) return;
     const toCopy = strokes.filter(s => selection.selectedIds.has(s.id));
-    onCopy?.(toCopy);
-  }, [selection, strokes, onCopy]);
+    onCopy?.(sectionId, toCopy);
+  }, [selection, strokes, sectionId, onCopy]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -394,22 +401,29 @@ export default function SectionCanvas({
 
   // Paste: optimistically add strokes, activate selection so user can move immediately
   useEffect(() => {
-    if (!pastePending || pastePending.length === 0) return;
-    const tempStrokes: Stroke[] = pastePending.map((s, i) => ({
+    if (!pastePending || pastePending.strokes.length === 0) return;
+    const { strokes: clipStrokes, target } = pastePending;
+    const allPts = clipStrokes.flatMap(s => s.points);
+    const minX = Math.min(...allPts.map(([x]) => x));
+    const maxX = Math.max(...allPts.map(([x]) => x));
+    const minY = Math.min(...allPts.map(([, y]) => y));
+    const maxY = Math.max(...allPts.map(([, y]) => y));
+    const dx = pastePending.useDuplicateShift ? DUPLICATE_SHIFT : (target ? target.nx - minX : 0);
+    const dy = pastePending.useDuplicateShift ? DUPLICATE_SHIFT : (target ? target.ny - minY : 0);
+    const shiftedStrokes = clipStrokes.map(s => ({
+      ...s,
+      points: s.points.map(([x, y, p]) => [x + dx, y + dy, p] as [number, number, number]),
+    }));
+    const tempStrokes: Stroke[] = shiftedStrokes.map((s, i) => ({
       id: -(Date.now() + i),
       section_id: sectionId, document_id: null, page_number: null,
       points: s.points, color: s.color, width: s.width,
       created_at: new Date().toISOString(),
     }));
-    const allPts = pastePending.flatMap(s => s.points);
-    const minX = Math.min(...allPts.map(([x]) => x));
-    const maxX = Math.max(...allPts.map(([x]) => x));
-    const minY = Math.min(...allPts.map(([, y]) => y));
-    const maxY = Math.max(...allPts.map(([, y]) => y));
-    const rect: NaturalRect = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    const rect: NaturalRect = { x: minX + dx, y: minY + dy, width: maxX - minX, height: maxY - minY };
     setStrokes(prev => [...prev, ...tempStrokes]);
     setSelection({ rect, selectedIds: new Set(tempStrokes.map(s => s.id)), dragOffset: null, drawingAnchor: null, drawingCurrent: null });
-    void strokesApi.createBatch(pastePending.map(s => ({
+    void strokesApi.createBatch(shiftedStrokes.map(s => ({
       section_id: sectionId, document_id: null, page_number: null,
       points: s.points, color: s.color, width: s.width,
     }))).then(created => {
@@ -458,7 +472,26 @@ export default function SectionCanvas({
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onPointerDownCapture={() => onFocused?.()}
+      onContextMenu={mode === "stroke-select" ? (e) => { e.preventDefault(); setCanvasMenu({ x: e.clientX, y: e.clientY }); } : undefined}
+      onPointerDownCapture={(e) => {
+        onFocused?.();
+        if (mode !== "stroke-select" || e.button !== 0 || (e.pointerType !== "touch" && e.pointerType !== "pen")) return;
+        const { clientX, clientY, pointerId } = e;
+        longPressPosRef.current = { clientX, clientY, pointerId };
+        longPressTimerRef.current = setTimeout(() => {
+          const pos = longPressPosRef.current;
+          longPressTimerRef.current = null;
+          longPressPosRef.current = null;
+          if (pos) { handleStrokeSelectEnd(); setCanvasMenu({ x: pos.clientX, y: pos.clientY }); }
+        }, 450);
+      }}
+      onPointerMoveCapture={(e) => {
+        const pos = longPressPosRef.current;
+        if (!pos || e.pointerId !== pos.pointerId) return;
+        if ((e.clientX - pos.clientX) ** 2 + (e.clientY - pos.clientY) ** 2 > 64) clearLongPress();
+      }}
+      onPointerUpCapture={(e) => { if (longPressPosRef.current?.pointerId === e.pointerId) clearLongPress(); }}
+      onPointerCancelCapture={(e) => { if (longPressPosRef.current?.pointerId === e.pointerId) clearLongPress(); }}
     >
       <RegionPreview
         sectionId={sectionId}
@@ -561,26 +594,59 @@ export default function SectionCanvas({
           </div>
         </>
       )}
-      {hasClipboard && mode === "stroke-select" && (
-        <button
-          onClick={() => onPasteRequest?.()}
-          title="Paste strokes"
-          style={{
-            position: "absolute",
-            top: 8,
-            left: 8,
-            padding: "4px 10px",
-            borderRadius: 4,
-            border: "1px solid var(--border)",
-            background: "var(--bg-card)",
-            cursor: "pointer",
-            fontSize: 12,
-            color: "var(--text-muted)",
-            zIndex: 10,
-          }}
-        >
-          Paste
-        </button>
+
+      {canvasMenu && (
+        <>
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 200 }}
+            onPointerDown={() => setCanvasMenu(null)}
+          />
+          <div
+            style={{
+              position: "fixed",
+              left: canvasMenu.x,
+              top: canvasMenu.y,
+              zIndex: 201,
+              background: "#fff",
+              border: "1px solid #e0dbd3",
+              borderRadius: 8,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              overflow: "hidden",
+              minWidth: 140,
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <button
+              disabled={!hasClipboard}
+              style={{
+                display: "block", width: "100%", padding: "10px 16px",
+                background: "none", border: "none", textAlign: "left",
+                fontSize: 13, cursor: hasClipboard ? "pointer" : "default",
+                color: hasClipboard ? "#2a2a2a" : "#aaa", whiteSpace: "nowrap",
+              }}
+              onPointerEnter={(e) => { if (hasClipboard) (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+              onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+              onClick={() => {
+                if (!hasClipboard || !canvasMenu) return;
+                const el = (regionDims !== null && regionDims !== false) ? containerRef.current : canvasWrapperRef.current;
+                let target: { nx: number; ny: number } | undefined;
+                if (el) {
+                  const bounds = el.getBoundingClientRect();
+                  const nw = (regionDims !== null && regionDims !== false) ? regionDims.width : naturalWidth;
+                  const nh = (regionDims !== null && regionDims !== false) ? regionDims.height : naturalHeight;
+                  target = {
+                    nx: (canvasMenu.x - bounds.left) * (nw / bounds.width),
+                    ny: (canvasMenu.y - bounds.top) * (nh / bounds.height),
+                  };
+                }
+                setCanvasMenu(null);
+                onPasteRequest?.(target);
+              }}
+            >
+              Paste
+            </button>
+          </div>
+        </>
       )}
       <button
         onClick={onDelete}

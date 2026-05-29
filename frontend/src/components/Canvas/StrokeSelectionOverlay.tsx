@@ -164,6 +164,7 @@ export default function StrokeSelectionOverlay({
         }}
         onContextMenu={(e) => {
           e.preventDefault();
+          e.stopPropagation();
           setMenu({ x: e.clientX, y: e.clientY });
         }}
       >
