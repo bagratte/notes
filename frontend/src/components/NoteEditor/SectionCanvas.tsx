@@ -9,6 +9,7 @@ import type { ToolMode } from "@/types";
 import { normaliseRect, hitTestStrokes, offsetStroke } from "@/components/Canvas/strokeSelectUtils";
 import type { NaturalRect } from "@/components/Canvas/strokeSelectUtils";
 import RegionPreview from "./RegionPreview";
+import styles from "./SectionCanvas.module.css";
 
 const MIN_H = 80;
 const MAX_H = 3000;
@@ -87,6 +88,7 @@ export default function SectionCanvas({
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [loading, setLoading] = useState(true);
   const [hovered, setHovered] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [regionDims, setRegionDims] = useState<{ width: number; height: number } | false | null>(null);
   const [height, setHeight] = useState(initialHeight);
   const [selection, setSelection] = useState<SelectionState | null>(null);
@@ -489,6 +491,7 @@ export default function SectionCanvas({
         boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
         marginBottom: 2,
         outline: "none",
+        minHeight: collapsed ? 40 : undefined,
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -514,55 +517,34 @@ export default function SectionCanvas({
       onPointerUpCapture={(e) => { if (longPressPosRef.current?.pointerId === e.pointerId) clearLongPress(); }}
       onPointerCancelCapture={(e) => { if (longPressPosRef.current?.pointerId === e.pointerId) clearLongPress(); }}
     >
-      <RegionPreview
-        sectionId={sectionId}
-        onRegionLoaded={(dims) => setRegionDims(dims ?? false)}
-      />
-      {regionDims !== null && regionDims !== false && !loading && (
+      <button
+        className={styles.collapseBtn}
+        onClick={() => setCollapsed((c) => !c)}
+        title={collapsed ? "Expand section" : "Collapse section"}
+        style={{ opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none" }}
+      >
+        {collapsed ? "▼" : "▲"}
+      </button>
+      <button
+        className={styles.deleteBtn}
+        onClick={onDelete}
+        title="Delete section"
+        style={{ opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none" }}
+      >
+        ×
+      </button>
+
+      <div style={{ display: collapsed ? "none" : undefined }}>
+        <RegionPreview
+          sectionId={sectionId}
+          onRegionLoaded={(dims) => setRegionDims(dims ?? false)}
+        />
+      </div>
+
+      {!collapsed && (
         <>
-          <DrawingCanvas
-            strokes={strokes.map(toDisplay)}
-            onStrokeComplete={handleStrokeComplete}
-            onEraseStroke={handleEraseStroke}
-            onSegmentErase={handleSegmentErase}
-            onStrokeSelectStart={handleStrokeSelectStart}
-            onStrokeSelectMove={handleStrokeSelectMove}
-            onStrokeSelectEnd={handleStrokeSelectEnd}
-            inputEnabled={mode !== "hand"}
-            mode={mode}
-            onHwOverrideChange={onHwOverrideChange}
-            color={pen.color}
-            penWidth={pen.width}
-            viewBox={`0 0 ${regionDims.width} ${regionDims.height}`}
-            style={{ position: "absolute", inset: 0, height: "auto" }}
-            selectionDragRect={drawingRect}
-            selectedStrokeIds={hasCommittedSelection ? selection!.selectedIds : null}
-            strokeMoveOffset={hasCommittedSelection ? selection!.dragOffset : null}
-          />
-          {hasCommittedSelection && (
-            <StrokeSelectionOverlay
-              rect={selection!.rect}
-              naturalWidth={regionDims.width}
-              naturalHeight={regionDims.height}
-              containerRef={containerRef as React.RefObject<HTMLElement>}
-              onRectChange={handleRectChange}
-              onMoveChange={handleMoveChange}
-              onMoveComplete={handleMoveComplete}
-              onDelete={handleDelete}
-              onDuplicate={handleDuplicate}
-              onCopy={handleCopy}
-              onPasteRequest={onPasteRequest}
-              hasClipboard={hasClipboard}
-            />
-          )}
-        </>
-      )}
-      {regionDims === false && (
-        <>
-          {loading ? (
-            <div style={{ height }} />
-          ) : (
-            <div ref={canvasWrapperRef} style={{ position: "relative" }}>
+          {regionDims !== null && regionDims !== false && !loading && (
+            <>
               <DrawingCanvas
                 strokes={strokes.map(toDisplay)}
                 onStrokeComplete={handleStrokeComplete}
@@ -576,7 +558,8 @@ export default function SectionCanvas({
                 onHwOverrideChange={onHwOverrideChange}
                 color={pen.color}
                 penWidth={pen.width}
-                height={height}
+                viewBox={`0 0 ${regionDims.width} ${regionDims.height}`}
+                style={{ position: "absolute", inset: 0, height: "auto" }}
                 selectionDragRect={drawingRect}
                 selectedStrokeIds={hasCommittedSelection ? selection!.selectedIds : null}
                 strokeMoveOffset={hasCommittedSelection ? selection!.dragOffset : null}
@@ -584,9 +567,9 @@ export default function SectionCanvas({
               {hasCommittedSelection && (
                 <StrokeSelectionOverlay
                   rect={selection!.rect}
-                  naturalWidth={naturalWidth}
-                  naturalHeight={naturalHeight}
-                  containerRef={canvasWrapperRef as React.RefObject<HTMLElement>}
+                  naturalWidth={regionDims.width}
+                  naturalHeight={regionDims.height}
+                  containerRef={containerRef as React.RefObject<HTMLElement>}
                   onRectChange={handleRectChange}
                   onMoveChange={handleMoveChange}
                   onMoveComplete={handleMoveComplete}
@@ -597,22 +580,66 @@ export default function SectionCanvas({
                   hasClipboard={hasClipboard}
                 />
               )}
-            </div>
+            </>
           )}
-          <div
-            onPointerDown={onResizeStart}
-            style={{
-              height: 44,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "ns-resize",
-              touchAction: "none",
-              userSelect: "none",
-            }}
-          >
-            <div style={{ width: 40, height: 4, borderRadius: 2, background: "var(--resize-handle)" }} />
-          </div>
+          {regionDims === false && (
+            <>
+              {loading ? (
+                <div style={{ height }} />
+              ) : (
+                <div ref={canvasWrapperRef} style={{ position: "relative" }}>
+                  <DrawingCanvas
+                    strokes={strokes.map(toDisplay)}
+                    onStrokeComplete={handleStrokeComplete}
+                    onEraseStroke={handleEraseStroke}
+                    onSegmentErase={handleSegmentErase}
+                    onStrokeSelectStart={handleStrokeSelectStart}
+                    onStrokeSelectMove={handleStrokeSelectMove}
+                    onStrokeSelectEnd={handleStrokeSelectEnd}
+                    inputEnabled={mode !== "hand"}
+                    mode={mode}
+                    onHwOverrideChange={onHwOverrideChange}
+                    color={pen.color}
+                    penWidth={pen.width}
+                    height={height}
+                    selectionDragRect={drawingRect}
+                    selectedStrokeIds={hasCommittedSelection ? selection!.selectedIds : null}
+                    strokeMoveOffset={hasCommittedSelection ? selection!.dragOffset : null}
+                  />
+                  {hasCommittedSelection && (
+                    <StrokeSelectionOverlay
+                      rect={selection!.rect}
+                      naturalWidth={naturalWidth}
+                      naturalHeight={naturalHeight}
+                      containerRef={canvasWrapperRef as React.RefObject<HTMLElement>}
+                      onRectChange={handleRectChange}
+                      onMoveChange={handleMoveChange}
+                      onMoveComplete={handleMoveComplete}
+                      onDelete={handleDelete}
+                      onDuplicate={handleDuplicate}
+                      onCopy={handleCopy}
+                      onPasteRequest={onPasteRequest}
+                      hasClipboard={hasClipboard}
+                    />
+                  )}
+                </div>
+              )}
+              <div
+                onPointerDown={onResizeStart}
+                style={{
+                  height: 44,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "ns-resize",
+                  touchAction: "none",
+                  userSelect: "none",
+                }}
+              >
+                <div style={{ width: 40, height: 4, borderRadius: 2, background: "var(--resize-handle)" }} />
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -669,32 +696,6 @@ export default function SectionCanvas({
           </div>
         </>
       )}
-      <button
-        onClick={onDelete}
-        title="Delete section"
-        style={{
-          position: "absolute",
-          top: 8,
-          right: 8,
-          width: 24,
-          height: 24,
-          borderRadius: 4,
-          border: "1px solid var(--border)",
-          background: "var(--bg-card)",
-          cursor: "pointer",
-          fontSize: 16,
-          lineHeight: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          opacity: hovered ? 1 : 0,
-          transition: "opacity 0.15s",
-          pointerEvents: hovered ? "auto" : "none",
-          color: "var(--text-muted)",
-        }}
-      >
-        ×
-      </button>
     </div>
   );
 }
