@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timezone
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
@@ -107,7 +107,7 @@ def serve_document(document_id: int, db: Session = Depends(get_db)):
     return Response(
         content=doc.file_data,
         media_type=media_type,
-        headers={"Content-Disposition": f'inline; filename="{doc.name}.{doc.type}"'},
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{quote(doc.name + '.' + doc.type)}"},
     )
 
 
