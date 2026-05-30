@@ -67,8 +67,9 @@ async def upload_document_from_url(data: DocumentFromUrl, db: Session = Depends(
     ext = os.path.splitext(path)[-1].lower().lstrip(".")
 
     try:
+        headers = {"User-Agent": "net.stokhastik.notes"}
         async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
-            response = await client.get(data.url)
+            response = await client.get(data.url, headers=headers)
             response.raise_for_status()
     except httpx.HTTPStatusError as e:
         raise HTTPException(502, f"Remote server returned {e.response.status_code}")
