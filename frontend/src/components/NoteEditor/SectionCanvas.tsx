@@ -12,7 +12,6 @@ import RegionPreview from "./RegionPreview";
 import styles from "./SectionCanvas.module.css";
 
 const MIN_H = 80;
-const MAX_H = 3000;
 const MIN_SEL_W = 4;
 const DUPLICATE_SHIFT = 20;
 
@@ -462,12 +461,12 @@ export default function SectionCanvas({
     const startY = e.clientY;
     const startH = height;
     function onMove(ev: PointerEvent) {
-      setHeight(Math.max(MIN_H, Math.min(MAX_H, startH + ev.clientY - startY)));
+      setHeight(Math.max(MIN_H, startH + ev.clientY - startY));
     }
     function onUp(ev: PointerEvent) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      const final = Math.max(MIN_H, Math.min(MAX_H, startH + ev.clientY - startY));
+      const final = Math.max(MIN_H, startH + ev.clientY - startY);
       void sectionsApi.update(sectionId, { height: final });
     }
     window.addEventListener("pointermove", onMove);
