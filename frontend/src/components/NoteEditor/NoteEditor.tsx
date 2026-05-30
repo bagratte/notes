@@ -162,6 +162,8 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
       if ((e.ctrlKey || e.metaKey) && e.key === "v" && focusedSectionId != null) {
         e.preventDefault();
         if (clipboard?.sourceSectionId === focusedSectionId) {
