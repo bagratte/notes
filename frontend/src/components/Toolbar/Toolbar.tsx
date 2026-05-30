@@ -39,7 +39,7 @@ const TOOL_TITLES: Record<ToolMode, string> = {
   "stroke-select": "Select strokes",
 };
 
-const OVERFLOW_TOOLS = new Set<ToolMode>(["hand", "pen", "highlighter", "segment-eraser", "stroke-select"]);
+const OVERFLOW_TOOLS = new Set<ToolMode>(["hand", "pen", "highlighter", "segment-eraser", "stroke-select", "text-select"]);
 
 function useCompact(): boolean {
   const [compact, setCompact] = useState(
