@@ -71,6 +71,19 @@ export default function RegionPreview({ sectionId, onRegionLoaded }: Props) {
         off.height = img.height;
         off.getContext("2d")!.putImageData(img, 0, 0);
         page.reset();
+
+        // region coords are in natural units (PDF points: native_px / dpi * 72).
+        // Scale to native DjVu pixel coordinates for cropping.
+        const sizes = djvuDoc.getPagesSizes();
+        const ps = sizes[region.page_number - 1];
+        if (ps) {
+          const naturalW = (ps.width / ps.dpi) * 72;
+          const naturalH = (ps.height / ps.dpi) * 72;
+          srcX = (region.x / naturalW) * off.width;
+          srcY = (region.y / naturalH) * off.height;
+          srcW = (region.width / naturalW) * off.width;
+          srcH = (region.height / naturalH) * off.height;
+        }
       }
 
       if (cancelled) return;

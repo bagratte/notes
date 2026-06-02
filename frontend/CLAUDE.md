@@ -112,6 +112,8 @@ type NoteUndoEntry =
 
 `DjVu.js` is not an ES module. `public/djvu.js` is a pre-built IIFE that sets `window.DjVu`. It is loaded via a plain `<script>` tag in `index.html` before the React bundle. Type declarations are in `src/types/djvu.d.ts`. Do not attempt to `import` it.
 
+**DjVu coordinate system:** `DjvuViewer` normalizes native scan pixels to PDF points (`native_px / dpi * 72`) so natural sizes use the same unit system as `pdf.js`. Region coordinates (captured via the SVG viewBox) are therefore in PDF points, **not** native DjVu pixels. Any code that crops a native DjVu `ImageData` using region coordinates must scale them: `pixel_coord = (point_coord / naturalSize) * img.width`. `RegionPreview.tsx` does this via `djvuDoc.getPagesSizes()` — do not remove that conversion.
+
 ### Region enrichment
 
 The backend `Region` type has `section_id` but not `note_id`. The document viewers enrich regions at load time by fetching each section (`sectionsApi.get(r.section_id)`) to obtain its `note_id`, producing the frontend-only `EnrichedRegion` type (`DocumentOverlay.tsx`). This is a parallel `Promise.all` fetch, not a backend join.
