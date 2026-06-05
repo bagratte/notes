@@ -8,8 +8,6 @@ import MergeModal from "@/components/MergeModal";
 import UploadDocumentModal from "@/components/UploadDocumentModal";
 import { useTouchMode } from "@/context/TouchMode";
 import { useTheme } from "@/context/Theme";
-import { useTouchReorder } from "./useTouchReorder";
-import type { DragItem } from "./useTouchReorder";
 import css from "./Sidebar.module.css";
 
 // ── tiny inline icons ──────────────────────────────────────────────────────
@@ -153,15 +151,12 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const { resolvedTheme, setTheme } = useTheme();
 
   const [data, setData] = useState<SidebarData>({ folders: [], notes: [], documents: [], docNotes: {}, docNotePageNums: {}, docAnnotatedPages: {} });
-  const dataRef = useRef(data);
-  dataRef.current = data;
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
   const [expandedDocuments, setExpandedDocuments] = useState<Set<number>>(new Set());
   const [mergingNote, setMergingNote] = useState<Note | null>(null);
   const [docToc, setDocToc] = useState<Record<number, TocEntry[]>>({});
 
-  const dragItemRef = useRef<DragItem | null>(null);
-  const suppressClickRef = useRef(false);
+  const dragItemRef = useRef<{ type: "folder" | "document"; id: number; scope: number | null } | null>(null);
   const [draggingId, setDraggingId] = useState<{ type: "folder" | "document"; id: number } | null>(null);
   const [dragOverId, setDragOverId] = useState<{ id: number; pos: "before" | "after" } | null>(null);
   const [expandedTocPaths, setExpandedTocPaths] = useState<Set<string>>(new Set());
@@ -306,49 +301,23 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const toggleFolder = (id: number) =>
     setExpandedFolders((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  // Shared reorder used by both native (mouse) drop and touch drop. Reads the
-  // latest data via `dataRef` so it stays correct when called from the touch
-  // gesture's window listeners (which close over a stale render otherwise).
-  const commitReorder = useCallback((item: DragItem, targetId: number, pos: "before" | "after") => {
-    if (item.id === targetId) return;
-    const scope = item.scope;
-    if (item.type === "folder") {
-      const target = dataRef.current.folders.find((f) => f.id === targetId);
-      if (!target || target.parent_folder_id !== scope) return;
-      const siblings = dataRef.current.folders.filter((f) => f.parent_folder_id === scope);
-      const fromIdx = siblings.findIndex((f) => f.id === item.id);
-      const toIdx = siblings.findIndex((f) => f.id === targetId);
-      if (fromIdx === -1 || toIdx === -1) return;
-      const reordered = [...siblings];
-      const [moved] = reordered.splice(fromIdx, 1);
-      const adjustedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
-      const insertIdx = pos === "before" ? adjustedToIdx : adjustedToIdx + 1;
-      reordered.splice(insertIdx, 0, moved);
-      setData((d) => ({ ...d, folders: [...d.folders.filter((f) => f.parent_folder_id !== scope), ...reordered] }));
-      foldersApi.reorder(reordered.map((f) => f.id)).catch(() => load());
-    } else {
-      const target = dataRef.current.documents.find((d) => d.id === targetId);
-      if (!target || target.folder_id !== scope) return;
-      const siblings = dataRef.current.documents.filter((d) => d.folder_id === scope);
-      const fromIdx = siblings.findIndex((d) => d.id === item.id);
-      const toIdx = siblings.findIndex((d) => d.id === targetId);
-      if (fromIdx === -1 || toIdx === -1) return;
-      const reordered = [...siblings];
-      const [moved] = reordered.splice(fromIdx, 1);
-      const adjustedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
-      const insertIdx = pos === "before" ? adjustedToIdx : adjustedToIdx + 1;
-      reordered.splice(insertIdx, 0, moved);
-      setData((d) => ({ ...d, documents: [...d.documents.filter((d2) => d2.folder_id !== scope), ...reordered] }));
-      docsApi.reorder(reordered.map((d) => d.id)).catch(() => load());
-    }
-  }, [load]);
-
-  const startTouchDrag = useTouchReorder({ dragItemRef, setDraggingId, setDragOverId, commitReorder, suppressClickRef });
-
   const handleFolderDrop = (targetFolder: Folder) => {
     const item = dragItemRef.current;
-    if (item && item.type === "folder")
-      commitReorder(item, targetFolder.id, dragOverId?.pos ?? "before");
+    const over = dragOverId;
+    if (!item || item.type !== "folder" || item.id === targetFolder.id) return;
+    if (item.scope !== targetFolder.parent_folder_id) return;
+    const scope = item.scope;
+    const siblings = data.folders.filter((f) => f.parent_folder_id === scope);
+    const fromIdx = siblings.findIndex((f) => f.id === item.id);
+    const toIdx = siblings.findIndex((f) => f.id === targetFolder.id);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const reordered = [...siblings];
+    const [moved] = reordered.splice(fromIdx, 1);
+    const adjustedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+    const insertIdx = over?.pos === "before" ? adjustedToIdx : adjustedToIdx + 1;
+    reordered.splice(insertIdx, 0, moved);
+    setData((d) => ({ ...d, folders: [...d.folders.filter((f) => f.parent_folder_id !== scope), ...reordered] }));
+    foldersApi.reorder(reordered.map((f) => f.id)).catch(() => load());
     dragItemRef.current = null;
     setDraggingId(null);
     setDragOverId(null);
@@ -356,8 +325,21 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
 
   const handleDocumentDrop = (targetDoc: Document) => {
     const item = dragItemRef.current;
-    if (item && item.type === "document")
-      commitReorder(item, targetDoc.id, dragOverId?.pos ?? "before");
+    const over = dragOverId;
+    if (!item || item.type !== "document" || item.id === targetDoc.id) return;
+    if (item.scope !== targetDoc.folder_id) return;
+    const scope = item.scope;
+    const siblings = data.documents.filter((d) => d.folder_id === scope);
+    const fromIdx = siblings.findIndex((d) => d.id === item.id);
+    const toIdx = siblings.findIndex((d) => d.id === targetDoc.id);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const reordered = [...siblings];
+    const [moved] = reordered.splice(fromIdx, 1);
+    const adjustedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+    const insertIdx = over?.pos === "before" ? adjustedToIdx : adjustedToIdx + 1;
+    reordered.splice(insertIdx, 0, moved);
+    setData((d) => ({ ...d, documents: [...d.documents.filter((d2) => d2.folder_id !== scope), ...reordered] }));
+    docsApi.reorder(reordered.map((d) => d.id)).catch(() => load());
     dragItemRef.current = null;
     setDraggingId(null);
     setDragOverId(null);
@@ -450,11 +432,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         <div
           className={`${css.leafRow}${active ? " " + css.active : ""}${isDragging ? " " + css.dragging : ""}${dropPos === "before" ? " " + css.dropBefore : ""}${dropPos === "after" ? " " + css.dropAfter : ""}`}
           style={{ paddingLeft: `${indent}px` }}
-          data-drag-type="document"
-          data-drag-id={doc.id}
-          draggable={!isTouch}
-          onPointerDown={(e) => startTouchDrag(e, { type: "document", id: doc.id, scope: doc.folder_id })}
-          onContextMenu={isTouch ? (e) => e.preventDefault() : undefined}
+          draggable
           onDragStart={(e) => {
             e.stopPropagation();
             dragItemRef.current = { type: "document", id: doc.id, scope: doc.folder_id };
@@ -471,7 +449,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
           }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDocumentDrop(doc); }}
           onDragEnd={() => { dragItemRef.current = null; setDraggingId(null); setDragOverId(null); }}
-          onClick={() => { if (suppressClickRef.current) { suppressClickRef.current = false; return; } navigate(`/documents/${doc.id}`); }}
+          onClick={() => navigate(`/documents/${doc.id}`)}
         >
           {hasChildren
             ? <span onClick={toggleDoc}><ChevronIcon open={isOpen} /></span>
@@ -568,11 +546,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         <div
           className={`${css.folderRow}${active ? " " + css.active : ""}${isDragging ? " " + css.dragging : ""}${dropPos === "before" ? " " + css.dropBefore : ""}${dropPos === "after" ? " " + css.dropAfter : ""}`}
           style={{ paddingLeft: `${indent}px` }}
-          data-drag-type="folder"
-          data-drag-id={folder.id}
-          draggable={!isTouch}
-          onPointerDown={(e) => startTouchDrag(e, { type: "folder", id: folder.id, scope: folder.parent_folder_id })}
-          onContextMenu={isTouch ? (e) => e.preventDefault() : undefined}
+          draggable
           onDragStart={(e) => {
             e.stopPropagation();
             dragItemRef.current = { type: "folder", id: folder.id, scope: folder.parent_folder_id };
@@ -589,7 +563,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
           }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFolderDrop(folder); }}
           onDragEnd={() => { dragItemRef.current = null; setDraggingId(null); setDragOverId(null); }}
-          onClick={() => { if (suppressClickRef.current) { suppressClickRef.current = false; return; } navigate(`/folders/${folder.id}`); }}
+          onClick={() => navigate(`/folders/${folder.id}`)}
         >
           <span onClick={(e) => { e.stopPropagation(); toggleFolder(folder.id); }} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
             <ChevronIcon open={isOpen} />
@@ -671,7 +645,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         </button>
       </div>
 
-      <div className={`${css.tree}${draggingId ? " " + css.dragLock : ""}`}>
+      <div className={css.tree}>
         {isEmpty && (
           <div className={css.emptyState}>
             No folders yet.<br />Click + to create one.

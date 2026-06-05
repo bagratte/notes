@@ -56,14 +56,6 @@
   padding: 6px 0;
 }
 
-/* While a row is being dragged for reordering, freeze the list so it doesn't
-   scroll out from under the drag. Covers pen too (which emits no touch events,
-   so useTouchReorder's touchmove guard can't help it). scrollTop is preserved. */
-.tree.dragLock {
-  overflow-y: hidden;
-  touch-action: none;
-}
-
 .emptyState {
   padding: 24px 16px;
   font-size: 16px;
@@ -185,18 +177,6 @@
 :global(.has-touch) .notebookRow { padding-top: 11px; padding-bottom: 11px; }
 :global(.has-touch) .folderRow   { padding-top: 11px; padding-bottom: 11px; }
 :global(.has-touch) .leafRow     { padding-top: 11px; padding-bottom: 11px; }
-
-/* Long-press reordering on touch: keep the browser's native long-press gestures
-   (context menu, text selection, callout) from hijacking the press and emitting
-   a pointercancel that aborts the drag. `pan-y` still lets the list scroll;
-   useTouchReorder preventDefaults touchmove only while a row is actually held. */
-:global(.has-touch) .folderRow,
-:global(.has-touch) .leafRow {
-  touch-action: pan-y;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
 :global(.has-touch) .toolbar {
   height: 56px;
   gap: 4px;
