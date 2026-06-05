@@ -167,6 +167,19 @@ Hardware barrel-button overrides (`getPenHwOverride`) fire `onHwOverrideChange` 
 
 `TouchModeProvider` (`src/context/TouchMode.tsx`) wraps the entire app and exposes `{ isTouch, toggle }` via `useTouchMode()`. The value is persisted to `localStorage` and the `has-touch` class is toggled on `<html>` so CSS can target it. The sidebar toggle button calls `toggle()`; CSS rules keyed on `.has-touch` adjust tap-target sizes, show/hide controls, and switch the sidebar to overlay mode.
 
+### Sidebar reordering
+
+Folder rows and document rows can be reordered within their sibling scope (same `parent_folder_id` / `folder_id`). Two input paths drive the **same** `draggingId` / `dragOverId` state and the same `commitReorder` (so the `dragging` / `dropBefore` / `dropAfter` visuals are shared):
+
+- **Mouse** uses native HTML5 drag-and-drop. Rows are only `draggable` when **not** in touch mode (`draggable={!isTouch}`) — Chromium's native *touch* drag-and-drop fires on a long-pressed `draggable` element and would otherwise fight the gesture below.
+- **Touch and pen** use `useTouchReorder` (`src/components/Sidebar/useTouchReorder.ts`), a pointer-event long-press gesture: hold a row still for 350 ms to pick it up (moving more than 10 px first is treated as a scroll and cancels), drag over a sibling to pick a before/after position via `elementFromPoint` (rows carry `data-drag-type` / `data-drag-id`), release to commit. A non-passive `touchmove` `preventDefault` suppresses list scrolling only while a row is held. The synthesized post-gesture click is swallowed via `suppressClickRef`.
+
+Making long-press survive the browser's own long-press gestures took three things beyond the gesture itself: `draggable={!isTouch}` (above); `onContextMenu` `preventDefault` on the rows in touch mode (stops the context menu, whose firing also emits a `pointercancel` that would abort the drag); and CSS `user-select: none` / `-webkit-touch-callout: none` / `touch-action: pan-y` on `.folderRow`/`.leafRow` under `.has-touch` (stops text-selection/callout, keeps vertical scroll). As a backstop, a `pointercancel` that arrives *after* a row is already picked up commits at the last tracked position rather than discarding the drag.
+
+While a drag is in progress the scroll container (`.tree`) gets a `dragLock` class (`overflow-y: hidden; touch-action: none`) keyed on `draggingId !== null`, so the list can't scroll out from under the drag. This is applied in CSS rather than only via the `touchmove` guard because **pen** input emits no touch events — the guard can't catch it, but the frozen container can. `scrollTop` is preserved across the lock.
+
+`commitReorder` reads the latest tree from a `dataRef` (not closure state) because the touch path commits from `window` pointer listeners. Only mouse falls through to native DnD (`pointerType === "mouse"`).
+
 ### Dark mode
 
 `ThemeProvider` (`src/context/Theme.tsx`) exposes `{ theme, resolvedTheme, setTheme }` via `useTheme()`. `theme` is the user choice (`"light" | "dark" | "system"`); `resolvedTheme` is the effective value after resolving `"system"` against `window.matchMedia("(prefers-color-scheme: dark)")`. The choice is persisted to `localStorage` under key `"theme"` and defaults to `"system"`.
