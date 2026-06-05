@@ -167,6 +167,17 @@ Hardware barrel-button overrides (`getPenHwOverride`) fire `onHwOverrideChange` 
 
 `TouchModeProvider` (`src/context/TouchMode.tsx`) wraps the entire app and exposes `{ isTouch, toggle }` via `useTouchMode()`. The value is persisted to `localStorage` and the `has-touch` class is toggled on `<html>` so CSS can target it. The sidebar toggle button calls `toggle()`; CSS rules keyed on `.has-touch` adjust tap-target sizes, show/hide controls, and switch the sidebar to overlay mode.
 
+### Sidebar reordering
+
+Folder rows and document rows can be reordered within their sibling scope (same `parent_folder_id` / `folder_id`). Two input paths drive the **same** `draggingId` / `dragOverId` state and the same `commitReorder(item, targetId, pos)` (so the `dragging` / `dropBefore` / `dropAfter` visuals are shared):
+
+- **Mouse** uses native HTML5 drag-and-drop on the whole row (`draggable` + `onDragStart`/`onDragOver`/`onDrop`/`onDragEnd`) — works in any mode, unchanged. Native DnD never fires for touch/pen on a touchscreen, hence the second path.
+- **Touch and pen** use **reorder mode**: a toggle in the sidebar toolbar (`ReorderModeProvider`, `src/context/ReorderMode.tsx`, persisted to `localStorage["reorderMode"]`, sidebar-only — no global DOM class) reveals a **drag handle** on the left of each folder/document row. `useReorderDrag` (`src/components/Sidebar/useReorderDrag.ts`) drives the handle.
+
+`useReorderDrag` is deliberately small. The handle carries `touch-action: none`, so a press starting on it is never a scroll / long-press / native drag — the drag begins on the **first movement** (no long-press) and can't be hijacked by the browser. It uses `setPointerCapture` + React pointer handlers (events route to the handle for the whole gesture → plain fresh closures, no `window` listeners or stale-closure plumbing). The mouse is skipped in this hook (`pointerType === "mouse"` → native DnD). Targets are found via `elementFromPoint(...).closest('[data-drag-id]')`, so rows carry `data-drag-type` / `data-drag-id`. Dragging into the top/bottom edge band auto-scrolls the `.tree` container (passed as `treeRef`) via a `requestAnimationFrame` loop that keeps scrolling while the finger is held still and re-evaluates the drop target each frame.
+
+`commitReorder` reads the current tree from `data` (closure is fresh — no `window` listeners); the native mouse `onDrop` handlers delegate to it too.
+
 ### Dark mode
 
 `ThemeProvider` (`src/context/Theme.tsx`) exposes `{ theme, resolvedTheme, setTheme }` via `useTheme()`. `theme` is the user choice (`"light" | "dark" | "system"`); `resolvedTheme` is the effective value after resolving `"system"` against `window.matchMedia("(prefers-color-scheme: dark)")`. The choice is persisted to `localStorage` under key `"theme"` and defaults to `"system"`.

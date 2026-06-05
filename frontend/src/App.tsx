@@ -5,6 +5,7 @@ import DocumentPage from "@/pages/DocumentPage";
 import FolderPage from "@/pages/FolderPage";
 import SettingsPage from "@/pages/SettingsPage";
 import { TouchModeProvider } from "@/context/TouchMode";
+import { ReorderModeProvider } from "@/context/ReorderMode";
 import { DrawingSettingsProvider } from "@/context/DrawingSettings";
 import { ThemeProvider } from "@/context/Theme";
 
@@ -12,6 +13,7 @@ export default function App() {
   return (
     <ThemeProvider>
     <TouchModeProvider>
+    <ReorderModeProvider>
     <DrawingSettingsProvider>
     <BrowserRouter>
       <Routes>
@@ -24,6 +26,7 @@ export default function App() {
       </Routes>
     </BrowserRouter>
     </DrawingSettingsProvider>
+    </ReorderModeProvider>
     </TouchModeProvider>
     </ThemeProvider>
   );

@@ -7,7 +7,10 @@ import type { TocEntry } from "@/components/DocumentViewer/viewerTypes";
 import MergeModal from "@/components/MergeModal";
 import UploadDocumentModal from "@/components/UploadDocumentModal";
 import { useTouchMode } from "@/context/TouchMode";
+import { useReorderMode } from "@/context/ReorderMode";
 import { useTheme } from "@/context/Theme";
+import { useReorderDrag } from "./useReorderDrag";
+import type { DragItem } from "./useReorderDrag";
 import css from "./Sidebar.module.css";
 
 // ── tiny inline icons ──────────────────────────────────────────────────────
@@ -39,6 +42,27 @@ function TouchModeIcon() {
     <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
       <path d="M8 2a2 2 0 0 0-2 2v5a2 2 0 0 0 4 0V4a2 2 0 0 0-2-2z" stroke="currentColor" strokeWidth="1.3" />
       <path d="M6 7.5H4.5A1.5 1.5 0 0 0 3 9v.5A5 5 0 0 0 13 9.5V9A1.5 1.5 0 0 0 11.5 7.5H10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ReorderModeIcon() {
+  return (
+    <svg className={css.typeIcon} viewBox="0 0 16 16" fill="currentColor">
+      <circle cx="6" cy="4" r="1.1" /><circle cx="10" cy="4" r="1.1" />
+      <circle cx="6" cy="8" r="1.1" /><circle cx="10" cy="8" r="1.1" />
+      <circle cx="6" cy="12" r="1.1" /><circle cx="10" cy="12" r="1.1" />
+    </svg>
+  );
+}
+
+// Grip handle shown on each row in reorder mode.
+function GripIcon() {
+  return (
+    <svg className={css.gripIcon} viewBox="0 0 16 16" fill="currentColor">
+      <circle cx="6" cy="4" r="1.1" /><circle cx="10" cy="4" r="1.1" />
+      <circle cx="6" cy="8" r="1.1" /><circle cx="10" cy="8" r="1.1" />
+      <circle cx="6" cy="12" r="1.1" /><circle cx="10" cy="12" r="1.1" />
     </svg>
   );
 }
@@ -148,7 +172,9 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const navigate = useNavigate();
   const location = useLocation();
   const { isTouch, toggle: toggleTouchMode } = useTouchMode();
+  const { reorderMode, toggle: toggleReorderMode } = useReorderMode();
   const { resolvedTheme, setTheme } = useTheme();
+  const treeRef = useRef<HTMLDivElement>(null);
 
   const [data, setData] = useState<SidebarData>({ folders: [], notes: [], documents: [], docNotes: {}, docNotePageNums: {}, docAnnotatedPages: {} });
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
@@ -301,23 +327,49 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const toggleFolder = (id: number) =>
     setExpandedFolders((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
+  // Shared reorder used by both native (mouse) drop and the reorder-mode handle
+  // gesture. Moves `item` before/after `targetId` within its sibling scope.
+  const commitReorder = (item: DragItem, targetId: number, pos: "before" | "after") => {
+    if (item.id === targetId) return;
+    const scope = item.scope;
+    if (item.type === "folder") {
+      const target = data.folders.find((f) => f.id === targetId);
+      if (!target || target.parent_folder_id !== scope) return;
+      const siblings = data.folders.filter((f) => f.parent_folder_id === scope);
+      const fromIdx = siblings.findIndex((f) => f.id === item.id);
+      const toIdx = siblings.findIndex((f) => f.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return;
+      const reordered = [...siblings];
+      const [moved] = reordered.splice(fromIdx, 1);
+      const adjustedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+      const insertIdx = pos === "before" ? adjustedToIdx : adjustedToIdx + 1;
+      reordered.splice(insertIdx, 0, moved);
+      setData((d) => ({ ...d, folders: [...d.folders.filter((f) => f.parent_folder_id !== scope), ...reordered] }));
+      foldersApi.reorder(reordered.map((f) => f.id)).catch(() => load());
+    } else {
+      const target = data.documents.find((d) => d.id === targetId);
+      if (!target || target.folder_id !== scope) return;
+      const siblings = data.documents.filter((d) => d.folder_id === scope);
+      const fromIdx = siblings.findIndex((d) => d.id === item.id);
+      const toIdx = siblings.findIndex((d) => d.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return;
+      const reordered = [...siblings];
+      const [moved] = reordered.splice(fromIdx, 1);
+      const adjustedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+      const insertIdx = pos === "before" ? adjustedToIdx : adjustedToIdx + 1;
+      reordered.splice(insertIdx, 0, moved);
+      setData((d) => ({ ...d, documents: [...d.documents.filter((d2) => d2.folder_id !== scope), ...reordered] }));
+      docsApi.reorder(reordered.map((d) => d.id)).catch(() => load());
+    }
+  };
+
+  const dragHandlers = useReorderDrag({ treeRef, setDraggingId, setDragOverId, commitReorder });
+
+  // Native mouse DnD drop targets — same scope rules, delegating to commitReorder.
   const handleFolderDrop = (targetFolder: Folder) => {
     const item = dragItemRef.current;
-    const over = dragOverId;
-    if (!item || item.type !== "folder" || item.id === targetFolder.id) return;
-    if (item.scope !== targetFolder.parent_folder_id) return;
-    const scope = item.scope;
-    const siblings = data.folders.filter((f) => f.parent_folder_id === scope);
-    const fromIdx = siblings.findIndex((f) => f.id === item.id);
-    const toIdx = siblings.findIndex((f) => f.id === targetFolder.id);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const reordered = [...siblings];
-    const [moved] = reordered.splice(fromIdx, 1);
-    const adjustedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
-    const insertIdx = over?.pos === "before" ? adjustedToIdx : adjustedToIdx + 1;
-    reordered.splice(insertIdx, 0, moved);
-    setData((d) => ({ ...d, folders: [...d.folders.filter((f) => f.parent_folder_id !== scope), ...reordered] }));
-    foldersApi.reorder(reordered.map((f) => f.id)).catch(() => load());
+    if (item && item.type === "folder" && item.scope === targetFolder.parent_folder_id)
+      commitReorder(item, targetFolder.id, dragOverId?.pos ?? "before");
     dragItemRef.current = null;
     setDraggingId(null);
     setDragOverId(null);
@@ -325,21 +377,8 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
 
   const handleDocumentDrop = (targetDoc: Document) => {
     const item = dragItemRef.current;
-    const over = dragOverId;
-    if (!item || item.type !== "document" || item.id === targetDoc.id) return;
-    if (item.scope !== targetDoc.folder_id) return;
-    const scope = item.scope;
-    const siblings = data.documents.filter((d) => d.folder_id === scope);
-    const fromIdx = siblings.findIndex((d) => d.id === item.id);
-    const toIdx = siblings.findIndex((d) => d.id === targetDoc.id);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const reordered = [...siblings];
-    const [moved] = reordered.splice(fromIdx, 1);
-    const adjustedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
-    const insertIdx = over?.pos === "before" ? adjustedToIdx : adjustedToIdx + 1;
-    reordered.splice(insertIdx, 0, moved);
-    setData((d) => ({ ...d, documents: [...d.documents.filter((d2) => d2.folder_id !== scope), ...reordered] }));
-    docsApi.reorder(reordered.map((d) => d.id)).catch(() => load());
+    if (item && item.type === "document" && item.scope === targetDoc.folder_id)
+      commitReorder(item, targetDoc.id, dragOverId?.pos ?? "before");
     dragItemRef.current = null;
     setDraggingId(null);
     setDragOverId(null);
@@ -425,13 +464,15 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     };
 
     const isDragging = draggingId?.type === "document" && draggingId.id === doc.id;
-    const dropPos = dragOverId?.id === doc.id && dragItemRef.current?.type === "document" ? dragOverId.pos : null;
+    const dropPos = dragOverId?.id === doc.id && draggingId?.type === "document" ? dragOverId.pos : null;
 
     return (
       <div key={doc.id}>
         <div
           className={`${css.leafRow}${active ? " " + css.active : ""}${isDragging ? " " + css.dragging : ""}${dropPos === "before" ? " " + css.dropBefore : ""}${dropPos === "after" ? " " + css.dropAfter : ""}`}
           style={{ paddingLeft: `${indent}px` }}
+          data-drag-type="document"
+          data-drag-id={doc.id}
           draggable
           onDragStart={(e) => {
             e.stopPropagation();
@@ -451,6 +492,11 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
           onDragEnd={() => { dragItemRef.current = null; setDraggingId(null); setDragOverId(null); }}
           onClick={() => navigate(`/documents/${doc.id}`)}
         >
+          {reorderMode && (
+            <span className={css.dragHandle} onClick={stop} {...dragHandlers({ type: "document", id: doc.id, scope: doc.folder_id })}>
+              <GripIcon />
+            </span>
+          )}
           {hasChildren
             ? <span onClick={toggleDoc}><ChevronIcon open={isOpen} /></span>
             : <span style={{ width: 14, display: "inline-block" }} />}
@@ -539,13 +585,15 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     const active = location.pathname === `/folders/${folder.id}`;
 
     const isDragging = draggingId?.type === "folder" && draggingId.id === folder.id;
-    const dropPos = dragOverId?.id === folder.id && dragItemRef.current?.type === "folder" ? dragOverId.pos : null;
+    const dropPos = dragOverId?.id === folder.id && draggingId?.type === "folder" ? dragOverId.pos : null;
 
     return (
       <div key={folder.id}>
         <div
           className={`${css.folderRow}${active ? " " + css.active : ""}${isDragging ? " " + css.dragging : ""}${dropPos === "before" ? " " + css.dropBefore : ""}${dropPos === "after" ? " " + css.dropAfter : ""}`}
           style={{ paddingLeft: `${indent}px` }}
+          data-drag-type="folder"
+          data-drag-id={folder.id}
           draggable
           onDragStart={(e) => {
             e.stopPropagation();
@@ -565,6 +613,11 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
           onDragEnd={() => { dragItemRef.current = null; setDraggingId(null); setDragOverId(null); }}
           onClick={() => navigate(`/folders/${folder.id}`)}
         >
+          {reorderMode && (
+            <span className={css.dragHandle} onClick={stop} {...dragHandlers({ type: "folder", id: folder.id, scope: folder.parent_folder_id })}>
+              <GripIcon />
+            </span>
+          )}
           <span onClick={(e) => { e.stopPropagation(); toggleFolder(folder.id); }} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
             <ChevronIcon open={isOpen} />
           </span>
@@ -620,6 +673,13 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
           <TouchModeIcon />
         </button>
         <button
+          className={`${css.toolbarBtn}${reorderMode ? " " + css.toolbarBtnActive : ""}`}
+          title={reorderMode ? "Exit reorder mode" : "Reorder folders & documents"}
+          onClick={toggleReorderMode}
+        >
+          <ReorderModeIcon />
+        </button>
+        <button
           className={css.toolbarBtn}
           title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
@@ -645,7 +705,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         </button>
       </div>
 
-      <div className={css.tree}>
+      <div className={css.tree} ref={treeRef}>
         {isEmpty && (
           <div className={css.emptyState}>
             No folders yet.<br />Click + to create one.
