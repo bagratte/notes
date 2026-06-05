@@ -12,11 +12,15 @@ interface Opts {
   setDragOverId: Dispatch<SetStateAction<DragOver | null>>;
   commitReorder: (item: DragItem, targetId: number, pos: "before" | "after") => void;
   suppressClickRef: MutableRefObject<boolean>;
+  // In touch mode native DnD is off (`draggable={!isTouch}`), so the mouse is
+  // routed through this hook too — picking up on a small drag instead of a hold.
+  isTouchRef: MutableRefObject<boolean>;
 }
 
 interface GestureState {
   item: DragItem;
   pointerId: number;
+  isMouse: boolean;
   startX: number;
   startY: number;
   started: boolean;
@@ -29,14 +33,18 @@ interface GestureState {
 const LONG_PRESS_MS = 350;
 // Moving more than this before the long-press fires is treated as a scroll, not a drag.
 const MOVE_CANCEL_PX = 10;
+// Mouse has no scroll ambiguity, so it picks a row up as soon as it drags this far.
+const MOUSE_DRAG_PX = 5;
 
 /**
  * Touch-friendly reordering for sidebar rows. The browser's native HTML5
  * drag-and-drop (`draggable`) never fires for touch input, so this hook drives
  * the same `draggingId`/`dragOverId` state via pointer events instead:
  * long-press to pick a row up, drag over a sibling to choose a drop position,
- * release to commit. Mouse keeps using native DnD; pen and touch (neither of
- * which fires native DnD on a touchscreen) go through this hook.
+ * release to commit. Pen and touch (neither of which fires native DnD on a
+ * touchscreen) always go through this hook. The mouse uses native DnD normally,
+ * but in touch mode — where rows are `draggable={false}` — it is routed through
+ * here too, picking a row up on a small drag rather than a hold.
  *
  * Returns a handler to wire to each draggable row's `onPointerDown`. Rows must
  * carry `data-drag-type` and `data-drag-id` so the drop target can be found via
@@ -75,10 +83,26 @@ export function useTouchReorder(opts: Opts) {
       return { id: Number(row.dataset.dragId), rect: row.getBoundingClientRect() };
     };
 
+    // Pick the row up: from here on, moves choose a drop position.
+    const beginDrag = (st: GestureState) => {
+      st.started = true;
+      if (st.timer != null) { clearTimeout(st.timer); st.timer = null; }
+      optsRef.current.dragItemRef.current = st.item;
+      optsRef.current.setDraggingId({ type: st.item.type, id: st.item.id });
+      if (!st.isMouse) {
+        // Non-passive so we can stop the list from scrolling under the dragged row.
+        document.addEventListener("touchmove", preventScroll, { passive: false });
+        navigator.vibrate?.(10);
+      }
+    };
+
     // Commit the reorder against whatever row sits under (x, y), if any.
     const finish = (st: GestureState, x: number, y: number) => {
-      // Suppress the click the browser synthesizes after the touch sequence.
+      // Swallow the click the browser fires after a mouse drag so it doesn't
+      // also navigate. Auto-clear it: touch/pen drags synthesize no click (we
+      // preventDefault touchmove), so an un-cleared flag would eat the next tap.
       optsRef.current.suppressClickRef.current = true;
+      window.setTimeout(() => { optsRef.current.suppressClickRef.current = false; }, 400);
       const t = targetUnder(x, y, st.item.type);
       if (t && t.id !== st.item.id) {
         const pos = y < t.rect.top + t.rect.height / 2 ? "before" : "after";
@@ -90,9 +114,16 @@ export function useTouchReorder(opts: Opts) {
       const st = stateRef.current;
       if (!st || e.pointerId !== st.pointerId) return;
       if (!st.started) {
-        // A scroll (or tap-and-drag) before the long-press fired — let it be.
-        if (Math.hypot(e.clientX - st.startX, e.clientY - st.startY) > MOVE_CANCEL_PX) cleanup();
-        return;
+        const dist = Math.hypot(e.clientX - st.startX, e.clientY - st.startY);
+        if (st.isMouse) {
+          // Mouse picks up on a small drag (native-DnD feel); a plain click won't.
+          if (dist > MOUSE_DRAG_PX) beginDrag(st);
+        } else if (dist > MOVE_CANCEL_PX) {
+          // Touch/pen moved before the long-press fired — treat it as a scroll.
+          cleanup();
+          return;
+        }
+        if (!st.started) return;
       }
       st.lastX = e.clientX;
       st.lastY = e.clientY;
@@ -124,13 +155,16 @@ export function useTouchReorder(opts: Opts) {
     };
 
     const start = (e: ReactPointerEvent, item: DragItem) => {
-      if (e.pointerType === "mouse") return;        // mouse uses native HTML5 DnD
+      const isMouse = e.pointerType === "mouse";
+      // Outside touch mode the mouse uses native HTML5 DnD; don't double-handle it.
+      if (isMouse && !optsRef.current.isTouchRef.current) return;
       if (stateRef.current) return;                 // ignore extra contacts mid-gesture
       if ((e.target as HTMLElement).closest("button")) return; // row action buttons
 
       stateRef.current = {
         item,
         pointerId: e.pointerId,
+        isMouse,
         startX: e.clientX,
         startY: e.clientY,
         started: false,
@@ -142,17 +176,14 @@ export function useTouchReorder(opts: Opts) {
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointercancel", onCancel);
 
-      stateRef.current.timer = window.setTimeout(() => {
-        const st = stateRef.current;
-        if (!st) return;
-        st.started = true;
-        st.timer = null;
-        optsRef.current.dragItemRef.current = st.item;
-        optsRef.current.setDraggingId({ type: st.item.type, id: st.item.id });
-        // Non-passive so we can stop the list from scrolling under the dragged row.
-        document.addEventListener("touchmove", preventScroll, { passive: false });
-        navigator.vibrate?.(10);
-      }, LONG_PRESS_MS);
+      // Touch/pen pick up after a still hold; the mouse picks up on movement
+      // (handled in onMove), so it gets no timer.
+      if (!isMouse) {
+        stateRef.current.timer = window.setTimeout(() => {
+          const st = stateRef.current;
+          if (st) beginDrag(st);
+        }, LONG_PRESS_MS);
+      }
     };
 
     api.current = { start };
