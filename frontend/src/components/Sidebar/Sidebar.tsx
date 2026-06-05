@@ -162,8 +162,6 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
 
   const dragItemRef = useRef<DragItem | null>(null);
   const suppressClickRef = useRef(false);
-  const isTouchRef = useRef(isTouch);
-  isTouchRef.current = isTouch;
   const [draggingId, setDraggingId] = useState<{ type: "folder" | "document"; id: number } | null>(null);
   const [dragOverId, setDragOverId] = useState<{ id: number; pos: "before" | "after" } | null>(null);
   const [expandedTocPaths, setExpandedTocPaths] = useState<Set<string>>(new Set());
@@ -345,7 +343,7 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
     }
   }, [load]);
 
-  const startTouchDrag = useTouchReorder({ dragItemRef, setDraggingId, setDragOverId, commitReorder, suppressClickRef, isTouchRef });
+  const startTouchDrag = useTouchReorder({ dragItemRef, setDraggingId, setDragOverId, commitReorder, suppressClickRef });
 
   const handleFolderDrop = (targetFolder: Folder) => {
     const item = dragItemRef.current;
