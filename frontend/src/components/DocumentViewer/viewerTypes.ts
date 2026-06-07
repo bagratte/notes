@@ -45,7 +45,7 @@ export interface TocEntry {
 
 export const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0];
 export const WINDOW_BUFFER = 2;
-export const PAGE_GUTTER = 16;
+export const PAGE_GUTTER = 8;
 export const PAN_DEADZONE_PX = 8;
 export const PAGE_FALLBACK_WIDTH = 900;
 export const PAGE_FALLBACK_HEIGHT = 1200;
@@ -60,8 +60,8 @@ export function getDisplayScale(
   natural: NaturalSize,
   viewport: ViewportSize
 ): number {
-  const containerWidth = Math.max(400, viewport.width - 48);
-  const containerHeight = Math.max(300, viewport.height - 48);
+  const containerWidth = Math.max(400, viewport.width - 16);
+  const containerHeight = Math.max(300, viewport.height - 16);
   if (fitMode === "width") return containerWidth / natural.width;
   if (fitMode === "page") return Math.min(containerWidth / natural.width, containerHeight / natural.height);
   return manualScale;
