@@ -3,13 +3,17 @@ import { DrawingCanvas } from "@/components/Canvas";
 import StrokeSelectionOverlay from "@/components/Canvas/StrokeSelectionOverlay";
 import type { StrokeData } from "@/components/Canvas";
 import { strokes as strokesApi, sections as sectionsApi } from "@/api";
-import type { Stroke, NoteUndoEntry } from "@/types";
+import type { Stroke, NoteUndoEntry, Region, Document } from "@/types";
 import type { PenSettings } from "@/components/Toolbar";
 import type { ToolMode } from "@/types";
 import { normaliseRect, hitTestStrokes, offsetStroke } from "@/components/Canvas/strokeSelectUtils";
 import type { NaturalRect } from "@/components/Canvas/strokeSelectUtils";
+import { strokesToSvgString, rasterizeSvg, copyCanvasAsImage } from "@/components/Canvas/utils";
+import { renderRegionCrop } from "@/components/DocumentViewer/regionCrop";
 import RegionPreview from "./RegionPreview";
 import styles from "./SectionCanvas.module.css";
+
+const COPY_REGION_WIDTH = 1600;
 
 const MIN_H = 80;
 const MIN_SEL_W = 4;
@@ -93,6 +97,7 @@ export default function SectionCanvas({
   const [hovered, setHovered] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [regionDims, setRegionDims] = useState<{ width: number; height: number } | false | null>(null);
+  const [regionData, setRegionData] = useState<{ region: Region; doc: Document } | null>(null);
   const [height, setHeight] = useState(initialHeight);
   const [selection, setSelection] = useState<SelectionState | null>(null);
   const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number } | null>(null);
@@ -244,6 +249,38 @@ export default function SectionCanvas({
     const toCopy = strokes.filter(s => selection.selectedIds.has(s.id));
     onCopy?.(sectionId, toCopy);
   }, [selection, strokes, sectionId, onCopy]);
+
+  const handleCopyImage = useCallback(async () => {
+    if (regionData) {
+      const { region, doc } = regionData;
+      const out = await renderRegionCrop(region, doc, COPY_REGION_WIDTH);
+      const svg = strokesToSvgString(strokes, { width: out.width, height: out.height, viewBox: `0 0 ${region.width} ${region.height}`, transparentBg: true });
+      const strokesCanvas = await rasterizeSvg(svg, out.width, out.height);
+      out.getContext("2d")!.drawImage(strokesCanvas, 0, 0);
+      await copyCanvasAsImage(out);
+    } else {
+      if (strokes.length === 0) return;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const s of strokes) {
+        for (const [px, py] of s.points) {
+          if (px < minX) minX = px;
+          if (py < minY) minY = py;
+          if (px > maxX) maxX = px;
+          if (py > maxY) maxY = py;
+        }
+      }
+      const padding = 12;
+      minX -= padding; minY -= padding; maxX += padding; maxY += padding;
+      const w = maxX - minX, h = maxY - minY;
+      const shifted = strokes.map(s => ({ ...s, points: s.points.map(([x, y, p]) => [x - minX, y - minY, p] as [number, number, number]) }));
+      const scale = 2;
+      const svg = strokesToSvgString(shifted, { width: w * scale, height: h * scale, viewBox: `0 0 ${w} ${h}` });
+      const canvas = await rasterizeSvg(svg, w * scale, h * scale);
+      await copyCanvasAsImage(canvas);
+    }
+  }, [regionData, strokes]);
+
+  const canCopyImage = regionData !== null || strokes.length > 0;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -547,6 +584,15 @@ export default function SectionCanvas({
         ↓
       </button>
       <button
+        className={styles.copyImageBtn}
+        onClick={() => { void handleCopyImage(); }}
+        disabled={!canCopyImage}
+        title="Copy section as image"
+        style={{ opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none" }}
+      >
+        ⧉
+      </button>
+      <button
         className={styles.deleteBtn}
         onClick={onDelete}
         title="Delete section"
@@ -558,7 +604,10 @@ export default function SectionCanvas({
       <div style={{ display: collapsed ? "none" : undefined }}>
         <RegionPreview
           sectionId={sectionId}
-          onRegionLoaded={(dims) => setRegionDims(dims ?? false)}
+          onRegionLoaded={(dims, region, doc) => {
+            setRegionDims(dims ?? false);
+            setRegionData(dims && region && doc ? { region, doc } : null);
+          }}
         />
       </div>
 

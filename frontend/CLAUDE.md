@@ -112,7 +112,17 @@ type NoteUndoEntry =
 
 `DjVu.js` is not an ES module. `public/djvu.js` is a pre-built IIFE that sets `window.DjVu`. It is loaded via a plain `<script>` tag in `index.html` before the React bundle. Type declarations are in `src/types/djvu.d.ts`. Do not attempt to `import` it.
 
-**DjVu coordinate system:** `DjvuViewer` normalizes native scan pixels to PDF points (`native_px / dpi * 72`) so natural sizes use the same unit system as `pdf.js`. Region coordinates (captured via the SVG viewBox) are therefore in PDF points, **not** native DjVu pixels. Any code that crops a native DjVu `ImageData` using region coordinates must scale them: `pixel_coord = (point_coord / naturalSize) * img.width`. `RegionPreview.tsx` does this via `djvuDoc.getPagesSizes()` — do not remove that conversion.
+**DjVu coordinate system:** `DjvuViewer` normalizes native scan pixels to PDF points (`native_px / dpi * 72`) so natural sizes use the same unit system as `pdf.js`. Region coordinates (captured via the SVG viewBox) are therefore in PDF points, **not** native DjVu pixels. Any code that crops a native DjVu `ImageData` using region coordinates must scale them: `pixel_coord = (point_coord / naturalSize) * img.width`. `renderRegionCrop` (`DocumentViewer/regionCrop.ts`) does this via `djvuDoc.getPagesSizes()` — do not remove that conversion.
+
+### Region crop rendering
+
+`renderRegionCrop(region, doc, targetWidth)` (`DocumentViewer/regionCrop.ts`) fetches the document file and renders the page area covered by a `Region` onto a canvas scaled to `targetWidth` px (PDF via `pdfjsLib`, DjVu via `DjVu.Document`). It's the single source of truth for region-cropping math, parameterized by resolution so callers can pick their own quality bar: `RegionPreview.tsx` (NoteEditor) calls it at a small fixed width for its inline thumbnail; the copy-to-clipboard actions (below) call it fresh at a higher width, independent of whatever resolution the inline preview happens to use.
+
+### Copy section/region as image
+
+`Canvas/utils.ts` exports `strokesToSvgString` (strokes → SVG markup at a given pixel size, reusing the same `getStroke`/`svgPathFromStroke` rendering as everywhere else, with an optional transparent background for compositing), `rasterizeSvg` (SVG string → `HTMLCanvasElement`), and `copyCanvasAsImage` (`canvas.toBlob` → `navigator.clipboard.write` with a `ClipboardItem`). This writes a real PNG to the **OS** clipboard — distinct from the in-app stroke clipboard used by stroke-select copy/paste (above), which only round-trips between sections in the same note session. The OS clipboard is restricted to blob types (`image/png`, `text/plain`, `text/html`); raw `image/svg+xml` isn't reliably pasteable as an image outside vector tools, hence rasterizing.
+
+A hover-toolbar button on each `SectionCanvas` ("Copy section as image", `⧉`) copies the section's content: for a plain section, the strokes cropped to their bounding box (+12px padding) on a white background; for a region-backed section, `renderRegionCrop`'s page crop composited with the section's own strokes on top (transparent background, full region coordinate frame — not cropped to the strokes' own bounding box, so they land in the right place over the background). Disabled when there's nothing to copy (empty plain section); enabled on a region-backed section as soon as its data has loaded, even with zero strokes.
 
 ### Region enrichment
 
@@ -122,9 +132,11 @@ When `RegionLinkModal` confirms a link it first calls `sectionsApi.create` to ad
 
 ### Region context menu
 
-Clicking a region navigates to its linked note. Long-pressing on touch or right-clicking opens a fixed-position context menu with **Open Note** and **Resize Region** options. Resize handles only appear after the user explicitly enters edit mode via this menu — there are no hover-activated handles. `suppressRegionClickRef` prevents a click event from firing after a long-press that opened the menu.
+Clicking a region navigates to its linked note. Long-pressing on touch or right-clicking opens a fixed-position context menu with **Open Note**, **Copy**, and **Resize Region** options. Resize handles only appear after the user explicitly enters edit mode via this menu — there are no hover-activated handles. `suppressRegionClickRef` prevents a click event from firing after a long-press that opened the menu.
 
 Resize uses 8 handles (`nw`, `ne`, `sw`, `se` corners + `n`, `s`, `e`, `w` edge midpoints), defined in `REGION_HANDLE_DESCRIPTORS`. Corners are rendered as solid squares; edge handles as thin bars on the corresponding side. Dragging a handle calls `resizeRegionRect` with the handle key, computing the new rect while keeping the opposite edge/corner anchored.
+
+**Copy** (`handleCopyRegion`) writes a PNG image of the region to the system clipboard — the cropped page (`renderRegionCrop`) composited with any inline page strokes whose bounding box overlaps the region (hit-tested via `hitTestStrokes`, translated into region-relative coordinates). This is a real OS clipboard write (`navigator.clipboard.write` with a `ClipboardItem`), pasteable into other apps — not the in-app stroke clipboard used by stroke-select copy/paste.
 
 ### Document viewer architecture
 

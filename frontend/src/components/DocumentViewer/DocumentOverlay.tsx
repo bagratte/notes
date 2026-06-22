@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getStroke } from "perfect-freehand";
-import { svgPathFromStroke, flipLightness } from "@/components/Canvas/utils";
+import { svgPathFromStroke, flipLightness, strokesToSvgString, rasterizeSvg, copyCanvasAsImage } from "@/components/Canvas/utils";
 import { useDrawing, getPenHwOverride } from "@/components/Canvas/useDrawing";
 import StrokeSelectionOverlay from "@/components/Canvas/StrokeSelectionOverlay";
 import { normaliseRect, hitTestStrokes, offsetStroke } from "@/components/Canvas/strokeSelectUtils";
@@ -8,10 +8,13 @@ import type { NaturalRect } from "@/components/Canvas/strokeSelectUtils";
 import { useTheme } from "@/context/Theme";
 import type { StrokeData } from "@/components/Canvas";
 import type { Note, Region, ToolMode } from "@/types";
-import { notes as notesApi } from "@/api";
+import { notes as notesApi, documents as docsApi } from "@/api";
 import { useDrawingSettings } from "@/context/DrawingSettings";
 import { useTouchMode } from "@/context/TouchMode";
 import NoteStrokePreview from "./NoteStrokePreview";
+import { renderRegionCrop } from "./regionCrop";
+
+const COPY_REGION_WIDTH = 1600;
 
 export interface EnrichedRegion extends Region {
   note_id: number;
@@ -471,6 +474,21 @@ export default function DocumentOverlay({
     setRegionMenu({ regionId: region.id, x: e.clientX, y: e.clientY });
   }, []);
 
+  const handleCopyRegion = useCallback(async (region: EnrichedRegion) => {
+    const doc = await docsApi.get(region.document_id);
+    const out = await renderRegionCrop(region, doc, COPY_REGION_WIDTH);
+    const rect: NaturalRect = { x: region.x, y: region.y, width: region.width, height: region.height };
+    const overlapping = strokes.filter(s => hitTestStrokes([s], rect).size > 0);
+    const relocated = overlapping.map(s => ({
+      ...s,
+      points: s.points.map(([x, y, p]) => [x - region.x, y - region.y, p] as [number, number, number]),
+    }));
+    const svg = strokesToSvgString(relocated, { width: out.width, height: out.height, transparentBg: true });
+    const strokesCanvas = await rasterizeSvg(svg, out.width, out.height);
+    out.getContext("2d")!.drawImage(strokesCanvas, 0, 0);
+    await copyCanvasAsImage(out);
+  }, [strokes]);
+
   const handleResizePointerDown = useCallback(
     (region: EnrichedRegion, handle: ResizeHandle, e: React.PointerEvent<HTMLDivElement>) => {
       if ((mode !== "hand" && mode !== "auto") || naturalSize === undefined || onRegionUpdate === undefined) return;
@@ -905,6 +923,23 @@ export default function DocumentOverlay({
               }}
             >
               Open Note
+            </button>
+            <button
+              style={{
+                display: "block", width: "100%", padding: "10px 16px",
+                background: "none", border: "none", textAlign: "left",
+                fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
+              }}
+              onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+              onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+              onClick={() => {
+                const menu = regionMenu;
+                setRegionMenu(null);
+                const region = regions.find(r => r.id === menu.regionId);
+                if (region) void handleCopyRegion(region);
+              }}
+            >
+              Copy
             </button>
             {onRegionUpdate && (
               <button

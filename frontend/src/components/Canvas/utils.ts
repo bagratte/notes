@@ -1,3 +1,6 @@
+import { getStroke } from "perfect-freehand";
+import type { StrokeData } from "./types";
+
 // Converts perfect-freehand's outline polygon to an SVG path string.
 // Uses quadratic bezier curves through midpoints for smooth rendering.
 export function svgPathFromStroke(points: number[][]): string {
@@ -60,4 +63,56 @@ export function flipLightness(hex: string): string {
   };
   const toHex = (x: number) => Math.round(x * 255).toString(16).padStart(2, "0");
   return `#${toHex(hue2rgb(h + 1 / 3))}${toHex(hue2rgb(h))}${toHex(hue2rgb(h - 1 / 3))}${alpha}`;
+}
+
+const STROKE_RENDER_OPTS = { thinning: 0.5, smoothing: 0.5, streamline: 0.5, simulatePressure: true };
+
+// Renders strokes (in their own coordinate space) to an SVG string sized to `opts.width`/`opts.height`
+// pixels. `opts.viewBox` lets the caller map a different natural coordinate frame onto that pixel size
+// (e.g. a region's natural width/height) — defaults to "0 0 width height" (no remapping).
+export function strokesToSvgString(
+  strokes: StrokeData[],
+  opts: { width: number; height: number; viewBox?: string; transparentBg?: boolean }
+): string {
+  const { width, height, viewBox = `0 0 ${width} ${height}`, transparentBg } = opts;
+  const paths = strokes.map((s) => {
+    const isHighlighter = s.color.length === 9;
+    const outline = getStroke(s.points, {
+      ...STROKE_RENDER_OPTS,
+      thinning: isHighlighter ? 0 : STROKE_RENDER_OPTS.thinning,
+      simulatePressure: isHighlighter ? false : STROKE_RENDER_OPTS.simulatePressure,
+      size: s.width,
+    });
+    return `<path d="${svgPathFromStroke(outline)}" fill="${s.color}" />`;
+  });
+  const bg = transparentBg ? "" : `<rect x="0" y="0" width="100%" height="100%" fill="#fff" />`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">${bg}${paths.join("")}</svg>`;
+}
+
+// Rasterizes an SVG string onto a canvas of the given pixel size.
+export function rasterizeSvg(svg: string, width: number, height: number): Promise<HTMLCanvasElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      resolve(canvas);
+    };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
+// Writes a canvas to the system clipboard as a PNG image. Must be called synchronously within a
+// user-gesture handler (e.g. a click) — the Blob itself may resolve later, but `clipboard.write()`
+// needs to be invoked while user activation is still active.
+export function copyCanvasAsImage(canvas: HTMLCanvasElement): Promise<void> {
+  const blobPromise = new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");
+  });
+  return navigator.clipboard.write([new ClipboardItem({ "image/png": blobPromise })]);
 }

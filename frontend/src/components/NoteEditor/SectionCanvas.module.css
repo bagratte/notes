@@ -59,15 +59,36 @@
 }
 
 .moveUpBtn {
-  right: 72px;
+  right: 104px;
 }
 
 .moveDownBtn {
+  right: 72px;
+}
+
+.copyImageBtn {
+  position: absolute;
+  top: 8px;
   right: 40px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: opacity 0.15s;
 }
 
 .moveUpBtn:disabled,
-.moveDownBtn:disabled {
+.moveDownBtn:disabled,
+.copyImageBtn:disabled {
   opacity: 0 !important;
   pointer-events: none;
 }
