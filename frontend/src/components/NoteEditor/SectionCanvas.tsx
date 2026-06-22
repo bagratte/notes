@@ -32,6 +32,8 @@ interface Props {
   mode?: ToolMode;
   onHwOverrideChange?: (o: "stroke-eraser" | "segment-eraser" | null) => void;
   onDelete: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   onStrokeCommitted?: (stroke: Stroke) => void;
   undoPending?: number | null;
   onUndoConsumed?: () => void;
@@ -64,6 +66,8 @@ export default function SectionCanvas({
   mode = "pen",
   onHwOverrideChange,
   onDelete,
+  onMoveUp,
+  onMoveDown,
   onStrokeCommitted,
   undoPending,
   onUndoConsumed,
@@ -523,6 +527,24 @@ export default function SectionCanvas({
         style={{ opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none" }}
       >
         {collapsed ? "▼" : "▲"}
+      </button>
+      <button
+        className={styles.moveUpBtn}
+        onClick={onMoveUp}
+        disabled={!onMoveUp}
+        title="Move section up"
+        style={{ opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none" }}
+      >
+        ↑
+      </button>
+      <button
+        className={styles.moveDownBtn}
+        onClick={onMoveDown}
+        disabled={!onMoveDown}
+        title="Move section down"
+        style={{ opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none" }}
+      >
+        ↓
       </button>
       <button
         className={styles.deleteBtn}

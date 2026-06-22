@@ -191,6 +191,20 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
     setRedoStack((prev) => prev.filter((e) => e.sectionId !== id));
   };
 
+  const moveSection = async (id: number, direction: -1 | 1) => {
+    const idx = sectionList.findIndex((s) => s.id === id);
+    const newIdx = idx + direction;
+    if (idx === -1 || newIdx < 0 || newIdx >= sectionList.length) return;
+    const reordered = [...sectionList];
+    [reordered[idx], reordered[newIdx]] = [reordered[newIdx], reordered[idx]];
+    setSectionList(reordered);
+    try {
+      await sectionsApi.reorder(reordered.map((s) => s.id));
+    } catch {
+      sectionsApi.list(noteId).then(setSectionList);
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
       {sectionList.length === 0 && (
@@ -220,6 +234,8 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
           mode={tool}
           onHwOverrideChange={onHwOverrideChange}
           onDelete={() => deleteSection(section.id)}
+          onMoveUp={section.id === sectionList[0]?.id ? undefined : () => moveSection(section.id, -1)}
+          onMoveDown={section.id === sectionList[sectionList.length - 1]?.id ? undefined : () => moveSection(section.id, 1)}
           onStrokeCommitted={(stroke) => handleStrokeCommitted(section.id, stroke)}
           undoPending={undoPending?.sectionId === section.id ? undoPending.strokeId : null}
           onUndoConsumed={handleUndoConsumed}
