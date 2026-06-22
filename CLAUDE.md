@@ -137,7 +137,6 @@ The strokes router has two delete endpoints that are easy to confuse:
 | GET/PATCH/DELETE | `/folders/{id}` | PATCH updates `name` only |
 | GET/POST | `/notes/` | GET: optional `folder_id`, `document_id` filters (latter returns notes linked via regions) |
 | GET/PATCH/DELETE | `/notes/{id}` | PATCH updates `name` only |
-| POST | `/notes/{id}/merge` | body: `{ target_note_id }` — moves all sections, deletes source note |
 | GET/POST | `/documents/` | POST is multipart: optional `folder_id` + `name` + `file` |
 | POST | `/documents/from-url` | JSON body: `{ url, name, folder_id? }` — server fetches the URL and stores the file as a BLOB; detects type from URL extension, falls back to `Content-Type` |
 | GET/PATCH/DELETE | `/documents/{id}` | PATCH updates `name` and/or `last_page` (both optional); writing `last_page` auto-stamps `last_page_updated_at` |

@@ -12,10 +12,6 @@ class NoteUpdate(BaseModel):
     name: str
 
 
-class NoteMerge(BaseModel):
-    target_note_id: int
-
-
 class NoteOut(BaseModel):
     id: int
     folder_id: Optional[int]

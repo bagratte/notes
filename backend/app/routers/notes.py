@@ -1,9 +1,8 @@
-from sqlalchemy import func
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Note, Section, Region
-from app.schemas import NoteCreate, NoteUpdate, NoteOut, NoteMerge
+from app.schemas import NoteCreate, NoteUpdate, NoteOut
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -55,25 +54,4 @@ def delete_note(note_id: int, db: Session = Depends(get_db)):
     if not note:
         raise HTTPException(404)
     db.delete(note)
-    db.commit()
-
-
-@router.post("/{note_id}/merge", status_code=204)
-def merge_note(note_id: int, data: NoteMerge, db: Session = Depends(get_db)):
-    if note_id == data.target_note_id:
-        raise HTTPException(400, "Cannot merge a note into itself")
-    source = db.get(Note, note_id)
-    target = db.get(Note, data.target_note_id)
-    if not source or not target:
-        raise HTTPException(404)
-    max_order = db.query(func.max(Section.order)).filter(Section.note_id == data.target_note_id).scalar()
-    base = (max_order + 1) if max_order is not None else 0
-    source_sections = (
-        db.query(Section).filter(Section.note_id == note_id).order_by(Section.order).all()
-    )
-    for i, section in enumerate(source_sections):
-        section.note_id = data.target_note_id
-        section.order = base + i
-    db.flush()
-    db.delete(source)
     db.commit()

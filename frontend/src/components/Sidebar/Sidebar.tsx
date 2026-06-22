@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { folders as foldersApi, notes as notesApi, documents as docsApi, strokes as strokesApi, regions as regionsApi, sections as sectionsApi } from "@/api";
 import type { Folder, Note, Document } from "@/types";
 import type { TocEntry } from "@/components/DocumentViewer/viewerTypes";
-import MergeModal from "@/components/MergeModal";
 import UploadDocumentModal from "@/components/UploadDocumentModal";
 import { useTouchMode } from "@/context/TouchMode";
 import { useReorderMode } from "@/context/ReorderMode";
@@ -130,16 +129,6 @@ function AnnotatedPageIcon() {
   );
 }
 
-function MergeIcon() {
-  return (
-    <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
-      <path d="M3 2v3.5A4.5 4.5 0 007.5 10H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M13 2v1.5A4.5 4.5 0 018.5 8H7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M7 8l2 2-2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function DocIcon() {
   return (
     <svg className={css.typeIcon} viewBox="0 0 16 16" fill="none">
@@ -179,7 +168,6 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
   const [data, setData] = useState<SidebarData>({ folders: [], notes: [], documents: [], docNotes: {}, docNotePageNums: {}, docAnnotatedPages: {} });
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
   const [expandedDocuments, setExpandedDocuments] = useState<Set<number>>(new Set());
-  const [mergingNote, setMergingNote] = useState<Note | null>(null);
   const [docToc, setDocToc] = useState<Record<number, TocEntry[]>>({});
 
   const dragItemRef = useRef<{ type: "folder" | "document"; id: number; scope: number | null } | null>(null);
@@ -416,7 +404,6 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         <NoteIcon />
         <span className={css.rowLabel}>{prefix}{note.name}</span>
         <div className={css.rowActions} onClick={stop}>
-          <button className={css.iconBtn} title="Merge into" onClick={() => setMergingNote(note)}><MergeIcon /></button>
           <button className={css.iconBtn} title="Rename" onClick={() => renameNote(note)}><RenameIcon /></button>
           <button className={css.iconBtn} title="Delete" onClick={() => deleteNote(note)}>✕</button>
         </div>
@@ -717,9 +704,6 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         {rootDocs.map((doc) => renderDocument(doc, 8))}
       </div>
 
-      {mergingNote && (
-        <MergeModal sourceNoteId={mergingNote.id} onClose={() => setMergingNote(null)} />
-      )}
       {uploadModal && (
         <UploadDocumentModal
           folderId={uploadModal.folderId}

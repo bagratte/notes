@@ -3,29 +3,17 @@ import { useParams, useNavigate } from "react-router-dom";
 import { notes as notesApi } from "@/api";
 import { NoteEditor } from "@/components/NoteEditor";
 import type { NoteEditorHandle } from "@/components/NoteEditor";
-import MergeModal from "@/components/MergeModal";
 import { PageHeader, RenameIcon, DeleteIcon, actionBtn } from "@/components/PageHeader";
 import { Toolbar, DEFAULT_PEN } from "@/components/Toolbar";
 import type { PenSettings } from "@/components/Toolbar";
 import { UndoRedoBar } from "@/components/UndoRedoBar";
 import type { Note, ToolMode } from "@/types";
 
-function MergeIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <path d="M3 2v3.5A4.5 4.5 0 007.5 10H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M13 2v1.5A4.5 4.5 0 018.5 8H7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M7 8l2 2-2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export default function NotePage() {
   const { noteId } = useParams<{ noteId: string }>();
   const navigate = useNavigate();
   const [note, setNote] = useState<Note | null>(null);
   const [missing, setMissing] = useState(false);
-  const [merging, setMerging] = useState(false);
 
   const [pen, setPen] = useState<PenSettings>(DEFAULT_PEN);
   const [tool, setTool] = useState<ToolMode>("auto");
@@ -95,7 +83,6 @@ export default function NotePage() {
           <>
             <button onClick={renameNote} style={actionBtn}><RenameIcon /> Rename</button>
             <button onClick={deleteNote} style={actionBtn}><DeleteIcon /> Delete</button>
-            <button onClick={() => setMerging(true)} style={actionBtn}><MergeIcon /> Merge into…</button>
           </>
         }
       />
@@ -129,10 +116,6 @@ export default function NotePage() {
           onUndoRedoChange={handleUndoRedoChange}
         />
       </div>
-
-      {merging && (
-        <MergeModal sourceNoteId={note.id} onClose={() => setMerging(false)} />
-      )}
     </div>
   );
 }

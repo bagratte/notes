@@ -190,10 +190,6 @@ Ink strokes store colors in their original form. In dark mode, `flipLightness(he
 
 `NoteStrokePreview` (`src/components/DocumentViewer/NoteStrokePreview.tsx`) renders a floating or inline preview of a note's handwritten content. It fetches all sections and their strokes, renders each section as a cropped SVG (bounding-box viewport around the strokes), and falls back to `RegionPreview` for sections with no strokes. Used in `DocumentOverlay` to show a tooltip preview of the linked note when hovering over a region box. The preview is pointer-events-none and viewport-clamped in floating mode.
 
-### MergeModal
-
-`MergeModal` (`src/components/MergeModal.tsx`) lets the user merge all sections of the current note into another note. It is opened from the note title bar. On confirm it calls the merge API, navigates to the target note, and fires `sidebar:refresh` so the sidebar removes the now-deleted source note.
-
 ### UploadDocumentModal
 
 `UploadDocumentModal` (`src/components/UploadDocumentModal.tsx`) is the entry point for adding a document. It presents a URL input field and a "Browse file…" button. Entering a URL and confirming calls `POST /documents/from-url`; Browse opens the OS file picker and calls `POST /documents/` (multipart). In both paths the user is prompted for a name (via `window.prompt`) before the upload fires. The modal is used in both `Sidebar` and `FolderPage`, accepting `folderId?`, `onClose`, and `onUploaded` props.
@@ -204,7 +200,7 @@ Two `window` custom events keep the sidebar and document viewers in sync without
 
 | Event | `detail` | Fired by | Listened by |
 |-------|----------|----------|-------------|
-| `sidebar:refresh` | — | PdfViewer/DjvuViewer (region created), MergeModal (note merged) | Sidebar — full reload |
+| `sidebar:refresh` | — | PdfViewer/DjvuViewer (region created) | Sidebar — full reload |
 | `document:page-strokes-changed` | `{ documentId, pageNumber }` | PdfViewer/DjvuViewer (first/last stroke on page), Sidebar (page strokes deleted) | Sidebar — re-fetches `annotatedPages` for that doc; PdfViewer/DjvuViewer — reloads strokes if currently on that page |
 | `document:toc-loaded` | `{ documentId, toc: TocEntry[] }` | PdfViewer (via `doc.getOutline()`), DjvuViewer (via `doc.getContents()`) | Sidebar — stores TOC for that doc, auto-expands document row and Contents section |
 
