@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Region
-from app.schemas import RegionCreate, RegionUpdate, RegionOut
+from app.models import Region, Section
+from app.schemas import RegionCreate, RegionUpdate, RegionOut, RegionLinkSection
 
 router = APIRouter(prefix="/regions", tags=["regions"])
 
@@ -18,7 +18,7 @@ def list_regions(
     if document_id is not None:
         q = q.filter(Region.document_id == document_id)
     if section_id is not None:
-        q = q.filter(Region.section_id == section_id)
+        q = q.join(Region.sections).filter(Section.id == section_id)
     if page_number is not None:
         q = q.filter(Region.page_number == page_number)
     return q.all()
@@ -26,7 +26,11 @@ def list_regions(
 
 @router.post("/", response_model=RegionOut, status_code=201)
 def create_region(data: RegionCreate, db: Session = Depends(get_db)):
-    region = Region(**data.model_dump())
+    section = db.get(Section, data.section_id)
+    if not section:
+        raise HTTPException(404)
+    region = Region(**data.model_dump(exclude={"section_id"}))
+    region.sections.append(section)
     db.add(region)
     db.commit()
     db.refresh(region)
@@ -56,6 +60,21 @@ def update_region(region_id: int, data: RegionUpdate, db: Session = Depends(get_
 
     db.commit()
     db.refresh(region)
+    return region
+
+
+@router.post("/{region_id}/sections", response_model=RegionOut, status_code=201)
+def link_region_section(region_id: int, data: RegionLinkSection, db: Session = Depends(get_db)):
+    region = db.get(Region, region_id)
+    if not region:
+        raise HTTPException(404)
+    section = db.get(Section, data.section_id)
+    if not section:
+        raise HTTPException(404)
+    if section not in region.sections:
+        region.sections.append(section)
+        db.commit()
+        db.refresh(region)
     return region
 
 

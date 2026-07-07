@@ -88,6 +88,8 @@ export const regions = {
     }),
   update: (id: number, data: { x?: number; y?: number; width?: number; height?: number }) =>
     api.patch<Region>(`/regions/${id}`, data),
+  linkSection: (regionId: number, sectionId: number) =>
+    api.post<Region>(`/regions/${regionId}/sections`, { section_id: sectionId }),
   delete: (id: number) => api.delete(`/regions/${id}`),
 };
 

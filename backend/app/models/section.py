@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from sqlalchemy import Integer, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
+from app.models.region import region_sections
 
 
 class Section(Base):
@@ -16,5 +17,5 @@ class Section(Base):
     )
 
     note: Mapped["Note"] = relationship(back_populates="sections")
-    regions: Mapped[list["Region"]] = relationship(back_populates="section", cascade="all, delete-orphan")
+    regions: Mapped[list["Region"]] = relationship(secondary=region_sections, back_populates="sections")
     strokes: Mapped[list["Stroke"]] = relationship(back_populates="section", cascade="all, delete-orphan")

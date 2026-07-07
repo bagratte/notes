@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Note, Section, Region
+from app.models.region import region_sections
 from app.schemas import NoteCreate, NoteUpdate, NoteOut
+from app.services.regions import cleanup_orphaned
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -14,7 +16,8 @@ def list_notes(folder_id: int | None = None, document_id: int | None = None, db:
         q = q.filter(Note.folder_id == folder_id)
     if document_id is not None:
         q = (q.join(Section, Note.id == Section.note_id)
-               .join(Region, Section.id == Region.section_id)
+               .join(region_sections, Section.id == region_sections.c.section_id)
+               .join(Region, Region.id == region_sections.c.region_id)
                .filter(Region.document_id == document_id)
                .distinct())
     return q.all()
@@ -53,5 +56,7 @@ def delete_note(note_id: int, db: Session = Depends(get_db)):
     note = db.get(Note, note_id)
     if not note:
         raise HTTPException(404)
+    region_ids = [r.id for section in note.sections for r in section.regions]
     db.delete(note)
     db.commit()
+    cleanup_orphaned(db, region_ids)

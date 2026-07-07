@@ -97,7 +97,7 @@ Document (folder_id null = root level)
 Note → Section
 Section ← Stroke  (section_id set,   document_id null)
 Document ← Stroke (document_id set,  section_id null, page_number set)
-Region: (document_id, page_number, x, y, width, height) → section_id
+Region: (document_id, page_number, x, y, width, height) ↔ Section  (many-to-many via region_sections)
 ```
 
 Folders are arbitrarily nested. Top-level folders have `parent_folder_id = NULL`. Notes and Documents have an optional `folder_id` — `NULL` means root level (no folder). There are no Notebooks.
@@ -130,9 +130,10 @@ The strokes router has two delete endpoints that are easy to confuse:
 | POST | `/sections/` | create section (`note_id`, `order`) |
 | GET/PATCH/DELETE | `/sections/{id}` | PATCH updates `height` only |
 | POST | `/sections/reorder` | body: `{ section_ids: number[] }` — sets order by array index |
-| GET/POST | `/regions/` | filter by `document_id`, `page_number`, `section_id` |
+| GET/POST | `/regions/` | filter by `document_id`, `page_number`, `section_id`; POST creates a region + its first section link in one call; response includes nested `sections: [{id, note: {id, name}}]` |
 | PATCH | `/regions/{id}` | partial update of geometry fields |
-| DELETE | `/regions/{id}` | delete a region |
+| POST | `/regions/{id}/sections` | body `{ section_id }` — links an existing region to an existing section (additional note link); deleting a section (or note) that leaves a region with zero links deletes that region |
+| DELETE | `/regions/{id}` | delete a region and all its section links |
 | GET/POST | `/folders/` | list accepts optional `parent_folder_id`; POST body: `{ name, parent_folder_id? }` |
 | GET/PATCH/DELETE | `/folders/{id}` | PATCH updates `name` only |
 | GET/POST | `/notes/` | GET: optional `folder_id`, `document_id` filters (latter returns notes linked via regions) |

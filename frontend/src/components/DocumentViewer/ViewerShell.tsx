@@ -80,8 +80,9 @@ export default function ViewerShell({
   handleRegionComplete,
   handleRegionAddToNote,
   handleRegionUpdate,
-  handleRegionClick,
-  handleRegionDelete,
+  handleOpenNote,
+  handleRegionLinkNewNote,
+  handleRegionLinkExistingNote,
   stopPointerPan,
   handleScrollPointerDown,
   handleScrollPointerMove,
@@ -281,8 +282,9 @@ export default function ViewerShell({
                           onRegionComplete={(rect) => handleRegionComplete(page, rect)}
                           onRegionAddToNote={(rect, noteId) => handleRegionAddToNote(page, rect, noteId)}
                           onRegionUpdate={(regionId, rect) => handleRegionUpdate(page, regionId, rect)}
-                          onRegionClick={handleRegionClick}
-                          onRegionDelete={(region) => handleRegionDelete(page, region)}
+                          onOpenNote={handleOpenNote}
+                          onRegionLinkNewNote={handleRegionLinkNewNote}
+                          onRegionLinkExistingNote={handleRegionLinkExistingNote}
                           onHwOverrideChange={setHwOverride}
                           onBatchDelete={(strokes) => void handleBatchDeleteInline(page, strokes)}
                           onBatchMove={(del, cr) => void handleBatchMoveInline(page, del, cr)}

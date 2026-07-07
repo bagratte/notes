@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Section
 from app.schemas import SectionCreate, SectionReorder, SectionOut, SectionUpdate
+from app.services.regions import cleanup_orphaned
 
 router = APIRouter(prefix="/sections", tags=["sections"])
 
@@ -54,5 +55,7 @@ def delete_section(section_id: int, db: Session = Depends(get_db)):
     section = db.get(Section, section_id)
     if not section:
         raise HTTPException(404)
+    region_ids = [r.id for r in section.regions]
     db.delete(section)
     db.commit()
+    cleanup_orphaned(db, region_ids)

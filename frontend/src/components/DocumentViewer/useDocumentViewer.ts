@@ -1,12 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import type { EnrichedRegion } from "./DocumentOverlay";
 import type { ToolMode } from "@/types";
 import type { StrokeData } from "@/components/Canvas";
 import { DEFAULT_PEN_DOCUMENT as DEFAULT_PEN } from "@/components/Toolbar";
 import type { PenSettings } from "@/components/Toolbar";
 import { strokes as strokesApi, regions as regionsApi, sections as sectionsApi, notes as notesApi, documents as docsApi } from "@/api";
-import type { Stroke, DocUndoEntry } from "@/types";
+import type { Stroke, DocUndoEntry, Region } from "@/types";
 import { useDrawingSettings } from "@/context/DrawingSettings";
 import {
   NaturalSize,
@@ -31,7 +30,6 @@ export interface UseDocumentViewerResult {
   textLayerRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
   loadedStrokePagesRef: React.MutableRefObject<Set<number>>;
   loadedRegionPagesRef: React.MutableRefObject<Set<number>>;
-  sectionNoteCacheRef: React.MutableRefObject<Map<number, number>>;
 
   // state
   numPages: number;
@@ -45,7 +43,7 @@ export interface UseDocumentViewerResult {
   naturalSizes: Record<number, NaturalSize>;
   strokesByPage: Record<number, Stroke[]>;
   redoByPage: Record<number, DocUndoEntry[]>;
-  regionsByPage: Record<number, EnrichedRegion[]>;
+  regionsByPage: Record<number, Region[]>;
   loading: boolean;
   error: string | null;
   toolMode: ToolMode;
@@ -67,7 +65,7 @@ export interface UseDocumentViewerResult {
   setWindowRange: React.Dispatch<React.SetStateAction<{ start: number; end: number }>>;
   setStrokesByPage: React.Dispatch<React.SetStateAction<Record<number, Stroke[]>>>;
   setRedoByPage: React.Dispatch<React.SetStateAction<Record<number, DocUndoEntry[]>>>;
-  setRegionsByPage: React.Dispatch<React.SetStateAction<Record<number, EnrichedRegion[]>>>;
+  setRegionsByPage: React.Dispatch<React.SetStateAction<Record<number, Region[]>>>;
   setFitMode: React.Dispatch<React.SetStateAction<"width" | "page" | "manual">>;
   setFitPopoverOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setManualScale: React.Dispatch<React.SetStateAction<number>>;
@@ -92,8 +90,9 @@ export interface UseDocumentViewerResult {
   handleRegionComplete: (page: number, rect: PendingRegion) => Promise<void>;
   handleRegionAddToNote: (page: number, rect: PendingRegion, noteId: number) => Promise<void>;
   handleRegionUpdate: (page: number, regionId: number, rect: PendingRegion) => Promise<void>;
-  handleRegionClick: (region: EnrichedRegion) => void;
-  handleRegionDelete: (page: number, region: EnrichedRegion) => Promise<void>;
+  handleOpenNote: (noteId: number) => void;
+  handleRegionLinkNewNote: (region: Region) => Promise<void>;
+  handleRegionLinkExistingNote: (region: Region, noteId: number) => Promise<void>;
   stopPointerPan: () => void;
   handleScrollPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
   handleScrollPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
@@ -140,7 +139,6 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   const textLayerRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const loadedStrokePagesRef = useRef<Set<number>>(new Set());
   const loadedRegionPagesRef = useRef<Set<number>>(new Set());
-  const sectionNoteCacheRef = useRef<Map<number, number>>(new Map());
   const suppressScrollSyncRef = useRef(false);
   const panStateRef = useRef<PanState | null>(null);
   const prevViewportRef = useRef<ViewportSize | null>(null);
@@ -161,7 +159,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   const [strokesByPage, setStrokesByPage] = useState<Record<number, Stroke[]>>({});
   const [redoByPage, setRedoByPage] = useState<Record<number, DocUndoEntry[]>>({});
   const [undoByPage, setUndoByPage] = useState<Record<number, DocUndoEntry[]>>({});
-  const [regionsByPage, setRegionsByPage] = useState<Record<number, EnrichedRegion[]>>({});
+  const [regionsByPage, setRegionsByPage] = useState<Record<number, Region[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toolMode, setToolMode] = useState<ToolMode>("auto");
@@ -197,7 +195,6 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     setWindowRange({ start: Math.max(1, target - WINDOW_BUFFER), end: target + WINDOW_BUFFER });
     loadedStrokePagesRef.current.clear();
     loadedRegionPagesRef.current.clear();
-    sectionNoteCacheRef.current.clear();
   }, []);
 
   // ---------- computed ----------
@@ -234,7 +231,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     async (page: number, force = false) => {
       if (!force && loadedStrokePagesRef.current.has(page) && loadedRegionPagesRef.current.has(page)) return;
 
-      const [strokeData, rawRegions] = await Promise.all([
+      const [strokeData, regionsData] = await Promise.all([
         strokesApi.listForPage(documentId, page),
         regionsApi.list({ documentId, pageNumber: page }),
       ]);
@@ -244,17 +241,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
       setUndoByPage((prev) => (prev[page] ? { ...prev, [page]: [] } : prev));
       loadedStrokePagesRef.current.add(page);
 
-      const enriched: EnrichedRegion[] = await Promise.all(
-        rawRegions.map(async (r) => {
-          const cached = sectionNoteCacheRef.current.get(r.section_id);
-          if (cached !== undefined) return { ...r, note_id: cached };
-          const section = await sectionsApi.get(r.section_id);
-          sectionNoteCacheRef.current.set(r.section_id, section.note_id);
-          return { ...r, note_id: section.note_id };
-        })
-      );
-
-      setRegionsByPage((prev) => ({ ...prev, [page]: enriched }));
+      setRegionsByPage((prev) => ({ ...prev, [page]: regionsData }));
       loadedRegionPagesRef.current.add(page);
     },
     [documentId]
@@ -644,10 +631,9 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
 
     setRegionsByPage((prev) => {
       const existing = prev[page] ?? [];
-      return { ...prev, [page]: [...existing, { ...region, note_id: note.id }] };
+      return { ...prev, [page]: [...existing, region] };
     });
 
-    sectionNoteCacheRef.current.set(section.id, note.id);
     loadedRegionPagesRef.current.add(page);
     setToolMode("hand");
     window.dispatchEvent(new CustomEvent("sidebar:refresh"));
@@ -667,17 +653,45 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
 
     setRegionsByPage((prev) => {
       const existing = prev[page] ?? [];
-      return { ...prev, [page]: [...existing, { ...region, note_id: noteId }] };
+      return { ...prev, [page]: [...existing, region] };
     });
 
-    sectionNoteCacheRef.current.set(section.id, noteId);
     loadedRegionPagesRef.current.add(page);
     setToolMode("hand");
     navigate(`/notes/${noteId}`);
   }, [documentId, navigate]);
 
+  const handleRegionLinkNewNote = useCallback(async (region: Region) => {
+    const note = await notesApi.create("Untitled Note", folderId);
+    const section = await sectionsApi.create(note.id, 0);
+    const updated = await regionsApi.linkSection(region.id, section.id);
+
+    setRegionsByPage((prev) => {
+      const page = region.page_number;
+      const existing = prev[page] ?? [];
+      return { ...prev, [page]: existing.map((r) => (r.id === region.id ? updated : r)) };
+    });
+
+    window.dispatchEvent(new CustomEvent("sidebar:refresh"));
+    navigate(`/notes/${note.id}`);
+  }, [folderId, navigate]);
+
+  const handleRegionLinkExistingNote = useCallback(async (region: Region, noteId: number) => {
+    const existingSections = await sectionsApi.list(noteId);
+    const section = await sectionsApi.create(noteId, existingSections.length);
+    const updated = await regionsApi.linkSection(region.id, section.id);
+
+    setRegionsByPage((prev) => {
+      const page = region.page_number;
+      const existing = prev[page] ?? [];
+      return { ...prev, [page]: existing.map((r) => (r.id === region.id ? updated : r)) };
+    });
+
+    navigate(`/notes/${noteId}`);
+  }, [navigate]);
+
   const handleRegionUpdate = useCallback(async (page: number, regionId: number, rect: PendingRegion) => {
-    let previousRegion: EnrichedRegion | null = null;
+    let previousRegion: Region | null = null;
 
     setRegionsByPage((prev) => {
       const existing = prev[page] ?? [];
@@ -703,26 +717,9 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     }
   }, []);
 
-  const handleRegionClick = useCallback((region: EnrichedRegion) => {
-    navigate(`/notes/${region.note_id}`);
+  const handleOpenNote = useCallback((noteId: number) => {
+    navigate(`/notes/${noteId}`);
   }, [navigate]);
-
-  const handleRegionDelete = useCallback(async (page: number, region: EnrichedRegion) => {
-    setRegionsByPage((prev) => ({
-      ...prev,
-      [page]: (prev[page] ?? []).filter((r) => r.id !== region.id),
-    }));
-    try {
-      await notesApi.delete(region.note_id);
-      window.dispatchEvent(new CustomEvent("note:deleted", { detail: { noteId: region.note_id } }));
-      window.dispatchEvent(new CustomEvent("sidebar:refresh"));
-    } catch {
-      setRegionsByPage((prev) => ({
-        ...prev,
-        [page]: [...(prev[page] ?? []), region],
-      }));
-    }
-  }, []);
 
   // ---------- pan ----------
 
@@ -881,9 +878,11 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     const handler = (e: Event) => {
       const { noteId } = (e as CustomEvent<{ noteId: number }>).detail;
       setRegionsByPage((prev) => {
-        const next: Record<number, EnrichedRegion[]> = {};
+        const next: Record<number, Region[]> = {};
         for (const [page, rs] of Object.entries(prev)) {
-          next[Number(page)] = rs.filter((r) => r.note_id !== noteId);
+          next[Number(page)] = rs
+            .map((r) => ({ ...r, sections: r.sections.filter((s) => s.note.id !== noteId) }))
+            .filter((r) => r.sections.length > 0);
         }
         return next;
       });
@@ -906,7 +905,6 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     textLayerRefs,
     loadedStrokePagesRef,
     loadedRegionPagesRef,
-    sectionNoteCacheRef,
     numPages,
     pageNum,
     pageLabels,
@@ -961,8 +959,9 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     handleRegionComplete,
     handleRegionAddToNote,
     handleRegionUpdate,
-    handleRegionClick,
-    handleRegionDelete,
+    handleOpenNote,
+    handleRegionLinkNewNote,
+    handleRegionLinkExistingNote,
     stopPointerPan,
     handleScrollPointerDown,
     handleScrollPointerMove,

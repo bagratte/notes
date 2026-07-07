@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import type { CSSProperties } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { folders as foldersApi, notes as notesApi, documents as docsApi, strokes as strokesApi, regions as regionsApi, sections as sectionsApi } from "@/api";
+import { folders as foldersApi, notes as notesApi, documents as docsApi, strokes as strokesApi, regions as regionsApi } from "@/api";
 import type { Folder, Note, Document } from "@/types";
 import type { TocEntry } from "@/components/DocumentViewer/viewerTypes";
 import UploadDocumentModal from "@/components/UploadDocumentModal";
@@ -187,10 +187,9 @@ export default function Sidebar({ style, className }: { style?: CSSProperties; c
         Promise.all(docs.map((d) => notesApi.list({ documentId: d.id }).then((ns) => [d.id, ns] as const))),
         Promise.all(docs.map(async (d) => {
           const regs = await regionsApi.list({ documentId: d.id });
-          const pairs = await Promise.all(regs.map(async (r) => {
-            const sec = await sectionsApi.get(r.section_id);
-            return { noteId: sec.note_id, pageNumber: r.page_number };
-          }));
+          const pairs = regs.flatMap((r) =>
+            r.sections.map((s) => ({ noteId: s.note.id, pageNumber: r.page_number }))
+          );
           const map: Record<number, number> = {};
           for (const { noteId, pageNumber } of pairs)
             if (map[noteId] === undefined || pageNumber < map[noteId]) map[noteId] = pageNumber;

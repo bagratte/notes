@@ -46,16 +46,21 @@ export interface Section {
   created_at: string;
 }
 
+export interface RegionSectionLink {
+  id: number;
+  note: { id: number; name: string };
+}
+
 export interface Region {
   id: number;
   document_id: number;
-  section_id: number;
   page_number: number;
   x: number;
   y: number;
   width: number;
   height: number;
   created_at: string;
+  sections: RegionSectionLink[];
 }
 
 export interface Stroke {

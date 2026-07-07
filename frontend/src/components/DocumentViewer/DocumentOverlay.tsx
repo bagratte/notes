@@ -16,10 +16,6 @@ import { renderRegionCrop } from "./regionCrop";
 
 const COPY_REGION_WIDTH = 1600;
 
-export interface EnrichedRegion extends Region {
-  note_id: number;
-}
-
 interface DragRect {
   x: number;
   y: number;
@@ -43,12 +39,13 @@ interface StrokeSelectionState {
 interface Props {
   strokes: StrokeData[];
   onStrokeComplete?: (s: StrokeData) => void;
-  regions: EnrichedRegion[];
+  regions: Region[];
   onRegionComplete?: (rect: DragRect) => void;
   onRegionAddToNote?: (rect: DragRect, noteId: number) => void;
-  onRegionClick?: (region: EnrichedRegion) => void;
+  onOpenNote?: (noteId: number) => void;
   onRegionUpdate?: (regionId: number, rect: DragRect) => void;
-  onRegionDelete?: (region: EnrichedRegion) => void;
+  onRegionLinkNewNote?: (region: Region) => void;
+  onRegionLinkExistingNote?: (region: Region, noteId: number) => void;
   onEraseStroke?: (id: number) => void;
   onSegmentErase?: (deleted: number[], created: StrokeData[]) => void;
   onHwOverrideChange?: (o: "stroke-eraser" | "segment-eraser" | null) => void;
@@ -182,9 +179,10 @@ export default function DocumentOverlay({
   regions,
   onRegionComplete,
   onRegionAddToNote,
-  onRegionClick,
+  onOpenNote,
   onRegionUpdate,
-  onRegionDelete,
+  onRegionLinkNewNote,
+  onRegionLinkExistingNote,
   onEraseStroke,
   onSegmentErase,
   onHwOverrideChange,
@@ -211,6 +209,7 @@ export default function DocumentOverlay({
   const { isTouch } = useTouchMode();
   const [editingRegionId, setEditingRegionId] = useState<number | null>(null);
   const [regionMenu, setRegionMenu] = useState<{ regionId: number; x: number; y: number } | null>(null);
+  const [openNoteExpanded, setOpenNoteExpanded] = useState(false);
   const [regionDrafts, setRegionDrafts] = useState<Record<number, DragRect>>({});
   const { settings: ds } = useDrawingSettings();
   const { resolvedTheme } = useTheme();
@@ -223,6 +222,129 @@ export default function DocumentOverlay({
 
   const [strokeSel, setStrokeSel] = useState<StrokeSelectionState | null>(null);
   const MIN_STROKE_SEL_PX = 4;
+
+  const closeNoteLinkPopup = useCallback(() => {
+    setAddToNoteOpen(false);
+    setNotesList([]);
+    setHoveredNoteId(null);
+    setPreviewPos(null);
+    setSelectedNoteId(null);
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+  }, []);
+
+  const renderNoteLinkItems = useCallback((
+    onCreateNote: () => void,
+    onAddToNote: (noteId: number) => void,
+    excludeNoteIds?: Set<number>,
+  ) => {
+    const visibleNotes = excludeNoteIds ? notesList.filter((n) => !excludeNoteIds.has(n.id)) : notesList;
+    return (
+      <>
+        <button
+          style={{
+            display: "block", width: "100%", padding: "10px 16px",
+            background: "none", border: "none", textAlign: "left",
+            fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
+          }}
+          onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+          onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+          onClick={() => { closeNoteLinkPopup(); onCreateNote(); }}
+        >
+          Create Note
+        </button>
+        <button
+          style={{
+            display: "block", width: "100%", padding: "10px 16px",
+            background: "none", border: "none", textAlign: "left",
+            fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
+            borderTop: "1px solid #f0ede8",
+          }}
+          onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+          onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+          onClick={async () => {
+            if (addToNoteOpen) { closeNoteLinkPopup(); return; }
+            setAddToNoteOpen(true);
+            setNotesLoading(true);
+            try {
+              const all = await notesApi.list();
+              all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+              setNotesList(all);
+            } finally {
+              setNotesLoading(false);
+            }
+          }}
+        >
+          Add to Note ›
+        </button>
+        {hoveredNoteId !== null && previewPos && (
+          <NoteStrokePreview noteId={hoveredNoteId} x={previewPos.x} y={previewPos.y} />
+        )}
+        {addToNoteOpen && (
+          <div style={{ borderTop: "1px solid #f0ede8", maxHeight: 200, overflowY: "auto" }}>
+            {notesLoading ? (
+              <div style={{ padding: "8px 16px", fontSize: 12, color: "#aaa" }}>Loading…</div>
+            ) : visibleNotes.length === 0 ? (
+              <div style={{ padding: "8px 16px", fontSize: 12, color: "#aaa" }}>No notes yet</div>
+            ) : visibleNotes.map((note) => (
+              <div key={note.id}>
+                <button
+                  style={{
+                    display: "block", width: "100%", padding: "8px 16px 8px 24px",
+                    background: selectedNoteId === note.id ? "#eae8fc" : "none",
+                    border: "none", textAlign: "left",
+                    fontSize: 13, cursor: "pointer",
+                    color: selectedNoteId === note.id ? "#3a4bd6" : "#2a2a2a",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}
+                  onPointerEnter={(e) => {
+                    if (isTouch) return;
+                    (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef";
+                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                    const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                    hoverTimerRef.current = setTimeout(() => {
+                      const spaceRight = window.innerWidth - rect.right - 8;
+                      const px = spaceRight >= 420 ? rect.right + 8 : rect.left - 420 - 8;
+                      setHoveredNoteId(note.id);
+                      setPreviewPos({ x: px, y: rect.top });
+                    }, 150);
+                  }}
+                  onPointerLeave={(e) => {
+                    if (isTouch) return;
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      selectedNoteId === note.id ? "#eae8fc" : "none";
+                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                    setHoveredNoteId(null);
+                    setPreviewPos(null);
+                  }}
+                  onClick={(e) => {
+                    if (isTouch) {
+                      if (selectedNoteId === note.id) {
+                        closeNoteLinkPopup();
+                        onAddToNote(note.id);
+                      } else {
+                        setSelectedNoteId(note.id);
+                        const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                        const spaceRight = window.innerWidth - rect.right - 8;
+                        const px = spaceRight >= 420 ? rect.right + 8 : rect.left - 420 - 8;
+                        setHoveredNoteId(note.id);
+                        setPreviewPos({ x: px, y: rect.top });
+                      }
+                      return;
+                    }
+                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                    closeNoteLinkPopup();
+                    onAddToNote(note.id);
+                  }}
+                >
+                  {note.name}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  }, [addToNoteOpen, notesList, notesLoading, hoveredNoteId, previewPos, selectedNoteId, isTouch, closeNoteLinkPopup]);
 
   const onSelectRegionEnd = useCallback(() => {
     if (dragStart && dragCurrent) {
@@ -371,17 +493,12 @@ export default function DocumentOverlay({
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setPendingSelection(null);
-        setAddToNoteOpen(false);
-        setNotesList([]);
-        setHoveredNoteId(null);
-        setPreviewPos(null);
-        setSelectedNoteId(null);
-        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+        closeNoteLinkPopup();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [pendingSelection]);
+  }, [pendingSelection, closeNoteLinkPopup]);
 
   useEffect(() => () => {
     clearTouchPress();
@@ -396,9 +513,11 @@ export default function DocumentOverlay({
     pendingResizeStateRef.current = null;
     setEditingRegionId(null);
     setRegionMenu(null);
+    setOpenNoteExpanded(false);
+    closeNoteLinkPopup();
     setRegionDrafts({});
     suppressRegionClickRef.current = null;
-  }, [clearTouchPress, mode]);
+  }, [clearTouchPress, mode, closeNoteLinkPopup]);
 
   useEffect(() => {
     if (mode !== "stroke-select") setStrokeSel(null);
@@ -409,7 +528,7 @@ export default function DocumentOverlay({
     if (e.target === e.currentTarget) setEditingRegionId(null);
   }, [editingRegionId, mode]);
 
-  const handleRegionPointerDown = useCallback((region: EnrichedRegion, e: React.PointerEvent<HTMLDivElement>) => {
+  const handleRegionPointerDown = useCallback((region: Region, e: React.PointerEvent<HTMLDivElement>) => {
     if (mode === "auto" && e.pointerType === "pen") {
       e.preventDefault();
       if (e.button !== 0) {
@@ -429,6 +548,7 @@ export default function DocumentOverlay({
       const press = touchPressRef.current;
       touchPressRef.current = null;
       suppressRegionClickRef.current = region.id;
+      setOpenNoteExpanded(false);
       setRegionMenu({ regionId: region.id, x: press?.startClientX ?? 0, y: press?.startClientY ?? 0 });
     }, REGION_LONG_PRESS_MS);
     touchPressRef.current = {
@@ -453,7 +573,7 @@ export default function DocumentOverlay({
     if (press && press.regionId === regionId && press.pointerId === e.pointerId) clearTouchPress();
   }, [clearTouchPress]);
 
-  const handleRegionClick = useCallback((region: EnrichedRegion, e: React.MouseEvent<HTMLDivElement>) => {
+  const handleRegionClick = useCallback((region: Region, e: React.MouseEvent<HTMLDivElement>) => {
     if (suppressRegionClickRef.current === region.id) {
       suppressRegionClickRef.current = null;
       e.preventDefault();
@@ -466,15 +586,21 @@ export default function DocumentOverlay({
       e.stopPropagation();
       return;
     }
-    onRegionClick?.(region);
-  }, [editingRegionId, onRegionClick]);
+    if (region.sections.length === 1) {
+      onOpenNote?.(region.sections[0].note.id);
+    } else {
+      setOpenNoteExpanded(true);
+      setRegionMenu({ regionId: region.id, x: e.clientX, y: e.clientY });
+    }
+  }, [editingRegionId, onOpenNote]);
 
-  const handleRegionContextMenu = useCallback((region: EnrichedRegion, e: React.MouseEvent<HTMLDivElement>) => {
+  const handleRegionContextMenu = useCallback((region: Region, e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
+    setOpenNoteExpanded(false);
     setRegionMenu({ regionId: region.id, x: e.clientX, y: e.clientY });
   }, []);
 
-  const handleCopyRegion = useCallback(async (region: EnrichedRegion) => {
+  const handleCopyRegion = useCallback(async (region: Region) => {
     const doc = await docsApi.get(region.document_id);
     const out = await renderRegionCrop(region, doc, COPY_REGION_WIDTH);
     const rect: NaturalRect = { x: region.x, y: region.y, width: region.width, height: region.height };
@@ -490,7 +616,7 @@ export default function DocumentOverlay({
   }, [strokes]);
 
   const handleResizePointerDown = useCallback(
-    (region: EnrichedRegion, handle: ResizeHandle, e: React.PointerEvent<HTMLDivElement>) => {
+    (region: Region, handle: ResizeHandle, e: React.PointerEvent<HTMLDivElement>) => {
       if ((mode !== "hand" && mode !== "auto") || naturalSize === undefined || onRegionUpdate === undefined) return;
       e.preventDefault();
       e.stopPropagation();
@@ -735,9 +861,8 @@ export default function DocumentOverlay({
           <div
             style={{ position: "absolute", inset: 0, zIndex: 101 }}
             onPointerDown={() => {
-              if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-              setPendingSelection(null); setAddToNoteOpen(false); setNotesList([]);
-              setHoveredNoteId(null); setPreviewPos(null); setSelectedNoteId(null);
+              setPendingSelection(null);
+              closeNoteLinkPopup();
             }}
           />
           <div
@@ -755,233 +880,169 @@ export default function DocumentOverlay({
             }}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <button
-              style={{
-                display: "block", width: "100%", padding: "10px 16px",
-                background: "none", border: "none", textAlign: "left",
-                fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
-              }}
-              onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
-              onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
-              onClick={() => {
-                const sel = pendingSelection;
-                setPendingSelection(null);
-                setAddToNoteOpen(false);
-                setNotesList([]);
-                if (sel) onRegionComplete?.(sel);
-              }}
-            >
-              Create Note
-            </button>
-            <button
-              style={{
-                display: "block", width: "100%", padding: "10px 16px",
-                background: "none", border: "none", textAlign: "left",
-                fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
-                borderTop: "1px solid #f0ede8",
-              }}
-              onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
-              onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
-              onClick={async () => {
-                if (addToNoteOpen) {
-                  setAddToNoteOpen(false); setNotesList([]);
-                  setHoveredNoteId(null); setPreviewPos(null); setSelectedNoteId(null);
-                  if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                  return;
-                }
-                setAddToNoteOpen(true);
-                setNotesLoading(true);
-                try {
-                  const all = await notesApi.list();
-                  all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                  setNotesList(all);
-                } finally {
-                  setNotesLoading(false);
-                }
-              }}
-            >
-              Add to Note ›
-            </button>
-            {hoveredNoteId !== null && previewPos && (
-              <NoteStrokePreview noteId={hoveredNoteId} x={previewPos.x} y={previewPos.y} />
-            )}
-            {addToNoteOpen && (
-              <div style={{ borderTop: "1px solid #f0ede8", maxHeight: 200, overflowY: "auto" }}>
-                {notesLoading ? (
-                  <div style={{ padding: "8px 16px", fontSize: 12, color: "#aaa" }}>Loading…</div>
-                ) : notesList.length === 0 ? (
-                  <div style={{ padding: "8px 16px", fontSize: 12, color: "#aaa" }}>No notes yet</div>
-                ) : notesList.map((note) => (
-                  <div key={note.id}>
-                    <button
-                      style={{
-                        display: "block", width: "100%", padding: "8px 16px 8px 24px",
-                        background: selectedNoteId === note.id ? "#eae8fc" : "none",
-                        border: "none", textAlign: "left",
-                        fontSize: 13, cursor: "pointer",
-                        color: selectedNoteId === note.id ? "#3a4bd6" : "#2a2a2a",
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      }}
-                      onPointerEnter={(e) => {
-                        if (isTouch) return;
-                        (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef";
-                        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                        const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                        hoverTimerRef.current = setTimeout(() => {
-                          const spaceRight = window.innerWidth - rect.right - 8;
-                          const px = spaceRight >= 420 ? rect.right + 8 : rect.left - 420 - 8;
-                          setHoveredNoteId(note.id);
-                          setPreviewPos({ x: px, y: rect.top });
-                        }, 150);
-                      }}
-                      onPointerLeave={(e) => {
-                        if (isTouch) return;
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          selectedNoteId === note.id ? "#eae8fc" : "none";
-                        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                        setHoveredNoteId(null);
-                        setPreviewPos(null);
-                      }}
-                      onClick={(e) => {
-                        if (isTouch) {
-                          if (selectedNoteId === note.id) {
-                            // Second tap — execute
-                            setSelectedNoteId(null);
-                            setHoveredNoteId(null);
-                            setPreviewPos(null);
-                            const sel = pendingSelection;
-                            setPendingSelection(null);
-                            setAddToNoteOpen(false);
-                            setNotesList([]);
-                            if (sel) onRegionAddToNote?.(sel, note.id);
-                          } else {
-                            // First tap — select and show floating preview
-                            setSelectedNoteId(note.id);
-                            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                            const spaceRight = window.innerWidth - rect.right - 8;
-                            const px = spaceRight >= 420 ? rect.right + 8 : rect.left - 420 - 8;
-                            setHoveredNoteId(note.id);
-                            setPreviewPos({ x: px, y: rect.top });
-                          }
-                          return;
-                        }
-                        // Mouse: single click executes immediately
-                        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                        setHoveredNoteId(null); setPreviewPos(null);
-                        const sel = pendingSelection;
-                        setPendingSelection(null);
-                        setAddToNoteOpen(false);
-                        setNotesList([]);
-                        if (sel) onRegionAddToNote?.(sel, note.id);
-                      }}
-                    >
-                      {note.name}
-                    </button>
-                  </div>
-                ))}
-              </div>
+            {renderNoteLinkItems(
+              () => { const sel = pendingSelection; setPendingSelection(null); if (sel) onRegionComplete?.(sel); },
+              (noteId) => { const sel = pendingSelection; setPendingSelection(null); if (sel) onRegionAddToNote?.(sel, noteId); },
             )}
           </div>
         </>
       )}
 
-      {/* Region context menu — long-press (touch) or right-click */}
-      {regionMenu && (
-        <>
-          <div
-            style={{ position: "fixed", inset: 0, zIndex: 200 }}
-            onPointerDown={() => setRegionMenu(null)}
-          />
-          <div
-            style={{
-              position: "fixed",
-              left: regionMenu.x,
-              top: regionMenu.y,
-              zIndex: 201,
-              background: "#fff",
-              border: "1px solid #e0dbd3",
-              borderRadius: 8,
-              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-              overflow: "hidden",
-              minWidth: 140,
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <button
+      {/* Region context menu — long-press (touch), right-click, or left-click when multi-linked */}
+      {regionMenu && (() => {
+        const region = regions.find(r => r.id === regionMenu.regionId);
+        if (!region) return null;
+        const multiLinked = region.sections.length > 1;
+        const itemStyle: React.CSSProperties = {
+          display: "block", width: "100%", padding: "10px 16px",
+          background: "none", border: "none", textAlign: "left",
+          fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
+        };
+        return (
+          <>
+            <div
+              style={{ position: "fixed", inset: 0, zIndex: 200 }}
+              onPointerDown={() => { setRegionMenu(null); setOpenNoteExpanded(false); closeNoteLinkPopup(); }}
+            />
+            <div
               style={{
-                display: "block", width: "100%", padding: "10px 16px",
-                background: "none", border: "none", textAlign: "left",
-                fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
+                position: "fixed",
+                left: regionMenu.x,
+                top: regionMenu.y,
+                zIndex: 201,
+                background: "#fff",
+                border: "1px solid #e0dbd3",
+                borderRadius: 8,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                overflow: "hidden",
+                minWidth: 160,
               }}
-              onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
-              onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
-              onClick={() => {
-                const menu = regionMenu;
-                setRegionMenu(null);
-                const region = regions.find(r => r.id === menu.regionId);
-                if (region) onRegionClick?.(region);
-              }}
+              onPointerDown={(e) => e.stopPropagation()}
             >
-              Open Note
-            </button>
-            <button
-              style={{
-                display: "block", width: "100%", padding: "10px 16px",
-                background: "none", border: "none", textAlign: "left",
-                fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
-              }}
-              onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
-              onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
-              onClick={() => {
-                const menu = regionMenu;
-                setRegionMenu(null);
-                const region = regions.find(r => r.id === menu.regionId);
-                if (region) void handleCopyRegion(region);
-              }}
-            >
-              Copy
-            </button>
-            {onRegionUpdate && (
+              {multiLinked ? (
+                <>
+                  <button
+                    style={itemStyle}
+                    onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+                    onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                    onClick={() => setOpenNoteExpanded((v) => !v)}
+                  >
+                    Open Note ›
+                  </button>
+                  {openNoteExpanded && (
+                    <div style={{ borderTop: "1px solid #f0ede8", maxHeight: 200, overflowY: "auto" }}>
+                      {region.sections.map((s) => (
+                        <button
+                          key={s.id}
+                          style={{
+                            display: "block", width: "100%", padding: "8px 16px 8px 24px",
+                            background: selectedNoteId === s.note.id ? "#eae8fc" : "none",
+                            border: "none", textAlign: "left",
+                            fontSize: 13, cursor: "pointer",
+                            color: selectedNoteId === s.note.id ? "#3a4bd6" : "#2a2a2a",
+                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                          }}
+                          onPointerEnter={(e) => {
+                            if (isTouch) return;
+                            (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef";
+                            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                            hoverTimerRef.current = setTimeout(() => {
+                              const spaceRight = window.innerWidth - rect.right - 8;
+                              const px = spaceRight >= 420 ? rect.right + 8 : rect.left - 420 - 8;
+                              setHoveredNoteId(s.note.id);
+                              setPreviewPos({ x: px, y: rect.top });
+                            }, 150);
+                          }}
+                          onPointerLeave={(e) => {
+                            if (isTouch) return;
+                            (e.currentTarget as HTMLButtonElement).style.background =
+                              selectedNoteId === s.note.id ? "#eae8fc" : "none";
+                            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                            setHoveredNoteId(null);
+                            setPreviewPos(null);
+                          }}
+                          onClick={(e) => {
+                            if (isTouch) {
+                              if (selectedNoteId === s.note.id) {
+                                setSelectedNoteId(null);
+                                setHoveredNoteId(null);
+                                setPreviewPos(null);
+                                setRegionMenu(null);
+                                setOpenNoteExpanded(false);
+                                onOpenNote?.(s.note.id);
+                              } else {
+                                setSelectedNoteId(s.note.id);
+                                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                                const spaceRight = window.innerWidth - rect.right - 8;
+                                const px = spaceRight >= 420 ? rect.right + 8 : rect.left - 420 - 8;
+                                setHoveredNoteId(s.note.id);
+                                setPreviewPos({ x: px, y: rect.top });
+                              }
+                              return;
+                            }
+                            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                            setHoveredNoteId(null);
+                            setPreviewPos(null);
+                            setRegionMenu(null);
+                            setOpenNoteExpanded(false);
+                            onOpenNote?.(s.note.id);
+                          }}
+                        >
+                          {s.note.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <button
+                  style={itemStyle}
+                  onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+                  onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                  onClick={() => {
+                    setRegionMenu(null);
+                    onOpenNote?.(region.sections[0].note.id);
+                  }}
+                >
+                  Open Note
+                </button>
+              )}
+              {renderNoteLinkItems(
+                () => { setRegionMenu(null); onRegionLinkNewNote?.(region); },
+                (noteId) => { setRegionMenu(null); onRegionLinkExistingNote?.(region, noteId); },
+                new Set(region.sections.map((s) => s.note.id)),
+              )}
               <button
-                style={{
-                  display: "block", width: "100%", padding: "10px 16px",
-                  background: "none", border: "none", textAlign: "left",
-                  fontSize: 13, cursor: "pointer", color: "#2a2a2a", whiteSpace: "nowrap",
-                }}
+                style={itemStyle}
                 onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
                 onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
                 onClick={() => {
-                  const regionId = regionMenu.regionId;
                   setRegionMenu(null);
-                  suppressRegionClickRef.current = regionId;
-                  setEditingRegionId(regionId);
+                  void handleCopyRegion(region);
                 }}
               >
-                Resize Region
+                Copy
               </button>
-            )}
-            {onRegionDelete && (
-              <button
-                style={{
-                  display: "block", width: "100%", padding: "10px 16px",
-                  background: "none", border: "none", textAlign: "left",
-                  fontSize: 13, cursor: "pointer", color: "#c0392b", whiteSpace: "nowrap",
-                }}
-                onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fdf0ef"; }}
-                onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
-                onClick={() => {
-                  const menu = regionMenu;
-                  setRegionMenu(null);
-                  const region = regions.find(r => r.id === menu.regionId);
-                  if (region) onRegionDelete(region);
-                }}
-              >
-                Delete Note
-              </button>
-            )}
-          </div>
-        </>
-      )}
+              {onRegionUpdate && (
+                <button
+                  style={itemStyle}
+                  onPointerEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f5f3ef"; }}
+                  onPointerLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                  onClick={() => {
+                    const regionId = region.id;
+                    setRegionMenu(null);
+                    suppressRegionClickRef.current = regionId;
+                    setEditingRegionId(regionId);
+                  }}
+                >
+                  Resize Region
+                </button>
+              )}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Drawing SVG — completed strokes + region drag rectangle */}
       <svg
