@@ -146,12 +146,14 @@ Resize uses 8 handles (`nw`, `ne`, `sw`, `se` corners + `n`, `s`, `e`, `w` edge 
 
 | File | Role |
 |------|------|
-| `viewerTypes.ts` | Shared interfaces (`ViewerProps`, `NaturalSize`, `PendingRegion`, `ViewportSize`, `PanState`), constants (`ZOOM_STEPS`, `WINDOW_BUFFER`, `PAGE_GUTTER`, `PAN_DEADZONE_PX`, `PAGE_FALLBACK_WIDTH/HEIGHT`), and pure helpers (`toStrokeData`, `getDisplayScale`) |
+| `viewerTypes.ts` | Shared interfaces (`ViewerProps`, `NaturalSize`, `PendingRegion`, `ViewportSize`, `PanState`), constants (`ZOOM_STEPS`, `WINDOW_BUFFER`, `PAGE_GUTTER`, `PAN_DEADZONE_PX`, `PAGE_FALLBACK_WIDTH/HEIGHT`), and pure helpers (`toStrokeData`, `getDisplayScale`, `computeContentBounds`) |
 | `useDocumentViewer.ts` | Custom hook `useDocumentViewer` — owns all shared state, refs, and handlers (zoom, pan, undo/redo, strokes, regions, page navigation, scroll sync). Exposes `setNumPages`, `setNaturalSizes`, `setPageLabels`, `setLoading`, `setError` so format-specific loading effects can feed data in. Also owns cross-device page sync (see below). |
 | `ViewerShell.tsx` | Shared UI: toolbar, page list, `DocumentOverlay` per page. Accepts the full `UseDocumentViewerResult` spread as props plus a render-page callback. |
 | `PdfViewer.tsx` / `DjvuViewer.tsx` | Thin wrappers. Each calls `useDocumentViewer`, adds format-specific loading/rendering effects (pdf.js or DjVu.js), and renders `<ViewerShell>` with a format-specific `renderPage` callback. |
 
 The key design constraint: PDF preloads natural sizes asynchronously before setting `numPages`, while DjVu sets both synchronously. The hook therefore accepts `numPages`/`naturalSizes` as settable state rather than computing them itself.
+
+**Zoom**: `fitMode` is `"width" | "page" | "manual"`; page zoom beyond "fit" grows the page and scrolls (no CSS clamping/distortion — `.pageWrap` has no `max-width`, and `.pageStack` left-aligns overflowing pages via `margin: auto` centering that collapses once the page is wider than the viewport). The toolbar's dedicated "Fit to visible content width" button (`fitToContentWidth`) is a one-shot action, not a `fitMode` value: it samples the current page's rendered canvas via `computeContentBounds` to detect the horizontal extent of non-background content (trimming blank margins), then sets `fitMode: "manual"` with a computed `manualScale` and scrolls horizontally to the content — so it behaves like any other manual zoom (holds steady across page navigation, steps via `zoomIn`/`zoomOut`) and only recomputes on the next click.
 
 ### Cross-device page sync
 

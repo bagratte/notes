@@ -66,3 +66,48 @@ export function getDisplayScale(
   if (fitMode === "page") return Math.min(containerWidth / natural.width, containerHeight / natural.height);
   return manualScale;
 }
+
+/**
+ * Finds the horizontal extent of non-background content on a rendered page canvas
+ * (columns containing pixels that differ from the sampled background color), so
+ * zoom can fit to the visible content rather than the full page width.
+ */
+export function computeContentBounds(canvas: HTMLCanvasElement): { minX: number; maxX: number } | null {
+  const { width, height } = canvas;
+  if (width === 0 || height === 0) return null;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  let data: Uint8ClampedArray;
+  try {
+    data = ctx.getImageData(0, 0, width, height).data;
+  } catch {
+    return null;
+  }
+
+  const stride = Math.max(1, Math.floor(Math.max(width, height) / 800));
+  const THRESHOLD = 24;
+  const sample = (x: number, y: number, i: 0 | 1 | 2) => data[(y * width + x) * 4 + i];
+  const bgR = sample(0, 0, 0);
+  const bgG = sample(0, 0, 1);
+  const bgB = sample(0, 0, 2);
+  const differs = (x: number, y: number) =>
+    Math.abs(sample(x, y, 0) - bgR) > THRESHOLD ||
+    Math.abs(sample(x, y, 1) - bgG) > THRESHOLD ||
+    Math.abs(sample(x, y, 2) - bgB) > THRESHOLD;
+
+  let minX = -1;
+  let maxX = -1;
+  for (let x = 0; x < width; x += stride) {
+    let found = false;
+    for (let y = 0; y < height; y += stride) {
+      if (differs(x, y)) { found = true; break; }
+    }
+    if (found) {
+      if (minX === -1) minX = x;
+      maxX = x;
+    }
+  }
+  if (minX === -1) return null;
+  return { minX, maxX: Math.min(maxX + stride, width) };
+}

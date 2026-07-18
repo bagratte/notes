@@ -20,6 +20,7 @@ import {
   PAGE_FALLBACK_WIDTH,
   PAGE_FALLBACK_HEIGHT,
   getDisplayScale,
+  computeContentBounds,
 } from "./viewerTypes";
 
 export interface UseDocumentViewerResult {
@@ -100,6 +101,7 @@ export interface UseDocumentViewerResult {
   handleScrollPointerCancel: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
+  fitToContentWidth: () => void;
   prevPage: () => void;
   nextPage: () => void;
 
@@ -779,6 +781,35 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     setManualScale([...ZOOM_STEPS].reverse().find((z) => z < current) ?? ZOOM_STEPS[0]);
   }, [getPageDisplaySize, pageNum]);
 
+  // fits to the visible content width of the current page (detected from its rendered
+  // canvas), ignoring blank margins; computed once per click and held as a manual scale
+  const fitToContentWidth = useCallback(() => {
+    const canvas = canvasRefs.current.get(pageNum);
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
+    const bounds = computeContentBounds(canvas);
+    if (!bounds) { setFitMode("width"); return; }
+
+    const natural = getPageNaturalSize(pageNum);
+    const naturalPerPx = natural.width / canvas.width;
+    const padding = natural.width * 0.01;
+    const contentMinX = Math.max(0, bounds.minX * naturalPerPx - padding);
+    const contentMaxX = Math.min(natural.width, bounds.maxX * naturalPerPx + padding);
+    const contentWidth = Math.max(1, contentMaxX - contentMinX);
+
+    const containerWidth = Math.max(400, viewport.width - 16);
+    const newScale = Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], containerWidth / contentWidth);
+
+    setFitMode("manual");
+    setManualScale(newScale);
+
+    const targetScrollLeft = Math.max(0, contentMinX * newScale - PAGE_GUTTER);
+    window.requestAnimationFrame(() => {
+      if (containerRef.current) containerRef.current.scrollLeft = targetScrollLeft;
+    });
+  }, [pageNum, viewport, getPageNaturalSize]);
+
   // ---------- effects ----------
 
   // suppress sync button immediately (before paint) whenever page changes
@@ -969,6 +1000,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     handleScrollPointerCancel,
     zoomIn,
     zoomOut,
+    fitToContentWidth,
     prevPage,
     nextPage,
     ds,

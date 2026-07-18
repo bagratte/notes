@@ -18,6 +18,15 @@ function formatTimeAgo(iso: string): string {
   return hrs === 1 ? "1 hr ago" : `${hrs} hrs ago`;
 }
 
+function ContentFitIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M4 2.5v11M12 2.5v11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M4 8h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeDasharray="1.6 1.6" />
+    </svg>
+  );
+}
+
 function SyncIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -90,6 +99,7 @@ export default function ViewerShell({
   handleScrollPointerCancel,
   zoomIn,
   zoomOut,
+  fitToContentWidth,
   undoInline,
   redoInline,
   // drawing settings
@@ -191,6 +201,14 @@ export default function ViewerShell({
             )}
           </div>
           <button className={css.zoomBtn} onClick={zoomIn} disabled={loading}>+</button>
+          <button
+            className={css.zoomBtn}
+            onClick={fitToContentWidth}
+            disabled={loading}
+            title="Fit to visible content width"
+          >
+            <ContentFitIcon />
+          </button>
         </div>
 
         <div className={css.toolbarSep} />
