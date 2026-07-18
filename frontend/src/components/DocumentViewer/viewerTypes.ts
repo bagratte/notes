@@ -43,7 +43,7 @@ export interface TocEntry {
   children: TocEntry[];
 }
 
-export const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0];
+export const ZOOM_STEPS = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0];
 export const WINDOW_BUFFER = 2;
 export const PAGE_GUTTER = 8;
 export const PAN_DEADZONE_PX = 8;
