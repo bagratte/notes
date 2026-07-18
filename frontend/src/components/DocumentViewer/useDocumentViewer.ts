@@ -41,6 +41,7 @@ export interface UseDocumentViewerResult {
   fitPopoverOpen: boolean;
   manualScale: number;
   zoomInput: string;
+  horizontalScrollLocked: boolean;
   viewport: ViewportSize;
   naturalSizes: Record<number, NaturalSize>;
   strokesByPage: Record<number, Stroke[]>;
@@ -74,6 +75,7 @@ export interface UseDocumentViewerResult {
   setToolMode: React.Dispatch<React.SetStateAction<ToolMode>>;
   setPageInput: React.Dispatch<React.SetStateAction<string>>;
   setZoomInput: React.Dispatch<React.SetStateAction<string>>;
+  setHorizontalScrollLocked: React.Dispatch<React.SetStateAction<boolean>>;
 
   // computed / callbacks
   getPageNaturalSize: (page: number) => NaturalSize;
@@ -160,6 +162,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   const [fitPopoverOpen, setFitPopoverOpen] = useState(false);
   const [manualScale, setManualScale] = useState(1.0);
   const [zoomInput, setZoomInput] = useState("100");
+  const [horizontalScrollLocked, setHorizontalScrollLocked] = useState(false);
   const [viewport, setViewport] = useState<ViewportSize>({ width: 1200, height: 900 });
   const [naturalSizes, setNaturalSizes] = useState<Record<number, NaturalSize>>({});
   const [strokesByPage, setStrokesByPage] = useState<Record<number, Stroke[]>>({});
@@ -773,10 +776,10 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
       e.currentTarget.setPointerCapture(e.pointerId);
       setIsPanning(true);
     }
-    e.currentTarget.scrollLeft = pan.startScrollLeft - dx;
+    if (!horizontalScrollLocked) e.currentTarget.scrollLeft = pan.startScrollLeft - dx;
     e.currentTarget.scrollTop = pan.startScrollTop - dy;
     e.preventDefault();
-  }, []);
+  }, [horizontalScrollLocked]);
 
   const handleScrollPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const pan = panStateRef.current;
@@ -968,6 +971,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     fitPopoverOpen,
     manualScale,
     zoomInput,
+    horizontalScrollLocked,
     viewport,
     naturalSizes,
     strokesByPage,
@@ -999,6 +1003,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     setToolMode,
     setPageInput,
     setZoomInput,
+    setHorizontalScrollLocked,
     getPageNaturalSize,
     getPageDisplaySize,
     updateWindowFromPage,

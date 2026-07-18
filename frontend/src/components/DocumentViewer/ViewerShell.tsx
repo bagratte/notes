@@ -27,6 +27,19 @@ function ContentFitIcon() {
   );
 }
 
+function HorizontalLockIcon({ locked }: { locked: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <rect x="3.5" y="7" width="9" height="6" rx="1.1" stroke="currentColor" strokeWidth="1.4" />
+      {locked ? (
+        <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      ) : (
+        <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      )}
+    </svg>
+  );
+}
+
 function SyncIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -54,6 +67,7 @@ export default function ViewerShell({
   fitPopoverOpen,
   manualScale,
   zoomInput,
+  horizontalScrollLocked,
   loading,
   error,
   toolMode,
@@ -71,6 +85,7 @@ export default function ViewerShell({
   setFitPopoverOpen,
   setManualScale,
   setZoomInput,
+  setHorizontalScrollLocked,
   setToolMode,
   setPen,
   // refs
@@ -223,6 +238,14 @@ export default function ViewerShell({
           >
             <ContentFitIcon />
           </button>
+          <button
+            className={`${css.zoomBtn}${horizontalScrollLocked ? " " + css.active : ""}`}
+            onClick={() => setHorizontalScrollLocked((locked) => !locked)}
+            disabled={loading}
+            title={horizontalScrollLocked ? "Unlock horizontal scrolling" : "Lock horizontal scrolling"}
+          >
+            <HorizontalLockIcon locked={horizontalScrollLocked} />
+          </button>
         </div>
 
         <div className={css.toolbarSep} />
@@ -249,13 +272,14 @@ export default function ViewerShell({
       <div
         ref={containerRef}
         className={css.scroll}
-        style={
-          toolMode === "hand"
+        style={{
+          ...(toolMode === "hand"
             ? { cursor: isPanning ? "grabbing" : "grab", userSelect: isPanning ? "none" : undefined }
             : toolMode === "text-select"
             ? { cursor: "text" }
-            : undefined
-        }
+            : undefined),
+          ...(horizontalScrollLocked ? { overflowX: "hidden" } : undefined),
+        }}
         onPointerDown={handleScrollPointerDown}
         onPointerMove={handleScrollPointerMove}
         onPointerUp={handleScrollPointerUp}
