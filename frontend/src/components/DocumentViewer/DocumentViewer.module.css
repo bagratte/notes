@@ -153,19 +153,48 @@
 .fitPopoverItem:hover { background: var(--bg-hover); }
 .fitPopoverItemActive { background: var(--accent-bg); color: var(--accent); font-weight: 500; }
 
-.zoomLevelBtn {
+.zoomInputGroup {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+  padding: 0 2px 0 6px;
+  gap: 2px;
+}
+.zoomInputGroup:focus-within { border-color: var(--text-dim); }
+
+.zoomInput {
+  width: 32px;
+  border: none;
+  background: none;
+  outline: none;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-body);
+  padding: 0;
+}
+.zoomInput:disabled { opacity: 0.35; }
+
+.zoomPercentSign {
   font-size: 12px;
   color: var(--text-muted);
-  min-width: 48px;
-  text-align: center;
-  background: none;
+}
+
+.zoomCaretBtn {
+  width: 22px;
+  height: 26px;
   border: none;
+  background: none;
   cursor: pointer;
-  padding: 2px 4px;
+  font-size: 9px;
+  color: var(--text-muted);
+  padding: 0;
   border-radius: 3px;
 }
-.zoomLevelBtn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-body); }
-.zoomLevelBtn:disabled { opacity: 0.35; cursor: default; }
+.zoomCaretBtn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-body); }
+.zoomCaretBtn:disabled { opacity: 0.35; cursor: default; }
 
 @media (max-width: 960px) {
   .toolbar {

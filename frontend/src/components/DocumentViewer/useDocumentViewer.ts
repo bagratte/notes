@@ -40,6 +40,7 @@ export interface UseDocumentViewerResult {
   fitMode: "width" | "page" | "manual";
   fitPopoverOpen: boolean;
   manualScale: number;
+  zoomInput: string;
   viewport: ViewportSize;
   naturalSizes: Record<number, NaturalSize>;
   strokesByPage: Record<number, Stroke[]>;
@@ -72,6 +73,7 @@ export interface UseDocumentViewerResult {
   setManualScale: React.Dispatch<React.SetStateAction<number>>;
   setToolMode: React.Dispatch<React.SetStateAction<ToolMode>>;
   setPageInput: React.Dispatch<React.SetStateAction<string>>;
+  setZoomInput: React.Dispatch<React.SetStateAction<string>>;
 
   // computed / callbacks
   getPageNaturalSize: (page: number) => NaturalSize;
@@ -81,6 +83,7 @@ export interface UseDocumentViewerResult {
   scrollToPage: (targetPage: number, behavior?: ScrollBehavior) => void;
   syncActivePageFromScroll: () => void;
   handlePageInputSubmit: () => void;
+  handleZoomInputSubmit: () => void;
   handleInlineStroke: (page: number, stroke: StrokeData) => Promise<void>;
   undoInline: () => Promise<void>;
   redoInline: () => void;
@@ -156,6 +159,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   const [fitMode, setFitMode] = useState<"width" | "page" | "manual">("width");
   const [fitPopoverOpen, setFitPopoverOpen] = useState(false);
   const [manualScale, setManualScale] = useState(1.0);
+  const [zoomInput, setZoomInput] = useState("100");
   const [viewport, setViewport] = useState<ViewportSize>({ width: 1200, height: 900 });
   const [naturalSizes, setNaturalSizes] = useState<Record<number, NaturalSize>>({});
   const [strokesByPage, setStrokesByPage] = useState<Record<number, Stroke[]>>({});
@@ -306,6 +310,21 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     if (!Number.isNaN(numeric) && numeric >= 1 && numeric <= numPages) { scrollToPage(numeric); return; }
     setPageInput(pageLabels ? pageLabels[pageNum - 1] || String(pageNum) : String(pageNum));
   }, [pageInput, pageLabels, pageNum, numPages, scrollToPage]);
+
+  // ---------- zoom input ----------
+
+  const handleZoomInputSubmit = useCallback(() => {
+    const parsed = parseFloat(zoomInput);
+    const min = ZOOM_STEPS[0] * 100;
+    const max = ZOOM_STEPS[ZOOM_STEPS.length - 1] * 100;
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      const clamped = Math.min(max, Math.max(min, parsed));
+      setFitMode("manual");
+      setManualScale(clamped / 100);
+    } else {
+      setZoomInput(String(Math.round(getPageDisplaySize(pageNum).scale * 100)));
+    }
+  }, [zoomInput, getPageDisplaySize, pageNum]);
 
   // ---------- strokes ----------
 
@@ -886,6 +905,11 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     setPageInput(pageLabels ? pageLabels[pageNum - 1] || String(pageNum) : String(pageNum));
   }, [pageNum, pageLabels]);
 
+  // zoom input sync
+  useEffect(() => {
+    setZoomInput(String(Math.round(getPageDisplaySize(pageNum).scale * 100)));
+  }, [pageNum, fitMode, manualScale, viewport, naturalSizes, getPageDisplaySize]);
+
   // update buffered window
   useEffect(() => {
     updateWindowFromPage(pageNum);
@@ -943,6 +967,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     fitMode,
     fitPopoverOpen,
     manualScale,
+    zoomInput,
     viewport,
     naturalSizes,
     strokesByPage,
@@ -973,6 +998,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     setManualScale,
     setToolMode,
     setPageInput,
+    setZoomInput,
     getPageNaturalSize,
     getPageDisplaySize,
     updateWindowFromPage,
@@ -980,6 +1006,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     scrollToPage,
     syncActivePageFromScroll,
     handlePageInputSubmit,
+    handleZoomInputSubmit,
     handleInlineStroke,
     undoInline,
     redoInline,

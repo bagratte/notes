@@ -53,6 +53,7 @@ export default function ViewerShell({
   fitMode,
   fitPopoverOpen,
   manualScale,
+  zoomInput,
   loading,
   error,
   toolMode,
@@ -69,6 +70,7 @@ export default function ViewerShell({
   setFitMode,
   setFitPopoverOpen,
   setManualScale,
+  setZoomInput,
   setToolMode,
   setPen,
   // refs
@@ -81,6 +83,7 @@ export default function ViewerShell({
   prevPage,
   nextPage,
   handlePageInputSubmit,
+  handleZoomInputSubmit,
   handleInlineStroke,
   handleEraseStroke,
   handleSegmentErase,
@@ -175,14 +178,25 @@ export default function ViewerShell({
           <button className={css.zoomBtn} onClick={zoomOut} disabled={loading}>-</button>
           {fitPopoverOpen && <div className={css.fitBackdrop} onPointerDown={() => setFitPopoverOpen(false)} />}
           <div className={css.fitWrapper}>
-            <button
-              className={css.zoomLevelBtn}
-              onClick={() => setFitPopoverOpen((o) => !o)}
-              disabled={loading}
-              title="Zoom"
-            >
-              {Math.round(getPageDisplaySize(pageNum).scale * 100)}%
-            </button>
+            <div className={css.zoomInputGroup}>
+              <input
+                className={css.zoomInput}
+                value={zoomInput}
+                onChange={(e) => setZoomInput(e.target.value.replace(/[^0-9.]/g, ""))}
+                onFocus={(e) => e.target.select()}
+                onKeyDown={(e) => { if (e.key === "Enter") { handleZoomInputSubmit(); (e.target as HTMLInputElement).blur(); } }}
+                onBlur={handleZoomInputSubmit}
+                disabled={loading}
+                aria-label="Zoom percentage"
+              />
+              <span className={css.zoomPercentSign}>%</span>
+              <button
+                className={css.zoomCaretBtn}
+                onClick={() => setFitPopoverOpen((o) => !o)}
+                disabled={loading}
+                title="Zoom presets"
+              >▾</button>
+            </div>
             {fitPopoverOpen && (
               <div className={css.fitPopover}>
                 <button
