@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getStroke } from "perfect-freehand";
-import { svgPathFromStroke, flipLightness, strokesToSvgString, rasterizeSvg, copyCanvasAsImage } from "@/components/Canvas/utils";
+import { svgPathFromStroke, flipLightness, strokesToSvgString, rasterizeSvg, copyImageToClipboard } from "@/components/Canvas/utils";
 import { useDrawing, getPenHwOverride } from "@/components/Canvas/useDrawing";
 import StrokeSelectionOverlay from "@/components/Canvas/StrokeSelectionOverlay";
 import { normaliseRect, hitTestStrokes, offsetStroke } from "@/components/Canvas/strokeSelectUtils";
@@ -600,19 +600,21 @@ export default function DocumentOverlay({
     setRegionMenu({ regionId: region.id, x: e.clientX, y: e.clientY });
   }, []);
 
-  const handleCopyRegion = useCallback(async (region: Region) => {
-    const doc = await docsApi.get(region.document_id);
-    const out = await renderRegionCrop(region, doc, COPY_REGION_WIDTH);
-    const rect: NaturalRect = { x: region.x, y: region.y, width: region.width, height: region.height };
-    const overlapping = strokes.filter(s => hitTestStrokes([s], rect).size > 0);
-    const relocated = overlapping.map(s => ({
-      ...s,
-      points: s.points.map(([x, y, p]) => [x - region.x, y - region.y, p] as [number, number, number]),
-    }));
-    const svg = strokesToSvgString(relocated, { width: out.width, height: out.height, transparentBg: true });
-    const strokesCanvas = await rasterizeSvg(svg, out.width, out.height);
-    out.getContext("2d")!.drawImage(strokesCanvas, 0, 0);
-    await copyCanvasAsImage(out);
+  const handleCopyRegion = useCallback((region: Region) => {
+    return copyImageToClipboard(async () => {
+      const doc = await docsApi.get(region.document_id);
+      const out = await renderRegionCrop(region, doc, COPY_REGION_WIDTH);
+      const rect: NaturalRect = { x: region.x, y: region.y, width: region.width, height: region.height };
+      const overlapping = strokes.filter(s => hitTestStrokes([s], rect).size > 0);
+      const relocated = overlapping.map(s => ({
+        ...s,
+        points: s.points.map(([x, y, p]) => [x - region.x, y - region.y, p] as [number, number, number]),
+      }));
+      const svg = strokesToSvgString(relocated, { width: out.width, height: out.height, transparentBg: true });
+      const strokesCanvas = await rasterizeSvg(svg, out.width, out.height);
+      out.getContext("2d")!.drawImage(strokesCanvas, 0, 0);
+      return out;
+    });
   }, [strokes]);
 
   const handleResizePointerDown = useCallback(

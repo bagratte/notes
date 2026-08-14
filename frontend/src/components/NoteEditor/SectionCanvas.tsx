@@ -8,7 +8,7 @@ import type { PenSettings } from "@/components/Toolbar";
 import type { ToolMode } from "@/types";
 import { normaliseRect, hitTestStrokes, offsetStroke } from "@/components/Canvas/strokeSelectUtils";
 import type { NaturalRect } from "@/components/Canvas/strokeSelectUtils";
-import { strokesToSvgString, rasterizeSvg, copyCanvasAsImage } from "@/components/Canvas/utils";
+import { strokesToSvgString, rasterizeSvg, renderStrokesCrop, copyImageToClipboard, newCopyId } from "@/components/Canvas/utils";
 import { renderRegionCrop } from "@/components/DocumentViewer/regionCrop";
 import RegionPreview from "./RegionPreview";
 import styles from "./SectionCanvas.module.css";
@@ -48,7 +48,7 @@ interface Props {
   redoBatchPending?: NoteUndoEntry | null;
   onRedoBatchConsumed?: (newStrokes: Stroke[]) => void;
   onBatchOperation?: (entry: NoteUndoEntry) => void;
-  onCopy?: (sectionId: number, strokes: Stroke[]) => void;
+  onCopy?: (sectionId: number, strokes: Stroke[], copyId: string) => void;
   onPasteRequest?: (target?: { nx: number; ny: number }) => void;
   hasClipboard?: boolean;
   pastePending?: { strokes: ClipboardStroke[]; target?: { nx: number; ny: number }; useDuplicateShift?: boolean } | null;
@@ -247,37 +247,32 @@ export default function SectionCanvas({
   const handleCopy = useCallback(() => {
     if (!selection || selection.selectedIds.size === 0) return;
     const toCopy = strokes.filter(s => selection.selectedIds.has(s.id));
-    onCopy?.(sectionId, toCopy);
+    if (toCopy.length === 0) return;
+    const copyId = newCopyId();
+    onCopy?.(sectionId, toCopy, copyId);
+    // Also put a PNG of the selection on the OS clipboard so it can be pasted into other apps. The
+    // in-app copy above is the primary path and stays authoritative for pasting within the note —
+    // this is best-effort and deliberately swallows failures (no clipboard API on plain-HTTP
+    // origins, permission denied, …). Tagged with `copyId` so a future OS-clipboard paste can
+    // recognise its own copy and paste vector strokes rather than re-importing this image.
+    void copyImageToClipboard(() => renderStrokesCrop(toCopy), { copyId }).catch(() => {});
   }, [selection, strokes, sectionId, onCopy]);
 
-  const handleCopyImage = useCallback(async () => {
+  // Whole-section copy. No `copyId`: this does not populate the in-app stroke clipboard, so it must
+  // not claim to be one of our stroke copies.
+  const handleCopyImage = useCallback(() => {
     if (regionData) {
       const { region, doc } = regionData;
-      const out = await renderRegionCrop(region, doc, COPY_REGION_WIDTH);
-      const svg = strokesToSvgString(strokes, { width: out.width, height: out.height, viewBox: `0 0 ${region.width} ${region.height}`, transparentBg: true });
-      const strokesCanvas = await rasterizeSvg(svg, out.width, out.height);
-      out.getContext("2d")!.drawImage(strokesCanvas, 0, 0);
-      await copyCanvasAsImage(out);
-    } else {
-      if (strokes.length === 0) return;
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const s of strokes) {
-        for (const [px, py] of s.points) {
-          if (px < minX) minX = px;
-          if (py < minY) minY = py;
-          if (px > maxX) maxX = px;
-          if (py > maxY) maxY = py;
-        }
-      }
-      const padding = 12;
-      minX -= padding; minY -= padding; maxX += padding; maxY += padding;
-      const w = maxX - minX, h = maxY - minY;
-      const shifted = strokes.map(s => ({ ...s, points: s.points.map(([x, y, p]) => [x - minX, y - minY, p] as [number, number, number]) }));
-      const scale = 2;
-      const svg = strokesToSvgString(shifted, { width: w * scale, height: h * scale, viewBox: `0 0 ${w} ${h}` });
-      const canvas = await rasterizeSvg(svg, w * scale, h * scale);
-      await copyCanvasAsImage(canvas);
+      return copyImageToClipboard(async () => {
+        const out = await renderRegionCrop(region, doc, COPY_REGION_WIDTH);
+        const svg = strokesToSvgString(strokes, { width: out.width, height: out.height, viewBox: `0 0 ${region.width} ${region.height}`, transparentBg: true });
+        const strokesCanvas = await rasterizeSvg(svg, out.width, out.height);
+        out.getContext("2d")!.drawImage(strokesCanvas, 0, 0);
+        return out;
+      });
     }
+    if (strokes.length === 0) return Promise.resolve();
+    return copyImageToClipboard(() => renderStrokesCrop(strokes));
   }, [regionData, strokes]);
 
   const canCopyImage = regionData !== null || strokes.length > 0;

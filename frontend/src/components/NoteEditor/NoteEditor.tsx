@@ -39,7 +39,10 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
   const pendingRedoSectionIdRef = useRef<number | null>(null);
   const pendingUndoBatchRef = useRef<NoteUndoEntry | null>(null);
   const pendingRedoBatchRef = useRef<NoteUndoEntry | null>(null);
-  const [clipboard, setClipboard] = useState<{ strokes: ClipboardStroke[]; sourceSectionId: number } | null>(null);
+  // `id` matches the sentinel stamped onto the OS clipboard by the same copy (see
+  // CLIPBOARD_COPY_ID_ATTR) — it lets a future OS-clipboard paste tell our own copy apart from
+  // content copied in another app. Unused by the current paste paths, which read this state only.
+  const [clipboard, setClipboard] = useState<{ id: string; strokes: ClipboardStroke[]; sourceSectionId: number } | null>(null);
   const [selectionOwner, setSelectionOwner] = useState<number | null>(null);
   const [focusedSectionId, setFocusedSectionId] = useState<number | null>(null);
   const [pastePending, setPastePending] = useState<{ sectionId: number; strokes: ClipboardStroke[]; target?: { nx: number; ny: number }; useDuplicateShift?: boolean } | null>(null);
@@ -63,8 +66,8 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
     setRedoStack([]);
   }, []);
 
-  const handleCopy = useCallback((sourceSectionId: number, strokes: Stroke[]) => {
-    setClipboard({ strokes: strokes.map(s => ({ points: s.points, color: s.color, width: s.width })), sourceSectionId });
+  const handleCopy = useCallback((sourceSectionId: number, strokes: Stroke[], copyId: string) => {
+    setClipboard({ id: copyId, strokes: strokes.map(s => ({ points: s.points, color: s.color, width: s.width })), sourceSectionId });
   }, []);
 
   const handlePasteRequest = useCallback((sectionId: number, target?: { nx: number; ny: number }, useDuplicateShift?: boolean) => {
@@ -246,7 +249,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, Props>(function NoteEditor(
           redoBatchPending={redoBatchPending && "kind" in redoBatchPending && redoBatchPending.sectionId === section.id ? redoBatchPending : null}
           onRedoBatchConsumed={handleRedoBatchConsumed}
           onBatchOperation={handleBatchOperation}
-          onCopy={(sourceSectionId, strokes) => handleCopy(sourceSectionId, strokes)}
+          onCopy={handleCopy}
           onPasteRequest={(target) => handlePasteRequest(section.id, target)}
           hasClipboard={clipboard !== null && clipboard.strokes.length > 0}
           pastePending={pastePending?.sectionId === section.id ? pastePending : null}

@@ -107,12 +107,64 @@ export function rasterizeSvg(svg: string, width: number, height: number): Promis
   });
 }
 
-// Writes a canvas to the system clipboard as a PNG image. Must be called synchronously within a
-// user-gesture handler (e.g. a click) — the Blob itself may resolve later, but `clipboard.write()`
-// needs to be invoked while user activation is still active.
-export function copyCanvasAsImage(canvas: HTMLCanvasElement): Promise<void> {
-  const blobPromise = new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");
-  });
-  return navigator.clipboard.write([new ClipboardItem({ "image/png": blobPromise })]);
+// Renders strokes cropped to their own bounding box (plus padding) on a white background, at 2x
+// scale so the result stays legible when pasted into another app. Throws if given no strokes.
+export async function renderStrokesCrop(strokes: StrokeData[]): Promise<HTMLCanvasElement> {
+  if (strokes.length === 0) throw new Error("no strokes to render");
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const s of strokes) {
+    for (const [px, py] of s.points) {
+      if (px < minX) minX = px;
+      if (py < minY) minY = py;
+      if (px > maxX) maxX = px;
+      if (py > maxY) maxY = py;
+    }
+  }
+  const padding = 12;
+  minX -= padding; minY -= padding; maxX += padding; maxY += padding;
+  const w = maxX - minX, h = maxY - minY;
+  const shifted = strokes.map((s) => ({
+    ...s,
+    points: s.points.map(([x, y, p]) => [x - minX, y - minY, p] as [number, number, number]),
+  }));
+  const scale = 2;
+  const svg = strokesToSvgString(shifted, { width: w * scale, height: h * scale, viewBox: `0 0 ${w} ${h}` });
+  return rasterizeSvg(svg, w * scale, h * scale);
+}
+
+// Marker attribute stamped onto the `text/html` flavour of our own clipboard writes. It carries the
+// id of the matching in-app clipboard entry, so a future OS-clipboard paste handler can tell "this
+// is the copy I just made, paste it as vector strokes" from "this came from another app, paste it
+// as an image". Only copies that also populate the in-app stroke clipboard should carry it.
+export const CLIPBOARD_COPY_ID_ATTR = "data-notes-copy";
+
+// Writes an image to the system clipboard as a PNG. `render` is invoked immediately but may resolve
+// later: `clipboard.write()` is reached synchronously, which is what Safari requires — user
+// activation is still live at that point, and the async work happens inside the ClipboardItem.
+// Rejects when the clipboard API is unavailable (it is gated on a secure context, so plain-HTTP
+// origins have no `navigator.clipboard`); callers that have another job to do should catch.
+export function copyImageToClipboard(
+  render: () => Promise<HTMLCanvasElement>,
+  opts: { copyId?: string } = {}
+): Promise<void> {
+  if (!navigator.clipboard?.write) return Promise.reject(new Error("clipboard unavailable"));
+  const png = render().then(
+    (canvas) =>
+      new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");
+      })
+  );
+  const items: Record<string, Promise<Blob>> = { "image/png": png };
+  if (opts.copyId) {
+    items["text/html"] = Promise.resolve(
+      new Blob([`<span ${CLIPBOARD_COPY_ID_ATTR}="${opts.copyId}"></span>`], { type: "text/html" })
+    );
+  }
+  return navigator.clipboard.write([new ClipboardItem(items)]);
+}
+
+// Ids for `CLIPBOARD_COPY_ID_ATTR`. Deliberately not `crypto.randomUUID()` — that is only exposed in
+// secure contexts, and this runs on plain-HTTP LAN origins too.
+export function newCopyId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
