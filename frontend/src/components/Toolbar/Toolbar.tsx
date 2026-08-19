@@ -39,7 +39,9 @@ const TOOL_TITLES: Record<ToolMode, string> = {
   "stroke-select": "Select strokes",
 };
 
-const OVERFLOW_TOOLS = new Set<ToolMode>(["hand", "pen", "highlighter", "segment-eraser", "stroke-select", "text-select"]);
+// text-select stays inline in compact mode: it is a reading tool, reached
+// constantly while looking things up, and not worth a second tap.
+const OVERFLOW_TOOLS = new Set<ToolMode>(["hand", "pen", "highlighter", "segment-eraser", "stroke-select"]);
 
 function useCompact(): boolean {
   const [compact, setCompact] = useState(
