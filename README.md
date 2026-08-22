@@ -79,17 +79,6 @@ systemctl --user enable --now notes.target
 
 The app is then available at [http://localhost:5173](http://localhost:5173). Both services reload automatically on code changes (Vite HMR for the frontend, `--reload` for the backend).
 
-### Desktop launcher
-
-To add the app to GNOME's app grid:
-
-```sh
-ln -s ~/src/notes/desktop/notes.desktop ~/.local/share/applications/
-update-desktop-database ~/.local/share/applications/
-```
-
-This opens the app via `google-chrome --app=http://localhost:5173` (no browser chrome). The services must be running for it to load.
-
 ## Project structure
 
 ```

@@ -57,17 +57,6 @@ systemctl --user enable --now notes.target
 
 Frontend runs on `:5173` (Vite dev server with HMR). Backend reloads on Python file changes (`--reload`).
 
-## Desktop launcher
-
-`desktop/notes.desktop` launches the app in Chrome app mode. To install:
-
-```sh
-ln -s ~/src/notes/desktop/notes.desktop ~/.local/share/applications/
-update-desktop-database ~/.local/share/applications/
-```
-
-> `StartupWMClass` in the desktop file may need tuning. Verify with `xprop WM_CLASS` after first launch and update if the window isn't grouped with the launcher.
-
 ## Backend architecture
 
 ### Schema management
