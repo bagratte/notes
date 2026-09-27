@@ -27,6 +27,16 @@ function ContentFitIcon() {
   );
 }
 
+function AutoContentFitIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M4 1.5v8M12 1.5v8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M4 5.5h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeDasharray="1.6 1.6" />
+      <path d="M5.5 12l2.5 2.5 2.5-2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function HorizontalLockIcon({ locked }: { locked: boolean }) {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -68,6 +78,7 @@ export default function ViewerShell({
   manualScale,
   zoomInput,
   horizontalScrollLocked,
+  autoFitContent,
   loading,
   error,
   toolMode,
@@ -86,6 +97,7 @@ export default function ViewerShell({
   setManualScale,
   setZoomInput,
   setHorizontalScrollLocked,
+  setAutoFitContent,
   setToolMode,
   setPen,
   // refs
@@ -216,15 +228,15 @@ export default function ViewerShell({
               <div className={css.fitPopover}>
                 <button
                   className={`${css.fitPopoverItem}${fitMode === "width" ? " " + css.fitPopoverItemActive : ""}`}
-                  onPointerDown={(e) => { e.stopPropagation(); setFitMode("width"); setFitPopoverOpen(false); }}
+                  onPointerDown={(e) => { e.stopPropagation(); setAutoFitContent(false); setFitMode("width"); setFitPopoverOpen(false); }}
                 >Fit Width</button>
                 <button
                   className={`${css.fitPopoverItem}${fitMode === "page" ? " " + css.fitPopoverItemActive : ""}`}
-                  onPointerDown={(e) => { e.stopPropagation(); setFitMode("page"); setFitPopoverOpen(false); }}
+                  onPointerDown={(e) => { e.stopPropagation(); setAutoFitContent(false); setFitMode("page"); setFitPopoverOpen(false); }}
                 >Fit Page</button>
                 <button
                   className={`${css.fitPopoverItem}${fitMode === "manual" && manualScale === 1.0 ? " " + css.fitPopoverItemActive : ""}`}
-                  onPointerDown={(e) => { e.stopPropagation(); setFitMode("manual"); setManualScale(1.0); setFitPopoverOpen(false); }}
+                  onPointerDown={(e) => { e.stopPropagation(); setAutoFitContent(false); setFitMode("manual"); setManualScale(1.0); setFitPopoverOpen(false); }}
                 >Actual Size</button>
               </div>
             )}
@@ -237,6 +249,14 @@ export default function ViewerShell({
             title="Fit to visible content width"
           >
             <ContentFitIcon />
+          </button>
+          <button
+            className={`${css.zoomBtn}${autoFitContent ? " " + css.active : ""}`}
+            onClick={() => setAutoFitContent((on) => !on)}
+            disabled={loading}
+            title={autoFitContent ? "Stop fitting visible content on every page" : "Fit visible content on every page"}
+          >
+            <AutoContentFitIcon />
           </button>
           <button
             className={`${css.zoomBtn}${horizontalScrollLocked ? " " + css.active : ""}`}

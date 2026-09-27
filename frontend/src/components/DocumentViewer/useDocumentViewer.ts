@@ -42,6 +42,7 @@ export interface UseDocumentViewerResult {
   manualScale: number;
   zoomInput: string;
   horizontalScrollLocked: boolean;
+  autoFitContent: boolean;
   viewport: ViewportSize;
   naturalSizes: Record<number, NaturalSize>;
   strokesByPage: Record<number, Stroke[]>;
@@ -76,6 +77,7 @@ export interface UseDocumentViewerResult {
   setPageInput: React.Dispatch<React.SetStateAction<string>>;
   setZoomInput: React.Dispatch<React.SetStateAction<string>>;
   setHorizontalScrollLocked: React.Dispatch<React.SetStateAction<boolean>>;
+  setAutoFitContent: React.Dispatch<React.SetStateAction<boolean>>;
 
   // computed / callbacks
   getPageNaturalSize: (page: number) => NaturalSize;
@@ -150,6 +152,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   const panStateRef = useRef<PanState | null>(null);
   const prevViewportRef = useRef<ViewportSize | null>(null);
   const prevZoomRef = useRef<{ fitMode: string; manualScale: number } | null>(null);
+  const pendingContentFitRef = useRef<{ page: number; anchor: number; contentMinX: number } | null>(null);
   const lastPageSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // state
@@ -163,6 +166,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
   const [manualScale, setManualScale] = useState(1.0);
   const [zoomInput, setZoomInput] = useState("100");
   const [horizontalScrollLocked, setHorizontalScrollLocked] = useState(false);
+  const [autoFitContent, setAutoFitContent] = useState(false);
   const [viewport, setViewport] = useState<ViewportSize>({ width: 1200, height: 900 });
   const [naturalSizes, setNaturalSizes] = useState<Record<number, NaturalSize>>({});
   const [strokesByPage, setStrokesByPage] = useState<Record<number, Stroke[]>>({});
@@ -322,6 +326,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     const max = ZOOM_STEPS[ZOOM_STEPS.length - 1] * 100;
     if (!Number.isNaN(parsed) && parsed > 0) {
       const clamped = Math.min(max, Math.max(min, parsed));
+      setAutoFitContent(false);
       setFitMode("manual");
       setManualScale(clamped / 100);
     } else {
@@ -793,44 +798,77 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
 
   const zoomIn = useCallback(() => {
     const current = getPageDisplaySize(pageNum).scale;
+    setAutoFitContent(false);
     setFitMode("manual");
     setManualScale(ZOOM_STEPS.find((z) => z > current) ?? ZOOM_STEPS[ZOOM_STEPS.length - 1]);
   }, [getPageDisplaySize, pageNum]);
 
   const zoomOut = useCallback(() => {
     const current = getPageDisplaySize(pageNum).scale;
+    setAutoFitContent(false);
     setFitMode("manual");
     setManualScale([...ZOOM_STEPS].reverse().find((z) => z < current) ?? ZOOM_STEPS[0]);
   }, [getPageDisplaySize, pageNum]);
 
+  // horizontal extent of the visible (non-blank) content of a page, in natural coordinates,
+  // detected from its rendered canvas; null if the canvas is missing, not yet drawn, or blank
+  const measurePageContent = useCallback((page: number) => {
+    const canvas = canvasRefs.current.get(page);
+    if (!canvas) return null;
+    const bounds = computeContentBounds(canvas);
+    if (!bounds) return null;
+
+    const natural = getPageNaturalSize(page);
+    const naturalPerPx = natural.width / canvas.width;
+    const padding = natural.width * 0.01;
+    const minX = Math.max(0, bounds.minX * naturalPerPx - padding);
+    const maxX = Math.min(natural.width, bounds.maxX * naturalPerPx + padding);
+    return { minX, maxX };
+  }, [getPageNaturalSize]);
+
+  const getContentFitScale = useCallback((content: { minX: number; maxX: number }) => {
+    const containerWidth = Math.max(400, viewport.width - 16);
+    return Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], containerWidth / Math.max(1, content.maxX - content.minX));
+  }, [viewport]);
+
   // fits to the visible content width of the current page (detected from its rendered
   // canvas), ignoring blank margins; computed once per click and held as a manual scale
   const fitToContentWidth = useCallback(() => {
-    const canvas = canvasRefs.current.get(pageNum);
-    const container = containerRef.current;
-    if (!canvas || !container) return;
+    if (!containerRef.current) return;
+    const content = measurePageContent(pageNum);
+    if (!content) { setFitMode("width"); return; }
 
-    const bounds = computeContentBounds(canvas);
-    if (!bounds) { setFitMode("width"); return; }
-
-    const natural = getPageNaturalSize(pageNum);
-    const naturalPerPx = natural.width / canvas.width;
-    const padding = natural.width * 0.01;
-    const contentMinX = Math.max(0, bounds.minX * naturalPerPx - padding);
-    const contentMaxX = Math.min(natural.width, bounds.maxX * naturalPerPx + padding);
-    const contentWidth = Math.max(1, contentMaxX - contentMinX);
-
-    const containerWidth = Math.max(400, viewport.width - 16);
-    const newScale = Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], containerWidth / contentWidth);
-
+    const newScale = getContentFitScale(content);
     setFitMode("manual");
     setManualScale(newScale);
 
-    const targetScrollLeft = Math.max(0, contentMinX * newScale - PAGE_GUTTER);
+    const targetScrollLeft = Math.max(0, content.minX * newScale - PAGE_GUTTER);
     window.requestAnimationFrame(() => {
       if (containerRef.current) containerRef.current.scrollLeft = targetScrollLeft;
     });
-  }, [pageNum, viewport, getPageNaturalSize]);
+  }, [pageNum, measurePageContent, getContentFitScale]);
+
+  // auto content-fit step for one page: like fitToContentWidth, but keeps the point of the
+  // page at the viewport's vertical center in place instead of jumping to the page top
+  const applyAutoContentFit = useCallback((page: number, content: { minX: number; maxX: number }) => {
+    const container = containerRef.current;
+    const el = pageRefs.current.get(page);
+    if (!container || !el) return;
+
+    const newScale = getContentFitScale(content);
+    if (fitMode === "manual" && Math.abs(manualScale - newScale) < 1e-4) {
+      container.scrollLeft = Math.max(0, content.minX * newScale - PAGE_GUTTER);
+      return;
+    }
+
+    const oldScale = getPageDisplaySize(page).scale;
+    const anchor = (container.scrollTop + container.clientHeight / 2 - el.offsetTop) / oldScale;
+    pendingContentFitRef.current = { page, anchor, contentMinX: content.minX };
+    // skip the re-center-on-zoom effect, which would scroll to the page top
+    prevZoomRef.current = { fitMode: "manual", manualScale: newScale };
+    setFitMode("manual");
+    setManualScale(newScale);
+  }, [fitMode, manualScale, getContentFitScale, getPageDisplaySize]);
 
   // ---------- effects ----------
 
@@ -892,6 +930,47 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     const currentPage = pageNum;
     window.requestAnimationFrame(() => { scrollToPage(currentPage, "auto"); });
   }, [viewport, numPages, pageNum, scrollToPage]);
+
+  // auto content-fit: refit whenever the current page changes. The page's canvas may still be
+  // (re)rendering, so poll until two consecutive measurements agree before applying.
+  const measurePageContentRef = useRef(measurePageContent);
+  const applyAutoContentFitRef = useRef(applyAutoContentFit);
+  useEffect(() => {
+    measurePageContentRef.current = measurePageContent;
+    applyAutoContentFitRef.current = applyAutoContentFit;
+  });
+  useEffect(() => {
+    if (!autoFitContent || numPages === 0) return;
+    const page = pageNum;
+    let prev: { minX: number; maxX: number } | null = null;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = () => {
+      const content = measurePageContentRef.current(page);
+      if (content && prev && Math.abs(content.minX - prev.minX) < 1 && Math.abs(content.maxX - prev.maxX) < 1) {
+        applyAutoContentFitRef.current(page, content);
+        return;
+      }
+      prev = content;
+      tries += 1;
+      if (tries < 20) timer = setTimeout(attempt, 100);
+    };
+    attempt();
+    return () => { if (timer) clearTimeout(timer); };
+  }, [autoFitContent, pageNum, numPages]);
+
+  // restore the scroll anchor once an auto content-fit rescale has been laid out
+  useLayoutEffect(() => {
+    const pending = pendingContentFitRef.current;
+    if (!pending) return;
+    pendingContentFitRef.current = null;
+    const container = containerRef.current;
+    const el = pageRefs.current.get(pending.page);
+    if (!container || !el) return;
+    const scale = getPageDisplaySize(pending.page).scale;
+    container.scrollTop = el.offsetTop + pending.anchor * scale - container.clientHeight / 2;
+    container.scrollLeft = Math.max(0, pending.contentMinX * scale - PAGE_GUTTER);
+  }, [fitMode, manualScale, getPageDisplaySize]);
 
   // re-center on zoom change
   useEffect(() => {
@@ -972,6 +1051,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     manualScale,
     zoomInput,
     horizontalScrollLocked,
+    autoFitContent,
     viewport,
     naturalSizes,
     strokesByPage,
@@ -1004,6 +1084,7 @@ export function useDocumentViewer({ documentId, folderId, initialPage, serverLas
     setPageInput,
     setZoomInput,
     setHorizontalScrollLocked,
+    setAutoFitContent,
     getPageNaturalSize,
     getPageDisplaySize,
     updateWindowFromPage,
