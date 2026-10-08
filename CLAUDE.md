@@ -57,6 +57,10 @@ systemctl --user enable --now notes.target
 
 Frontend runs on `:5173` (Vite dev server with HMR). Backend reloads on Python file changes (`--reload`).
 
+## Running on Android (Termux)
+
+`termux/` holds the scripts for running on an Android phone in Termux: `start.sh` / `stop.sh` (on-demand launch, wired to home-screen icons via Termux:Widget by `install-shortcuts.sh`) and `update.sh` (pull + only the needed install steps + migrations). See the README's "Running on Android (Termux)" section for setup and the Android settings it needs.
+
 ## Backend architecture
 
 ### Schema management

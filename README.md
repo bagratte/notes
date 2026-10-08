@@ -79,6 +79,38 @@ systemctl --user enable --now notes.target
 
 The app is then available at [http://localhost:5173](http://localhost:5173). Both services reload automatically on code changes (Vite HMR for the frontend, `--reload` for the backend).
 
+### Running on Android (Termux)
+
+The app runs on demand on an Android phone: a home-screen shortcut starts the backend and the Vite dev server, then opens the app in Chrome. Scripts live in `termux/`.
+
+**Prerequisites** — Termux and Termux:Widget, both from F-Droid (they must come from the same source). In Termux:
+
+```sh
+pkg install git python nodejs rust
+git clone git@github.com:bagratte/notes.git ~/src/notes
+echo 'DATABASE_URL=sqlite:////path/to/notes.db' > ~/src/notes/backend/.env
+~/src/notes/termux/update.sh            # creates the venv, npm ci, alembic upgrade
+~/src/notes/termux/install-shortcuts.sh # "Notes" and "Notes stop" for Termux:Widget
+```
+
+Then add the Termux:Widget widget to the home screen. The database can live on shared storage (e.g. a Syncthing folder under `/storage/emulated/0/`), but the repo must be in Termux's home: shared storage allows neither symlinks nor executables.
+
+**Android settings** (set once, by hand):
+- Termux → *Display over other apps*: allowed. Without it, the shortcut can't open Chrome from the background.
+- Termux → Battery: *Unrestricted*, so Android doesn't kill the servers while the app is in use.
+- Developer options → *Disable child process restrictions*: on. Otherwise Android's "phantom process killer" may kill uvicorn/Vite.
+
+**Scripts:**
+
+| Script | What it does |
+|---|---|
+| `termux/start.sh` | Starts the backend and Vite (each only if not already running), waits until both answer, opens `http://localhost:5173`. `--no-open` skips the last step. Logs go to `~/.cache/notes/`. |
+| `termux/stop.sh` | Stops both and releases Termux's wake lock. *Exit* in Termux's notification also stops them (it kills every Termux process, `sshd` included). |
+| `termux/update.sh` | `git pull --ff-only`, then `pip install` only if `requirements.txt` changed, `npm ci` only if the lockfile changed, `alembic upgrade head`, and restarts the app if it was running. |
+| `termux/install-shortcuts.sh` | Writes the Termux:Widget shortcuts into `~/.shortcuts/tasks/`. |
+
+`update.sh` sets `RUSTFLAGS="-C link-arg=-lpythonX.Y"` on Termux: Rust extensions built as abi3 (e.g. `watchfiles`) otherwise don't link libpython and fail to import on Android.
+
 ## Project structure
 
 ```
