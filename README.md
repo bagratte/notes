@@ -92,7 +92,7 @@ notes/
 │       └── routers/         # One router per resource
 └── frontend/
     ├── public/
-    │   └── djvu.js          # DjVu.js bundle (IIFE), built by `npm install` (postinstall), gitignored
+    │   └── djvu.js          # Vendored DjVu.js bundle (IIFE), see frontend/CLAUDE.md
     └── src/
         ├── api/             # Typed API client
         ├── components/
