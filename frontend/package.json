@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "npm --prefix node_modules/DjVu.js_Project/library run build && cp node_modules/DjVu.js_Project/library/dist/djvu.js public/djvu.js"
   },
   "dependencies": {
     "DjVu.js_Project": "github:RussCoder/djvujs",
