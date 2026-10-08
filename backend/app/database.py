@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import NullPool
 
-load_dotenv(os.path.join(os.path.dirname(__file__), "../../.env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
 
 SQLALCHEMY_DATABASE_URL = os.environ.get("DATABASE_URL") or (
     "sqlite:///" + os.path.normpath(

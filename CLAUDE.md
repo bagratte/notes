@@ -23,7 +23,7 @@ cp .env.example .env          # then set DATABASE_URL
 uvicorn app.main:app --reload --port 8000
 ```
 
-`DATABASE_URL` has a default if unset: `backend/notes.db`.
+`DATABASE_URL` is read from `backend/.env` (by both the app and Alembic) or the environment; if unset it defaults to `notes.db` at the repo root.
 
 **Frontend** — from `frontend/`:
 ```sh
