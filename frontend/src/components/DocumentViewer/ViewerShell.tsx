@@ -256,7 +256,7 @@ export default function ViewerShell({
 
   return (
     <div className={css.viewer}>
-      <div className={css.toolbar}>
+      <div className={`${css.toolbar} immersive-hide`}>
         <div className={css.toolbarGroup}>
           <button className={css.navBtn} onClick={prevPage} disabled={pageNum <= 1 || loading}>‹</button>
           <input

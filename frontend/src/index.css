@@ -62,3 +62,6 @@ html, body, #root {
   background: var(--bg-app);
   color: var(--text-primary);
 }
+
+/* Immersive document reading — see src/hooks/useImmersive.ts */
+html.immersive .immersive-hide { display: none !important; }

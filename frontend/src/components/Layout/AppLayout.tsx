@@ -65,16 +65,16 @@ export default function AppLayout() {
     <div className={css.shell}>
       <Sidebar
         style={{ width, display: visible ? undefined : "none" }}
-        className={isTouch ? css.sidebarOverlay : undefined}
+        className={`${isTouch ? css.sidebarOverlay : ""} immersive-hide`}
       />
 
       {isTouch && visible && (
-        <div className={css.backdrop} onClick={toggle} />
+        <div className={`${css.backdrop} immersive-hide`} onClick={toggle} />
       )}
 
       {visible && (
         <div
-          className={css.handle}
+          className={`${css.handle} immersive-hide`}
           style={isTouch ? { position: "fixed", left: width - 22, zIndex: 101 } : undefined}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -86,7 +86,7 @@ export default function AppLayout() {
 
       {isTouch && (
         <div
-          className={css.swipeZone}
+          className={`${css.swipeZone} immersive-hide`}
           style={visible ? { zIndex: 103 } : undefined}
           onPointerDown={onSwipeDown}
           onPointerMove={onSwipeMove}
@@ -95,7 +95,7 @@ export default function AppLayout() {
         />
       )}
 
-      <button className={css.sidebarBtn} onClick={toggle} title={visible ? "Close sidebar" : "Open sidebar"}>
+      <button className={`${css.sidebarBtn} immersive-hide`} onClick={toggle} title={visible ? "Close sidebar" : "Open sidebar"}>
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <rect x="1.5" y="2.5" width="15" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
           <path d="M6.5 2.5v13" stroke="currentColor" strokeWidth="1.3" />
