@@ -314,6 +314,7 @@ export default function ViewerShell({
           canRedo={activeRedo.length > 0}
           onUndo={undoInline}
           onRedo={redoInline}
+          collapsed={phone}
         />
 
         {phone && zoomOpen && <div className={css.zoomPanel}>{zoomControls}</div>}
