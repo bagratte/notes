@@ -49,6 +49,8 @@ Each document row expands to show up to two collapsible supersections:
 
 `useDrawing` (`Canvas/useDrawing.ts`) is the custom hook that owns all pointer event handlers, stroke state, and the canvas/SVG render cycle. `DrawingCanvas` is a thin wrapper around it. `DocumentOverlay` is a separate variant that also calls `useDrawing` and adds the region drag-rectangle mode on top.
 
+**Stylus vs. scrolling in `auto` mode:** the drawing SVG keeps `touch-action: auto` in `auto` mode so finger touches scroll. Android Chrome also feeds stylus contacts through touch-action panning (and `preventDefault` on `pointerdown` doesn't stop it), so a pen stroke could intermittently turn into a scroll. `useDrawing` sets `penGestureRef` when a pen gesture starts and a non-passive native `touchstart`/`touchmove` listener on the SVG's parent cancels the pen's compat touch events. That listener is on the parent so it also covers `DocumentOverlay`'s region divs.
+
 **Hybrid Canvas2D + SVG rendering:** Completed strokes are rendered as SVG `<path>` elements (persistent, resolution-independent). The in-progress stroke (while the pen is down) renders to a `<canvas>` overlay positioned on top of the SVG — this avoids the per-frame SVG DOM mutation cost and keeps latency low. On pointer-up the canvas is cleared and the finalized stroke is added to the SVG.
 
 Strokes are stored as `[x, y, pressure][]` tuples in **natural page coordinates** (scale 1.0). The SVG `viewBox` is set to `"0 0 W H"` matching the natural size, so the browser handles scaling at any zoom. Input coordinates are converted:

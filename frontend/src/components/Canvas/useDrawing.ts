@@ -107,6 +107,11 @@ export function useDrawing({
   const strokePathCache = useRef<Map<number | StrokeData, { points: StrokeData["points"]; d: string }>>(new Map());
   const effectiveModeRef = useRef<ToolMode>(mode);
   const suppressContextMenuUntilRef = useRef(0);
+  // True while a pen gesture we handle is down. In auto mode the surface keeps
+  // `touch-action: auto` so fingers scroll, but Android Chrome also routes the stylus
+  // through touch-action panning — and preventDefault on pointerdown doesn't stop that —
+  // so the compat touch events of a pen gesture are cancelled natively below.
+  const penGestureRef = useRef(false);
 
   const colorRef = useRef(color);
   const isDarkRef = useRef(isDark);
@@ -361,6 +366,7 @@ export function useDrawing({
         (e.width > palmThresholdRef.current || e.height > palmThresholdRef.current)) return;
     if (e.button !== 0 && e.pointerType !== "pen") return;
     e.preventDefault();
+    if (e.pointerType === "pen") penGestureRef.current = true;
     if (e.pointerType === "pen" && e.button !== 0 && !(e.buttons & 32)) {
       markPenContextMenuSuppressed();
       const hw = getPenHwOverride(e);
@@ -428,6 +434,7 @@ export function useDrawing({
 
   const handlePointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     setActivePointerType(e.pointerType);
+    if (e.pointerType === "pen") penGestureRef.current = false;
     barrelHeldRef.current = null;
     reportHwOverride(getPenHwOverride(e));
     finishStroke();
@@ -435,11 +442,29 @@ export function useDrawing({
 
   const handlePointerLeave = useCallback((_e: React.PointerEvent<SVGSVGElement>) => {
     setActivePointerType(null);
+    penGestureRef.current = false;
     setEraserPos(null);
     barrelHeldRef.current = null;
     reportHwOverride(null);
     finishStroke();
   }, [finishStroke, reportHwOverride]);
+
+  // Chrome dispatches pointerdown before the compat touchstart, so the flag is already set.
+  // Attached to the SVG's parent so it also covers region divs (DocumentOverlay), whose pen
+  // gestures are transferred to the SVG. Must be non-passive; React's touch listeners are passive.
+  useEffect(() => {
+    const host = svgRef.current?.parentElement;
+    if (!host) return;
+    const onTouch = (e: TouchEvent) => {
+      if (penGestureRef.current && e.cancelable) e.preventDefault();
+    };
+    host.addEventListener("touchstart", onTouch, { passive: false });
+    host.addEventListener("touchmove", onTouch, { passive: false });
+    return () => {
+      host.removeEventListener("touchstart", onTouch);
+      host.removeEventListener("touchmove", onTouch);
+    };
+  }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (Date.now() <= suppressContextMenuUntilRef.current) {
@@ -454,6 +479,7 @@ export function useDrawing({
     if (!svg) return;
     svg.setPointerCapture(e.pointerId);
     setActivePointerType(e.pointerType);
+    if (e.pointerType === "pen") penGestureRef.current = true;
     drawing.current = true;
     const hwOverride = getPenHwOverride(e) ?? barrelHeldRef.current;
     if (hwOverride) markPenContextMenuSuppressed();
