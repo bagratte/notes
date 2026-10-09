@@ -72,6 +72,13 @@
   padding: 6px;
 }
 
+/* Phone overflow popover is too wide to open rightward from the ⋯ button */
+
+.alignRight {
+  left: auto;
+  right: 0;
+}
+
 /* Color popover — right-aligned, single row of all 8 swatches */
 
 .colorPopover {

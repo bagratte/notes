@@ -1,5 +1,5 @@
 import { type ReactElement, useState } from "react";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useMediaQuery, PHONE_QUERY } from "@/hooks/useMediaQuery";
 import type { ToolMode } from "@/types";
 import css from "./Toolbar.module.css";
 
@@ -40,21 +40,34 @@ const TOOL_TITLES: Record<ToolMode, string> = {
   "stroke-select": "Select strokes",
 };
 
-// text-select stays inline in compact mode: it is a reading tool, reached
-// constantly while looking things up, and not worth a second tap.
+// text-select stays inline in compact mode on tablets: it is a reading tool,
+// reached constantly while looking things up, and not worth a second tap.
+// Phones have no room for that, so it joins the overflow there along with
+// the stroke eraser.
 const OVERFLOW_TOOLS = new Set<ToolMode>(["hand", "pen", "highlighter", "segment-eraser", "stroke-select"]);
+const PHONE_OVERFLOW_TOOLS = new Set<ToolMode>([...OVERFLOW_TOOLS, "stroke-eraser", "text-select"]);
+const NO_OVERFLOW = new Set<ToolMode>();
 
 // Which groups collapse into popups. "document": everything collapses below
-// 912px (Surface Pro 6 portrait). "note": tools always stay inline; colours
+// 912px (Surface Pro 6 portrait) or on a phone in either orientation, with a
+// larger tool overflow on phones. "note": tools always stay inline; colours
 // collapse in portrait, and widths too on phone-width screens.
 export type ToolbarLayout = "document" | "note";
 
 function useCollapsed(layout: ToolbarLayout) {
   const narrow = useMediaQuery("(max-width: 912px)");
   const portrait = useMediaQuery("(orientation: portrait)");
-  const phone = useMediaQuery("(max-width: 600px)");
-  if (layout === "document") return { tools: narrow, colors: narrow, widths: narrow };
-  return { tools: false, colors: portrait, widths: portrait && phone };
+  const phoneWidth = useMediaQuery("(max-width: 600px)");
+  const phone = useMediaQuery(PHONE_QUERY);
+  if (layout === "document") {
+    const compact = narrow || phone;
+    return {
+      overflow: phone ? PHONE_OVERFLOW_TOOLS : compact ? OVERFLOW_TOOLS : NO_OVERFLOW,
+      colors: compact,
+      widths: compact,
+    };
+  }
+  return { overflow: NO_OVERFLOW, colors: portrait, widths: portrait && phoneWidth };
 }
 
 function AutoIcon() {
@@ -181,15 +194,11 @@ export default function Toolbar({
   const [colorOpen, setColorOpen] = useState(false);
   const [widthOpen, setWidthOpen] = useState(false);
 
-  const primaryTools = collapsed.tools
-    ? availableTools.filter((t) => !OVERFLOW_TOOLS.has(t))
-    : availableTools;
-  const overflowTools = collapsed.tools
-    ? availableTools.filter((t) => OVERFLOW_TOOLS.has(t))
-    : [];
+  const primaryTools = availableTools.filter((t) => !collapsed.overflow.has(t));
+  const overflowTools = availableTools.filter((t) => collapsed.overflow.has(t));
 
   const overflowIsActive = overflowTools.includes(tool) && !activeOverride;
-  const overflowHasOverride = activeOverride != null && OVERFLOW_TOOLS.has(activeOverride);
+  const overflowHasOverride = activeOverride != null && collapsed.overflow.has(activeOverride);
 
   function ToolBtn({ t, onSelect }: { t: ToolMode; onSelect?: () => void }) {
     const Icon = TOOL_ICONS[t];
@@ -227,7 +236,7 @@ export default function Toolbar({
             </svg>
           </button>
           {moreOpen && (
-            <div className={css.popover}>
+            <div className={`${css.popover}${collapsed.overflow === PHONE_OVERFLOW_TOOLS ? " " + css.alignRight : ""}`}>
               {overflowTools.map((t) => (
                 <ToolBtn key={t} t={t} onSelect={() => setMoreOpen(false)} />
               ))}
