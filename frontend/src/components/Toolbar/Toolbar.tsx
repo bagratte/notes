@@ -1,4 +1,5 @@
-import { type ReactElement, useState, useEffect } from "react";
+import { type ReactElement, useState } from "react";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import type { ToolMode } from "@/types";
 import css from "./Toolbar.module.css";
 
@@ -42,18 +43,6 @@ const TOOL_TITLES: Record<ToolMode, string> = {
 // text-select stays inline in compact mode: it is a reading tool, reached
 // constantly while looking things up, and not worth a second tap.
 const OVERFLOW_TOOLS = new Set<ToolMode>(["hand", "pen", "highlighter", "segment-eraser", "stroke-select"]);
-
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    setMatches(mq.matches);
-    const handle = (e: MediaQueryListEvent) => setMatches(e.matches);
-    mq.addEventListener("change", handle);
-    return () => mq.removeEventListener("change", handle);
-  }, [query]);
-  return matches;
-}
 
 // Which groups collapse into popups. "document": everything collapses below
 // 912px (Surface Pro 6 portrait). "note": tools always stay inline; colours

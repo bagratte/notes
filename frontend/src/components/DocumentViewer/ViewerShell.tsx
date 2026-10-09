@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "r
 import DocumentOverlay from "./DocumentOverlay";
 import { Toolbar } from "@/components/Toolbar";
 import { UndoRedoBar } from "@/components/UndoRedoBar";
+import { useMediaQuery, PHONE_QUERY } from "@/hooks/useMediaQuery";
 import type { UseDocumentViewerResult } from "./useDocumentViewer";
 import { toStrokeData, PAGE_GUTTER } from "./viewerTypes";
 import css from "./DocumentViewer.module.css";
@@ -46,6 +47,15 @@ function HorizontalLockIcon({ locked }: { locked: boolean }) {
       ) : (
         <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       )}
+    </svg>
+  );
+}
+
+function ZoomIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <circle cx="6.75" cy="6.75" r="4.25" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M10 10l3.5 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }
@@ -141,6 +151,8 @@ export default function ViewerShell({
   handleSync,
 }: Props) {
   const [hwOverride, setHwOverride] = useState<"stroke-eraser" | "segment-eraser" | null>(null);
+  const phone = useMediaQuery(PHONE_QUERY);
+  const [zoomOpen, setZoomOpen] = useState(false);
 
   useEffect(() => {
     if (toolMode !== "text-select") window.getSelection()?.removeAllRanges();
@@ -170,6 +182,75 @@ export default function ViewerShell({
     for (let p = 1; p <= numPages; p += 1) values.push(p);
     return values;
   }, [numPages]);
+
+  const zoomControls = (
+    <div className={css.toolbarGroup}>
+      <button className={css.zoomBtn} onClick={zoomOut} disabled={loading}>-</button>
+      {fitPopoverOpen && <div className={css.fitBackdrop} onPointerDown={() => setFitPopoverOpen(false)} />}
+      <div className={css.fitWrapper}>
+        <div className={css.zoomInputGroup}>
+          <input
+            className={css.zoomInput}
+            value={zoomInput}
+            onChange={(e) => setZoomInput(e.target.value.replace(/[^0-9.]/g, ""))}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => { if (e.key === "Enter") { handleZoomInputSubmit(); (e.target as HTMLInputElement).blur(); } }}
+            onBlur={handleZoomInputSubmit}
+            disabled={loading}
+            aria-label="Zoom percentage"
+          />
+          <span className={css.zoomPercentSign}>%</span>
+          <button
+            className={css.zoomCaretBtn}
+            onClick={() => setFitPopoverOpen((o) => !o)}
+            disabled={loading}
+            title="Zoom presets"
+          >▾</button>
+        </div>
+        {fitPopoverOpen && (
+          <div className={css.fitPopover}>
+            <button
+              className={`${css.fitPopoverItem}${fitMode === "width" ? " " + css.fitPopoverItemActive : ""}`}
+              onPointerDown={(e) => { e.stopPropagation(); setAutoFitContent(false); setFitMode("width"); setFitPopoverOpen(false); }}
+            >Fit Width</button>
+            <button
+              className={`${css.fitPopoverItem}${fitMode === "page" ? " " + css.fitPopoverItemActive : ""}`}
+              onPointerDown={(e) => { e.stopPropagation(); setAutoFitContent(false); setFitMode("page"); setFitPopoverOpen(false); }}
+            >Fit Page</button>
+            <button
+              className={`${css.fitPopoverItem}${fitMode === "manual" && manualScale === 1.0 ? " " + css.fitPopoverItemActive : ""}`}
+              onPointerDown={(e) => { e.stopPropagation(); setAutoFitContent(false); setFitMode("manual"); setManualScale(1.0); setFitPopoverOpen(false); }}
+            >Actual Size</button>
+          </div>
+        )}
+      </div>
+      <button className={css.zoomBtn} onClick={zoomIn} disabled={loading}>+</button>
+      <button
+        className={css.zoomBtn}
+        onClick={fitToContentWidth}
+        disabled={loading}
+        title="Fit to visible content width"
+      >
+        <ContentFitIcon />
+      </button>
+      <button
+        className={`${css.zoomBtn}${autoFitContent ? " " + css.active : ""}`}
+        onClick={() => setAutoFitContent((on) => !on)}
+        disabled={loading}
+        title={autoFitContent ? "Stop fitting visible content on every page" : "Fit visible content on every page"}
+      >
+        <AutoContentFitIcon />
+      </button>
+      <button
+        className={`${css.zoomBtn}${horizontalScrollLocked ? " " + css.active : ""}`}
+        onClick={() => setHorizontalScrollLocked((locked) => !locked)}
+        disabled={loading}
+        title={horizontalScrollLocked ? "Unlock horizontal scrolling" : "Lock horizontal scrolling"}
+      >
+        <HorizontalLockIcon locked={horizontalScrollLocked} />
+      </button>
+    </div>
+  );
 
   if (error) return <div className={css.state}>Failed to load {errorLabel}: {error}</div>;
 
@@ -201,72 +282,19 @@ export default function ViewerShell({
 
         <div className={css.toolbarSep} />
 
-        <div className={css.toolbarGroup}>
-          <button className={css.zoomBtn} onClick={zoomOut} disabled={loading}>-</button>
-          {fitPopoverOpen && <div className={css.fitBackdrop} onPointerDown={() => setFitPopoverOpen(false)} />}
-          <div className={css.fitWrapper}>
-            <div className={css.zoomInputGroup}>
-              <input
-                className={css.zoomInput}
-                value={zoomInput}
-                onChange={(e) => setZoomInput(e.target.value.replace(/[^0-9.]/g, ""))}
-                onFocus={(e) => e.target.select()}
-                onKeyDown={(e) => { if (e.key === "Enter") { handleZoomInputSubmit(); (e.target as HTMLInputElement).blur(); } }}
-                onBlur={handleZoomInputSubmit}
-                disabled={loading}
-                aria-label="Zoom percentage"
-              />
-              <span className={css.zoomPercentSign}>%</span>
-              <button
-                className={css.zoomCaretBtn}
-                onClick={() => setFitPopoverOpen((o) => !o)}
-                disabled={loading}
-                title="Zoom presets"
-              >▾</button>
-            </div>
-            {fitPopoverOpen && (
-              <div className={css.fitPopover}>
-                <button
-                  className={`${css.fitPopoverItem}${fitMode === "width" ? " " + css.fitPopoverItemActive : ""}`}
-                  onPointerDown={(e) => { e.stopPropagation(); setAutoFitContent(false); setFitMode("width"); setFitPopoverOpen(false); }}
-                >Fit Width</button>
-                <button
-                  className={`${css.fitPopoverItem}${fitMode === "page" ? " " + css.fitPopoverItemActive : ""}`}
-                  onPointerDown={(e) => { e.stopPropagation(); setAutoFitContent(false); setFitMode("page"); setFitPopoverOpen(false); }}
-                >Fit Page</button>
-                <button
-                  className={`${css.fitPopoverItem}${fitMode === "manual" && manualScale === 1.0 ? " " + css.fitPopoverItemActive : ""}`}
-                  onPointerDown={(e) => { e.stopPropagation(); setAutoFitContent(false); setFitMode("manual"); setManualScale(1.0); setFitPopoverOpen(false); }}
-                >Actual Size</button>
-              </div>
-            )}
+        {phone ? (
+          <div className={css.zoomAnchor}>
+            {zoomOpen && <div className={css.fitBackdrop} onPointerDown={() => setZoomOpen(false)} />}
+            <button
+              className={`${css.zoomBtn}${zoomOpen ? " " + css.active : ""}`}
+              onClick={() => setZoomOpen((o) => !o)}
+              disabled={loading}
+              title="Zoom"
+            >
+              <ZoomIcon />
+            </button>
           </div>
-          <button className={css.zoomBtn} onClick={zoomIn} disabled={loading}>+</button>
-          <button
-            className={css.zoomBtn}
-            onClick={fitToContentWidth}
-            disabled={loading}
-            title="Fit to visible content width"
-          >
-            <ContentFitIcon />
-          </button>
-          <button
-            className={`${css.zoomBtn}${autoFitContent ? " " + css.active : ""}`}
-            onClick={() => setAutoFitContent((on) => !on)}
-            disabled={loading}
-            title={autoFitContent ? "Stop fitting visible content on every page" : "Fit visible content on every page"}
-          >
-            <AutoContentFitIcon />
-          </button>
-          <button
-            className={`${css.zoomBtn}${horizontalScrollLocked ? " " + css.active : ""}`}
-            onClick={() => setHorizontalScrollLocked((locked) => !locked)}
-            disabled={loading}
-            title={horizontalScrollLocked ? "Unlock horizontal scrolling" : "Lock horizontal scrolling"}
-          >
-            <HorizontalLockIcon locked={horizontalScrollLocked} />
-          </button>
-        </div>
+        ) : zoomControls}
 
         <div className={css.toolbarSep} />
 
@@ -287,6 +315,8 @@ export default function ViewerShell({
           onUndo={undoInline}
           onRedo={redoInline}
         />
+
+        {phone && zoomOpen && <div className={css.zoomPanel}>{zoomControls}</div>}
       </div>
 
       <div

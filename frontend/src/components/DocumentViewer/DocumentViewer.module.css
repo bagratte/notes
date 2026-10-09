@@ -12,6 +12,7 @@
   background: var(--bg-header);
   border-bottom: 1px solid var(--border-soft);
   flex-shrink: 0;
+  position: relative;
 }
 
 .toolbarGroup {
@@ -112,6 +113,28 @@
 .fitWrapper {
   position: relative;
   z-index: 11;
+}
+
+/* Phone: zoom controls collapse behind a magnifier button into a panel
+   centred under the toolbar. No transform here — it would re-anchor the
+   position: fixed backdrop of the nested Fit popover. */
+.zoomAnchor {
+  position: relative;
+}
+
+.zoomPanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  width: fit-content;
+  margin: 0 auto;
+  z-index: 11;
+  padding: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
 }
 
 .fitBackdrop {
