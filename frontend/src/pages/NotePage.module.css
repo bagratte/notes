@@ -1,0 +1,27 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 24px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg-header);
+  position: sticky;
+  top: 50px;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.body {
+  padding: 24px;
+  padding-bottom: 80vh;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  flex: 1;
+}
+
+/* Phone (Moto G Stylus): reclaim horizontal space so the toolbar fits in one row */
+@media (max-width: 600px) {
+  .toolbar { padding: 6px 12px; }
+  .body { padding: 12px; padding-bottom: 80vh; }
+}

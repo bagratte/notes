@@ -8,6 +8,7 @@ import { Toolbar, DEFAULT_PEN } from "@/components/Toolbar";
 import type { PenSettings } from "@/components/Toolbar";
 import { UndoRedoBar } from "@/components/UndoRedoBar";
 import type { Note, ToolMode } from "@/types";
+import css from "./NotePage.module.css";
 
 export default function NotePage() {
   const { noteId } = useParams<{ noteId: string }>();
@@ -87,7 +88,7 @@ export default function NotePage() {
         }
       />
 
-      <div style={styles.toolbar}>
+      <div className={css.toolbar}>
         <Toolbar
           settings={pen}
           onChange={setPen}
@@ -95,7 +96,7 @@ export default function NotePage() {
           onToolChange={setTool}
           availableTools={["auto", "hand", "pen", "highlighter", "stroke-eraser", "segment-eraser", "stroke-select"]}
           activeOverride={hwOverride}
-          disableCompact
+          layout="note"
         />
         <div style={{ width: 1, height: 18, background: "var(--border)", flexShrink: 0 }} />
         <UndoRedoBar
@@ -106,7 +107,7 @@ export default function NotePage() {
         />
       </div>
 
-      <div style={styles.body}>
+      <div className={css.body}>
         <NoteEditor
           ref={editorRef}
           noteId={note.id}
@@ -125,26 +126,6 @@ const styles = {
     minHeight: "100%",
     display: "flex" as const,
     flexDirection: "column" as const,
-  },
-  toolbar: {
-    display: "flex" as const,
-    alignItems: "center" as const,
-    gap: 6,
-    padding: "6px 24px",
-    borderBottom: "1px solid var(--border-soft)",
-    background: "var(--bg-header)",
-    position: "sticky" as const,
-    top: 50,
-    zIndex: 1,
-    flexShrink: 0,
-  },
-  body: {
-    padding: "24px 24px",
-    paddingBottom: "80vh",
-    maxWidth: 860,
-    width: "100%",
-    margin: "0 auto",
-    flex: 1,
   },
   centered: {
     height: "100%",

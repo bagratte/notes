@@ -43,17 +43,29 @@ const TOOL_TITLES: Record<ToolMode, string> = {
 // constantly while looking things up, and not worth a second tap.
 const OVERFLOW_TOOLS = new Set<ToolMode>(["hand", "pen", "highlighter", "segment-eraser", "stroke-select"]);
 
-function useCompact(): boolean {
-  const [compact, setCompact] = useState(
-    () => window.matchMedia("(max-width: 912px)").matches
-  );
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 912px)");
-    const handle = (e: MediaQueryListEvent) => setCompact(e.matches);
+    const mq = window.matchMedia(query);
+    setMatches(mq.matches);
+    const handle = (e: MediaQueryListEvent) => setMatches(e.matches);
     mq.addEventListener("change", handle);
     return () => mq.removeEventListener("change", handle);
-  }, []);
-  return compact;
+  }, [query]);
+  return matches;
+}
+
+// Which groups collapse into popups. "document": everything collapses below
+// 912px (Surface Pro 6 portrait). "note": tools always stay inline; colours
+// collapse in portrait, and widths too on phone-width screens.
+export type ToolbarLayout = "document" | "note";
+
+function useCollapsed(layout: ToolbarLayout) {
+  const narrow = useMediaQuery("(max-width: 912px)");
+  const portrait = useMediaQuery("(orientation: portrait)");
+  const phone = useMediaQuery("(max-width: 600px)");
+  if (layout === "document") return { tools: narrow, colors: narrow, widths: narrow };
+  return { tools: false, colors: portrait, widths: portrait && phone };
 }
 
 function AutoIcon() {
@@ -162,7 +174,7 @@ interface Props {
   onToolChange: (t: ToolMode) => void;
   availableTools: ToolMode[];
   activeOverride?: "stroke-eraser" | "segment-eraser" | null;
-  disableCompact?: boolean;
+  layout?: ToolbarLayout;
 }
 
 export default function Toolbar({
@@ -172,18 +184,18 @@ export default function Toolbar({
   onToolChange,
   availableTools,
   activeOverride = null,
-  disableCompact = false,
+  layout = "document",
 }: Props) {
-  const compact = useCompact() && !disableCompact;
+  const collapsed = useCollapsed(layout);
   const showPenSettings = availableTools.includes("pen") || availableTools.includes("highlighter");
   const [moreOpen, setMoreOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [widthOpen, setWidthOpen] = useState(false);
 
-  const primaryTools = compact
+  const primaryTools = collapsed.tools
     ? availableTools.filter((t) => !OVERFLOW_TOOLS.has(t))
     : availableTools;
-  const overflowTools = compact
+  const overflowTools = collapsed.tools
     ? availableTools.filter((t) => OVERFLOW_TOOLS.has(t))
     : [];
 
@@ -211,7 +223,7 @@ export default function Toolbar({
     <div className={css.toolbar}>
       {primaryTools.map((t) => <ToolBtn key={t} t={t} />)}
 
-      {compact && overflowTools.length > 0 && (
+      {overflowTools.length > 0 && (
         <div className={css.popoverAnchor}>
           {moreOpen && (
             <div className={css.popoverBackdrop} onPointerDown={() => setMoreOpen(false)} />
@@ -239,17 +251,45 @@ export default function Toolbar({
         <>
           <div className={css.sep} />
 
-          {!compact && (
+          {!collapsed.colors && COLORS.map(({ value, label }) => (
+            <button
+              key={value}
+              className={`${css.colorBtn}${settings.color === value ? " " + css.active : ""}`}
+              style={{ background: value }}
+              title={label}
+              onClick={() => onChange({ ...settings, color: value })}
+            />
+          ))}
+
+          {collapsed.colors && (
+            <div className={css.popoverAnchor}>
+              {colorOpen && (
+                <div className={css.popoverBackdrop} onPointerDown={() => setColorOpen(false)} />
+              )}
+              <button
+                className={`${css.colorBtn} ${css.active}`}
+                style={{ background: settings.color }}
+                title="Pen color"
+                onClick={() => { setColorOpen((o) => !o); setWidthOpen(false); setMoreOpen(false); }}
+              />
+              {colorOpen && (
+                <div className={`${css.popover} ${css.colorPopover}`}>
+                  {COLORS.map(({ value, label }) => (
+                    <button
+                      key={value}
+                      className={`${css.colorBtn}${settings.color === value ? " " + css.active : ""}`}
+                      style={{ background: value }}
+                      title={label}
+                      onClick={() => onChange({ ...settings, color: value })}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!collapsed.widths && (
             <>
-              {COLORS.map(({ value, label }) => (
-                <button
-                  key={value}
-                  className={`${css.colorBtn}${settings.color === value ? " " + css.active : ""}`}
-                  style={{ background: value }}
-                  title={label}
-                  onClick={() => onChange({ ...settings, color: value })}
-                />
-              ))}
               <div className={css.sep} />
               {WIDTHS.map(({ value, label }) => (
                 <button
@@ -266,63 +306,37 @@ export default function Toolbar({
             </>
           )}
 
-          {compact && (
-            <>
-              <div className={css.popoverAnchor}>
-                {colorOpen && (
-                  <div className={css.popoverBackdrop} onPointerDown={() => setColorOpen(false)} />
-                )}
-                <button
-                  className={`${css.colorBtn} ${css.active}`}
-                  style={{ background: settings.color }}
-                  title="Pen color"
-                  onClick={() => { setColorOpen((o) => !o); setWidthOpen(false); setMoreOpen(false); }}
-                />
-                {colorOpen && (
-                  <div className={`${css.popover} ${css.colorPopover}`}>
-                    {COLORS.map(({ value, label }) => (
-                      <button
-                        key={value}
-                        className={`${css.colorBtn}${settings.color === value ? " " + css.active : ""}`}
-                        style={{ background: value }}
-                        title={label}
-                        onClick={() => onChange({ ...settings, color: value })}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className={css.popoverAnchor}>
-                {widthOpen && (
-                  <div className={css.popoverBackdrop} onPointerDown={() => setWidthOpen(false)} />
-                )}
-                <button
-                  className={`${css.toolBtn} ${css.active}`}
-                  title="Pen width"
-                  onClick={() => { setWidthOpen((o) => !o); setColorOpen(false); setMoreOpen(false); }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 14 14">
-                    <circle cx="7" cy="7" r={settings.width} fill="currentColor"/>
-                  </svg>
-                </button>
-                {widthOpen && (
-                  <div className={`${css.popover} ${css.widthPopover}`}>
-                    {WIDTHS.map(({ value, label }) => (
-                      <button
-                        key={value}
-                        className={`${css.toolBtn}${settings.width === value ? " " + css.active : ""}`}
-                        title={label}
-                        onClick={() => onChange({ ...settings, width: value })}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 14 14">
-                          <circle cx="7" cy="7" r={value} fill="currentColor"/>
-                        </svg>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
+          {collapsed.widths && (
+            <div className={css.popoverAnchor}>
+              {widthOpen && (
+                <div className={css.popoverBackdrop} onPointerDown={() => setWidthOpen(false)} />
+              )}
+              <button
+                className={`${css.toolBtn} ${css.active}`}
+                title="Pen width"
+                onClick={() => { setWidthOpen((o) => !o); setColorOpen(false); setMoreOpen(false); }}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14">
+                  <circle cx="7" cy="7" r={settings.width} fill="currentColor"/>
+                </svg>
+              </button>
+              {widthOpen && (
+                <div className={`${css.popover} ${css.widthPopover}`}>
+                  {WIDTHS.map(({ value, label }) => (
+                    <button
+                      key={value}
+                      className={`${css.toolBtn}${settings.width === value ? " " + css.active : ""}`}
+                      title={label}
+                      onClick={() => onChange({ ...settings, width: value })}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14">
+                        <circle cx="7" cy="7" r={value} fill="currentColor"/>
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </>
       )}
